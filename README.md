@@ -1,6 +1,6 @@
 # DataMays
 
-#### _datamays.com is a personal website showcasing my data-driven programming projects_
+_[datamays.com](https://www.datamays.com/) is a personal website showcasing my data-driven programming projects_
 
 ## Tech Stack
 
@@ -15,3 +15,7 @@
 | [Prefect](https://www.prefect.io/)                                     | Workflow Orchestration |
 | [Python](https://www.python.org/)                                      | Primary Language       |
 | [Spotify Web API](https://developer.spotify.com/documentation/web-api) | Spotify URLs           |
+
+## Billboard Stats
+
+_[Billboard Stats](https://www.datamays.com/billboardstats/) is a searchable set of charts on data from the Billboard Hot 100_
