@@ -29,7 +29,7 @@ if WORKING_ENV == 'dev':
     ALLOWED_HOSTS = [
         'www.datamays.com',
         'datamays.com',
-        'datamays.herokuapp.com',
+        'datamays-ba2d010703db.herokuapp.com',
         '.localhost',
         '127.0.0.1',
         '[::1]'
