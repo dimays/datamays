@@ -38,7 +38,7 @@ else:
     ALLOWED_HOSTS = [
         'www.datamays.com',
         'datamays.com',
-        'datamays.herokuapp.com'
+        'datamays-ba2d010703db.herokuapp.com'
     ]
 
 INSTALLED_APPS = [
