@@ -9,7 +9,6 @@ class StaticViewSitemap(sitemaps.Sitemap):
     def items(self):
         items_list = [
             "home",
-            "billboardstats-home",
             "billboardstats-weekly-chart",
             "billboardstats-song-stats",
             "billboardstats-artist-stats",
