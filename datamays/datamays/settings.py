@@ -10,27 +10,44 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import os
+import dj_database_url
 from pathlib import Path
+from distutils.util import strtobool
+from dotenv import load_dotenv
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+load_dotenv()
+
+SITE_ID = 1
 BASE_DIR = Path(__file__).resolve().parent.parent
+DATABASE_URL = os.getenv('DATABASE_URL')
+SECRET_KEY = os.getenv('SECRET_KEY')
+DEBUG = strtobool(os.getenv('DEBUG_FLAG'))
+WORKING_ENV = os.getenv('WORKING_ENV').lower()
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-qgqxzio6ew8fi74fqeexmn$=aehfzw30#)ygufx+81=8a@4iej'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
-
-
-# Application definition
+if WORKING_ENV == 'dev':
+    ALLOWED_HOSTS = [
+        'www.datamays.com',
+        'datamays.com',
+        'datamays.herokuapp.com',
+        '.localhost',
+        '127.0.0.1',
+        '[::1]'
+    ]
+else:
+    ALLOWED_HOSTS = [
+        'www.datamays.com',
+        'datamays.com',
+        'datamays.herokuapp.com'
+    ]
 
 INSTALLED_APPS = [
+    'bio',
+    'billboardstats',
+    'crispy_forms',
+    'crispy_bootstrap5',
+    'django.contrib.sites',
+    'django.contrib.sitemaps',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -41,12 +58,14 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'datamays.middleware.heroku_redirect_middleware.HerokuRedirectMiddleware'
 ]
 
 ROOT_URLCONF = 'datamays.urls'
@@ -54,7 +73,10 @@ ROOT_URLCONF = 'datamays.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [
+            BASE_DIR / 'bio' / 'templates',
+            BASE_DIR / 'billboardstats' / 'templates',
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -69,20 +91,19 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'datamays.wsgi.application'
 
+# Use postgres DATABASE_URL if provided, otherwise use default sqlite3 database
+db_from_env = dj_database_url.config(default=DATABASE_URL)
 
-# Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+if db_from_env:
+    DATABASES = {'default': db_from_env}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        }
     }
-}
-
-
-# Password validation
-# https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
+    print("No valid DATABASE_URL found. Falling back to local SQLite database.")
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -99,10 +120,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
-# Internationalization
-# https://docs.djangoproject.com/en/4.2/topics/i18n/
-
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
@@ -111,13 +128,21 @@ USE_I18N = True
 
 USE_TZ = True
 
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/4.2/howto/static-files/
-
 STATIC_URL = 'static/'
-
-# Default primary key field type
-# https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [BASE_DIR / 'static']
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+CRISPY_ALLOWED_TEMPLATE_PACKS = 'bootstrap5'
+CRISPY_TEMPLATE_PACK = 'bootstrap5'
+
+if WORKING_ENV == 'dev':
+    SECURE_SSL_REDIRECT = False
+else:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+
+if WORKING_ENV == 'dev':
+    REDIRECT_DOMAIN = 'http://localhost:8000/'
+else:
+    REDIRECT_DOMAIN = 'https://www.datamays.com/'
