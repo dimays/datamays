@@ -1,1 +1,30 @@
-<h2>Hello, world</h2>
+{% extends 'bio/base.html' %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-4 text-center">
+            <img src="path/to/your/image.jpg" alt="Your Name" class="img-fluid rounded-circle">
+        </div>
+        <div class="col-md-8">
+            <h1>Your Name</h1>
+            <p>Welcome to my portfolio! I am a data engineer and analyst with expertise in [your skills]. Below you can find some of the projects I've been working on.</p>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Billboard Stats</h5>
+                    <p class="card-text">Explore various charts and metrics related to artists and songs on the Billboard Hot 100.</p>
+                    <a href="{% url 'billboardstats:home' %}" class="btn btn-primary">View Project</a>
+                </div>
+            </div>
+        </div>
+        <!-- Add more project cards here -->
+    </div>
+</div>
+{% endblock %}
