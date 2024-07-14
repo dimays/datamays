@@ -16,7 +16,6 @@ _[datamays.com](https://www.datamays.com/) is a personal website showcasing my d
 | [Heroku](https://www.heroku.com/platform)                                      | App Deployment            |
 | [Prefect](https://www.prefect.io/)                                             | Workflow Orchestration    |
 | [Python](https://www.python.org/)                                              | App Logic & Scripting     |
-| [Spotify Web API](https://developer.spotify.com/documentation/web-api)         | Spotify URLs              |
 
 ## Billboard Stats
 
