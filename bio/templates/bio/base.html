@@ -17,7 +17,7 @@
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
         <div class="container-fluid">
-            <a class="navbar-brand" href="{% url 'bio:home' %}">My Portfolio</a>
+            <a class="navbar-brand" href="{% url 'bio:home' %}">David Mays</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -27,17 +27,23 @@
                         <a class="nav-link" href="{% url 'bio:home' %}">Home</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="https://www.linkedin.com/in/maysidavid/">LinkedIn</a>
+                        <a class="nav-link" href="https://www.linkedin.com/in/maysidavid/" target="_blank">LinkedIn</a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'billboardstats:home' %}">Billboard Stats</a>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Projects
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdownMenuLink">
+                            <li><a class="dropdown-item" href="{% url 'billboardstats:home' %}" target="_blank">Billboard Stats</a></li>
+                            <li><a class="dropdown-item" href="https://www.visualiching.com" target="_blank">Visual I Ching</a></li>
+                            <li><a class="dropdown-item" href="https://www.github.com/dimays/ategpt" target="_blank">ATE-GPT</a></li>
+                            <li><a class="dropdown-item" href="https://www.github.com/dimays/chunkgpt" target="_blank">ChunkGPT</a></li>
+                        </ul>
                     </li>
-                    <!-- Add more project links here -->
                 </ul>
             </div>
         </div>
     </nav>
-
     <!-- Main content -->
     <div class="container">
         {% block content %}

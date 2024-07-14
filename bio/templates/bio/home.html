@@ -1,30 +1,61 @@
 {% extends 'bio/base.html' %}
+{% load static %}
 
 {% block title %}Home{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
+<div class="container my-5">
     <div class="row">
         <div class="col-md-4 text-center">
-            <img src="path/to/your/image.jpg" alt="Your Name" class="img-fluid rounded-circle">
+            <img src="{% static 'bio/img/Headshot.jpg' %}" alt="David Mays" class="img-fluid rounded-circle">
         </div>
-        <div class="col-md-8">
-            <h1>Your Name</h1>
-            <p>Welcome to my portfolio! I am a data engineer and analyst with expertise in [your skills]. Below you can find some of the projects I've been working on.</p>
+        <div class="col-md-8 my-4">
+            <h1>David Mays</h1>
+            <p>Welcome to my portfolio!<br><br>I am a data professional with five years of experience in strategic data modeling, ETL, analysis, and stakeholder management with a special interest in data engineering & architecture.<br><br>Below you can find some of the projects I've been working on.</p>
         </div>
     </div>
 
     <div class="row mt-4">
-        <div class="col-md-6">
+        <div class="col-md-6 mb-4">
             <div class="card">
+                <img src="{% static 'bio/img/billboardstats_screenshot.png' %}" class="card-img-top border-bottom" alt="Billboard Stats Screenshot">
                 <div class="card-body">
                     <h5 class="card-title">Billboard Stats</h5>
                     <p class="card-text">Explore various charts and metrics related to artists and songs on the Billboard Hot 100.</p>
-                    <a href="{% url 'billboardstats:home' %}" class="btn btn-primary">View Project</a>
+                    <a href="{% url 'billboardstats:home' %}" class="btn btn-primary w-100">View Project</a>
                 </div>
             </div>
         </div>
-        <!-- Add more project cards here -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <img src="{% static 'bio/img/visualiching_screenshot.png' %}" class="card-img-top border-bottom" alt="Visual I Ching Screenshot">
+                <div class="card-body">
+                    <h5 class="card-title">Visual I Ching</h5>
+                    <p class="card-text">Virtually toss coins and get an AI-powered interpretation of your I Ching reading alongside original watercolors.</p>
+                    <a href="https://www.visualiching.com/" class="btn btn-primary w-100" target="_blank">View Project</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <img src="{% static 'bio/img/ategpt_logo.png' %}" class="card-img-top border-bottom" alt="ATE-GPT Logo">
+                <div class="card-body">
+                    <h5 class="card-title">ATE-GPT</h5>
+                    <p class="card-text">ATE-GPT ('Ask, Think, Evaluate') is a lightweight module for guiding an LLM through a comprehensive thought process on any subject.</p>
+                    <a href="https://github.com/dimays/ategpt" class="btn btn-primary w-100" target="_blank">View Project</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <img src="{% static 'bio/img/chunkgpt_logo.png' %}" class="card-img-top border-bottom" alt="ChunkGPT Logo">
+                <div class="card-body">
+                    <h5 class="card-title">ChunkGPT</h5>
+                    <p class="card-text">ChunkGPT is a lightweight Python library designed to summarize long prompts that exceed the token limit of OpenAI's GPT models.</p>
+                    <a href="https://github.com/dimays/ategpt" class="btn btn-primary w-100" target="_blank">View Project</a>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
