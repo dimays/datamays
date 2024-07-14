@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>{% block title %}BillboardStats{% endblock %}</title>
+    {% load static %}
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="{% static 'billboardstats/css/style.css' %}" rel="stylesheet">
+    <link rel="icon" href="{% static 'billboardstats/img/billboardstats_favicon.ico' %}" type="image/x-icon">
+    <style>
+        .bd-placeholder-img {
+          font-size: 1.125rem;
+          text-anchor: middle;
+          -webkit-user-select: none;
+          -moz-user-select: none;
+          user-select: none;
+        }
+  
+        @media (min-width: 768px) {
+          .bd-placeholder-img-lg {
+            font-size: 3.5rem;
+          }
+        }
+      </style>
+</head>
+<body class="bg-light">
+    <main>
+        <div class="bs-sidebar d-flex flex-column flex-shrink-0 p-3" style="width: 250px;">
+            <a href="{% url 'billboardstats:home' %}" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-white text-decoration-none">
+                <img src="{% static 'billboardstats/img/billboardstats_logo_xs.png' %}" alt="David Mays" class="img-fluid rounded-circle">
+                <h4 class="mx-3 my-auto">BillboardStats</h4>
+            </a>
+            <hr>
+            <ul class="nav nav-pills flex-column mb-auto">
+                <li>
+                    <a href="#" class="nav-link text-white my-2">
+                        <img src="{% static 'billboardstats/img/song_icon.png' %}" class="img-fluid mx-3">
+                        Songs
+                    </a>
+                </li>
+                <li>
+                    <a href="#" class="nav-link text-white my-2">
+                        <img src="{% static 'billboardstats/img/artist_icon.png' %}" class="img-fluid mx-3">
+                        Artists
+                    </a>
+                </li>
+                <li>
+                    <a href="#" class="nav-link text-white my-2">
+                        <img src="{% static 'billboardstats/img/billboardstats_about.png' %}" class="img-fluid mx-3">
+                        About
+                    </a>
+                </li>
+            </ul>
+            <hr>
+            <div class="dropdown">
+                <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" id="dropdownUser1" data-bs-toggle="dropdown" aria-expanded="false">
+                    <img src="{% static 'bio/img/Headshot.jpg' %}" alt="" width="32" height="32" class="rounded-circle me-2">
+                    <strong>David Mays</strong>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-dark text-small shadow" aria-labelledby="dropdownUser1">
+                    <li><a class="dropdown-item" href="https://www.github.com/dimays/" target="_blank">Github</a></li>
+                    <li><a class="dropdown-item" href="https://www.linkedin.com/in/maysidavid/" target="_blank">LinkedIn</a></li>
+                    <li><a class="dropdown-item" href="{% url 'bio:home' %}" target="_blank">Portfolio</a></li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="b-example-divider"></div>
+
+        <div class="d-flex flex-fill flex-shrink-0 p-3 bg-light">
+            <div class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                {% block content %}
+                {% endblock %}
+            </div>
+        </div>
+    </main>
+    <!-- Bootstrap core JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
