@@ -14,7 +14,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     pkg-config \
     python3-distutils \
+    python3-venv \
     && rm -rf /var/lib/apt/lists/*
+
+# -----------------------------
+# Ensure pip + setuptools + wheel are up-to-date
+# -----------------------------
+RUN python -m ensurepip --upgrade
+RUN python -m pip install --upgrade pip setuptools wheel
 
 # -----------------------------
 # Node.js LTS for Tailwind / frontend builds
