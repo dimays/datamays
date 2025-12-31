@@ -1,0 +1,16 @@
+[project]
+name = "datamays"
+version = "0.1.0"
+description = "Personal portfolio and data engineering showcase site"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+
+dependencies = [
+  "django>=5,<6",
+  # To-do: Enable dbt
+  # "dbt-core>=1.11,<1.12",
+]
+
+[tool.uv]
+# Ensures venv is stored locally
+venv = ".venv"
