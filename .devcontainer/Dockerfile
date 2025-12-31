@@ -7,6 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Core tools
 # -----------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
     curl \
     git \
     build-essential \

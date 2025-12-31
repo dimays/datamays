@@ -18,7 +18,19 @@
         "bradlc.vscode-tailwindcss",
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode"
-      ]
+      ],
+      "settings": {
+        // Set Bash as the default integrated terminal profile
+        "terminal.integrated.defaultProfile.linux": "bash",
+
+        // Explicitly define Bash in the profile map (optional but useful)
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "/bin/bash",
+            "args": []
+          }
+        }
+      }
     }
   },
 
