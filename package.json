@@ -1,0 +1,13 @@
+{
+  "name": "datamays-site",
+  "private": true,
+  "devDependencies": {
+    "tailwindcss": "^3.4.14",
+    "postcss": "^8.4.35",
+    "autoprefixer": "^10.4.20"
+  },
+  "scripts": {
+    "tailwind:build": "postcss assets/css/input.css -o static/css/tailwind.css",
+    "tailwind:watch": "postcss assets/css/input.css -o static/css/tailwind.css --watch"
+  }
+}
