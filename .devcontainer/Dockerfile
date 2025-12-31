@@ -1,11 +1,13 @@
-# Use official Python 3.12 slim image
-FROM python:3.12-slim-bookworm
+# Use official Python 3.11 slim image
+FROM python:3.11-slim-bookworm
 
-ENV DEBIAN_FRONTEND=noninteractive
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PATH="/.venv/bin:$PATH" \
+    SHELL=/bin/bash
 
-# -----------------------------
-# Core tools
-# -----------------------------
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     curl \
@@ -13,38 +15,33 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     ca-certificates \
     pkg-config \
-    python3-distutils \
     python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
-# -----------------------------
-# Ensure pip + setuptools + wheel are up-to-date
-# -----------------------------
-RUN python -m ensurepip --upgrade
-RUN python -m pip install --upgrade pip setuptools wheel
-
-# -----------------------------
-# Node.js LTS for Tailwind / frontend builds
-# -----------------------------
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
-
-# -----------------------------
-# Install uv system-wide
-# -----------------------------
-ENV UV_INSTALL_DIR=/usr/local/bin
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# -----------------------------
-# Create non-root dev user
-# -----------------------------
-ARG USERNAME=vscode
-ARG USER_UID=1000
-ARG USER_GID=$USER_UID
-
-RUN groupadd --gid $USER_GID $USERNAME \
-    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME
-
-USER $USERNAME
+# Set working directory
 WORKDIR /workspace
+
+# Copy dependency files to leverage Docker cache
+COPY pyproject.toml uv.lock ./
+
+# Install uv globally and create venv for the project
+RUN python -m ensurepip --upgrade \
+    && python -m pip install --upgrade pip setuptools wheel \
+    && pip install uv
+
+# Copy the rest of the repo
+COPY . .
+
+# Install Node LTS for Tailwind
+RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install --global npm
+
+# Default shell to bash
+SHELL ["/bin/bash", "-c"]
+
+# Expose Django and Tailwind dev ports
+EXPOSE 8000 3000
+
+# Default entrypoint (optional)
+CMD ["bash"]
