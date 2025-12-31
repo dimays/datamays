@@ -16,26 +16,35 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     pkg-config \
     python3-venv \
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+# Create vscode user with passwordless sudo
+RUN useradd -m vscode \
+    && echo "vscode ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/vscode \
+    && chmod 0440 /etc/sudoers.d/vscode
+
+# Switch to vscode user for remainder of build where appropriate
+USER vscode
 WORKDIR /workspace
 
-# Copy dependency files to leverage Docker cache
-COPY pyproject.toml uv.lock ./
+# Copy dependency files
+COPY --chown=vscode:vscode pyproject.toml uv.lock ./
 
-# Install uv globally and create venv for the project
+# Install uv globally into user environment
 RUN python -m ensurepip --upgrade \
     && python -m pip install --upgrade pip setuptools wheel \
-    && pip install uv
+    && pip install --user uv
 
 # Copy the rest of the repo
-COPY . .
+COPY --chown=vscode:vscode . .
 
 # Install Node LTS for Tailwind
+USER root
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
     && apt-get install -y nodejs \
     && npm install --global npm
+USER vscode
 
 # Default shell to bash
 SHELL ["/bin/bash", "-c"]
@@ -43,5 +52,5 @@ SHELL ["/bin/bash", "-c"]
 # Expose Django and Tailwind dev ports
 EXPOSE 8000 3000
 
-# Default entrypoint (optional)
+# Default entrypoint
 CMD ["bash"]
