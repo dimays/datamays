@@ -26,6 +26,9 @@ dependencies = [
 
     # Serve static files efficiently
     "whitenoise>=6.9,<7.0",
+
+    # Convenient database URL config for Django
+    "dj-database-url>=2.2,<3.0",
 ]
 
 [tool.uv]
