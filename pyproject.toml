@@ -3,7 +3,7 @@ name = "datamays"
 version = "0.1.0"
 description = "Personal portfolio and data engineering showcase site"
 readme = "README.md"
-requires-python = ">=3.12,<3.14"
+requires-python = ">=3.11,<3.12"
 
 dependencies = [
     "Django>=6.0,<7.0",
@@ -17,4 +17,3 @@ dependencies = [
 ]
 
 [tool.uv]
-venv = ".venv"
