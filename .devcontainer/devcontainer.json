@@ -10,6 +10,10 @@
   "forwardPorts": [8000, 3000],
   "postCreateCommand": "bash .devcontainer/post-create.sh",
 
+  "containerEnv": {
+    "UV_VENV": "/workspace/.venv"
+  },
+
   "customizations": {
     "vscode": {
       "extensions": [

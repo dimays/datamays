@@ -1,7 +1,7 @@
-# Use official Python 3.11 slim image
-FROM python:3.11-slim-bookworm
+# Use Python 3.12 slim
+FROM python:3.12-slim-bookworm
 
-# Set environment variables
+# Environment variables
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PATH="/.venv/bin:$PATH" \
@@ -28,10 +28,10 @@ RUN useradd -m vscode \
 USER vscode
 WORKDIR /workspace
 
-# Copy dependency files
+# Copy dependency files for caching
 COPY --chown=vscode:vscode pyproject.toml uv.lock ./
 
-# Install uv globally into user environment
+# Install uv globally
 RUN python -m ensurepip --upgrade \
     && python -m pip install --upgrade pip setuptools wheel \
     && pip install --user uv
@@ -39,14 +39,14 @@ RUN python -m ensurepip --upgrade \
 # Copy the rest of the repo
 COPY --chown=vscode:vscode . .
 
-# Install Node LTS for Tailwind
+# Node LTS for Tailwind
 USER root
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
     && apt-get install -y nodejs \
     && npm install --global npm
 USER vscode
 
-# Default shell to bash
+# Default shell
 SHELL ["/bin/bash", "-c"]
 
 # Expose Django and Tailwind dev ports
