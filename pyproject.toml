@@ -3,14 +3,30 @@ name = "datamays"
 version = "0.1.0"
 description = "Personal portfolio and data engineering showcase site"
 readme = "README.md"
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.12,<3.14"
 
 dependencies = [
-  "django>=5,<6",
-  # To-do: Enable dbt
-  # "dbt-core>=1.11,<1.12",
+    # Django 6 series
+    "Django>=6.0,<7.0",
+
+    # Database adapter
+    "psycopg[binary]>=3.3,<4.0",
+
+    # WSGI server
+    "gunicorn>=23.0,<24.0",
+
+    # Environment variable loader
+    "python-dotenv>=1.2,<2.0",
+
+    # Parsing SQL strings (Django dependency)
+    "sqlparse>=0.5.4,<1.0",
+
+    # Backports of typing features
+    "typing-extensions>=4.15,<5.0",
+
+    # Serve static files efficiently
+    "whitenoise>=6.9,<7.0",
 ]
 
 [tool.uv]
-# Ensures venv is stored locally
 venv = ".venv"
