@@ -7,7 +7,7 @@
     "autoprefixer": "^10.4.20"
   },
   "scripts": {
-    "tailwind:build": "postcss assets/css/input.css -o static/css/tailwind.css",
-    "tailwind:watch": "postcss assets/css/input.css -o static/css/tailwind.css --watch"
+    "tailwind:build": "npx postcss assets/css/input.css -o static/css/tailwind.css",
+    "tailwind:watch": "npx postcss assets/css/input.css -o static/css/tailwind.css --watch"
   }
 }
