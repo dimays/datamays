@@ -7,7 +7,7 @@
     "@tailwindcss/typography": "*"
   },
   "scripts": {
-    "tailwind:build": "npx tailwindcss assets/css/input.css -o static/css/tailwind.css",
+    "tailwind:build": "npx tailwindcss -i assets/css/input.css -o static/css/tailwind.css",
     "tailwind:watch": "npx tailwindcss -i assets/css/input.css -o static/css/tailwind.css --watch"
 
   }
