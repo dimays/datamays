@@ -1,0 +1,14 @@
+{
+  "name": "datamays-site",
+  "private": true,
+  "devDependencies": {
+    "tailwindcss": "^3.4.14",
+    "@tailwindcss/forms": "*",
+    "@tailwindcss/typography": "*"
+  },
+  "scripts": {
+    "tailwind:build": "npx tailwindcss -i assets/css/input.css -o static/css/tailwind.css",
+    "tailwind:watch": "npx tailwindcss -i assets/css/input.css -o static/css/tailwind.css --watch"
+
+  }
+}
