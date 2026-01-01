@@ -3,6 +3,7 @@ module.exports = {
   content: [
     './templates/**/*.html',      // Django templates
     './**/templates/**/*.html',   // any app templates
+    "./core/**/*.py",             // any Python files in core app
     './assets/js/**/*.js',        // any JS files using Tailwind
     './assets/js/**/*.jsx',       // optional, if React/JSX is used
   ],
