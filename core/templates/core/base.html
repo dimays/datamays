@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{% block title %}datamays{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  {% load static %}
+  <link href="{% static 'css/tailwind.css' %}" rel="stylesheet" />
+  <link rel="icon" type="image/x-icon" href="{% static 'img/favicon.ico' %}">
+</head>
+
+<body class="bg-background text-text-primary font-sans antialiased">
+  {% include 'core/partials/navbar.html' %}
+
+  <main class="pt-24">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% include 'core/partials/footer.html' %}
+</body>
+</html>
