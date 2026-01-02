@@ -1,0 +1,159 @@
+{% extends "core/base.html" %}
+{% block title %}Design System & Style Guide — datamays{% endblock %}
+
+{% block content %}
+
+<section class="max-w-7xl mx-auto px-6 md:px-10 py-20">
+  <header class="mb-12">
+    <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight mb-4">
+      Design System & Style Guide
+    </h1>
+
+    <p class="text-text-secondary max-w-3xl leading-relaxed">
+      This page documents the visual language, UI components, and design principles used across datamays.com.
+      It serves two purposes: as a working development reference for me, and as a transparent look into how
+      this site is built with intention, structure, and care.
+    </p>
+  </header>
+
+  <!-- Philosophy -->
+  <section class="mb-20">
+    <h2 class="text-2xl font-bold mb-3">Design Philosophy</h2>
+    <p class="text-text-secondary max-w-3xl leading-relaxed">
+      My goal for this site is to balance professionalism with personality. I want it to feel credible and
+      product-ready, while still representing me as a human who enjoys building thoughtful systems. I'm not
+      attempting to highlight any skills in frontend design, so I outsourced a lot of the decision-making
+      to ChatGPT and Gemini. The design leans modern and minimal, driven by reusable components, semantic
+      color tokens, and clear hierarchy.
+    </p>
+  </section>
+
+  <!-- Colors -->
+  <section class="mb-20">
+    <h2 class="text-2xl font-bold mb-4">Color System</h2>
+    <p class="text-text-secondary mb-8 max-w-2xl">
+      Colors are defined semantically rather than aesthetically (e.g., “primary” instead of “blue”),
+      which makes the system easier to maintain and adapt over time.
+    </p>
+
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="bg-surface border border-border rounded-card p-6">
+        <div class="w-full h-16 rounded mb-4 bg-primary"></div>
+        <h3 class="font-bold mb-1">Primary</h3>
+        <p class="text-text-secondary text-sm">Used for key calls to action and highlights.</p>
+      </div>
+
+      <div class="bg-surface border border-border rounded-card p-6">
+        <div class="w-full h-16 rounded mb-4 bg-accent"></div>
+        <h3 class="font-bold mb-1">Accent</h3>
+        <p class="text-text-secondary text-sm">Used sparingly to add contrast + emphasis.</p>
+      </div>
+
+      <div class="bg-surface border border-border rounded-card p-6">
+        <div class="w-full h-16 rounded mb-4 bg-muted"></div>
+        <h3 class="font-bold mb-1">Surface & Neutrals</h3>
+        <p class="text-text-secondary text-sm">Provide structure and depth without clutter.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Typography -->
+  <section class="mb-20">
+    <h2 class="text-2xl font-bold mb-4">Typography</h2>
+    <p class="text-text-secondary mb-6 max-w-2xl">
+      Typography is designed for clarity and accessibility. Headlines communicate hierarchy,
+      and body text prioritizes readability.
+    </p>
+
+    <div class="space-y-6">
+      <div>
+        <p class="text-sm text-text-muted mb-1">Heading 1</p>
+        <h1 class="text-4xl md:text-5xl font-extrabold">A strong, confident headline</h1>
+      </div>
+
+      <div>
+        <p class="text-sm text-text-muted mb-1">Heading 2</p>
+        <h2 class="text-3xl font-bold">A clear section heading</h2>
+      </div>
+
+      <div>
+        <p class="text-sm text-text-muted mb-1">Body Text</p>
+        <p class="text-text-secondary max-w-3xl">
+          This is an example of standard body text. It is used across content pages, case studies,
+          and documentation. The goal is to maintain a tone that is readable, welcoming,
+          and just a little conversational without losing professionalism.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Buttons -->
+  <section class="mb-20">
+    <h2 class="text-2xl font-bold mb-4">Buttons</h2>
+    <p class="text-text-secondary mb-6 max-w-2xl">
+      Buttons are designed to be recognizable and consistent. Primary buttons drive action, while secondary
+      and ghost buttons provide supporting interactions.
+    </p>
+
+    <div class="flex flex-wrap gap-4">
+      <button class="bg-primary hover:bg-primary-600 px-6 py-3 rounded-button font-medium">
+        Primary Action
+      </button>
+
+      <button class="border border-border bg-surface hover:bg-muted px-6 py-3 rounded-button font-medium">
+        Secondary Action
+      </button>
+
+      <button class="hover:bg-muted/50 px-6 py-3 rounded-button font-medium">
+        Ghost Button
+      </button>
+    </div>
+  </section>
+
+  <!-- Cards -->
+  <section class="mb-20">
+    <h2 class="text-2xl font-bold mb-4">Cards</h2>
+    <p class="text-text-secondary mb-6 max-w-2xl">
+      Cards are a foundational element for projects, writing previews, and structured information.
+    </p>
+
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div class="bg-surface border border-border rounded-card p-6">
+        <h3 class="text-xl font-bold mb-2">Card Title</h3>
+        <p class="text-text-secondary mb-4">
+          A short description that explains what this card represents.
+        </p>
+        <a href="#" class="text-primary hover:underline">Learn more →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Hero -->
+  <section class="mb-20">
+    <h2 class="text-2xl font-bold mb-4">Hero Example</h2>
+    <p class="text-text-secondary mb-6 max-w-2xl">
+      The hero sets the tone of the site. It is bold, direct, and purpose-driven.
+    </p>
+
+    <div class="bg-surface border border-border rounded-card p-10">
+      <h2 class="text-4xl font-extrabold mb-4">
+        A hero designed to welcome, clarify, and <span class="text-accent">inspire action</span>.
+      </h2>
+      <p class="text-text-secondary max-w-2xl mb-6">
+        This block demonstrates the tone and structure used for key introductions throughout the site.
+      </p>
+
+      <div class="flex gap-4">
+        <button class="bg-primary hover:bg-primary-600 px-6 py-3 rounded-button font-medium">
+          Primary CTA
+        </button>
+        <button class="border border-border px-6 py-3 rounded-button font-medium text-text-secondary hover:bg-muted">
+          Secondary CTA
+        </button>
+      </div>
+    </div>
+  </section>
+
+</section>
+
+{% endblock %}
