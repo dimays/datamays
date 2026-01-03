@@ -1,11 +1,93 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <link href="/static/css/tailwind.css" rel="stylesheet">
-</head>
-<body class="bg-slate-900 text-white min-h-screen flex items-center justify-center">
-  <h1 class="text-5xl font-bold text-emerald-500">
-    Tailwind Proof of Life
-  </h1>
-</body>
-</html>
+{% extends "core/base.html" %}
+{% block title %}Home — datamays{% endblock %}
+
+{% block content %}
+<section class="max-w-7xl mx-auto px-6 md:px-10 py-20">
+
+  <!-- Hero -->
+  <section class="mb-20">
+    <div class="bg-surface border border-border rounded-card p-10">
+      <h1 class="text-4xl font-extrabold mb-4 text-accent">
+        David Mays
+      </h1>
+      <h2 class="text-2xl font-extrabold mb-3">
+        Data Engineer. Lifelong Learner. Builder of Durable Things.
+      </h1>
+      <p class="text-text-secondary max-w-3xl mb-6 leading-relaxed">
+        I'm passionate about designing, building, and sharing tools and systems that make data work better
+        for people and businesses. I enjoy exploring problems deeply, creating clear solutions, and helping
+        others learn along the way.
+      </p>
+      
+      <div class="flex gap-4">
+        <a href="{% url 'core:projects_list' %}" class="bg-primary hover:bg-primary-600 px-6 py-3 rounded-button font-medium">
+          Explore Projects
+        </a>
+        <a href="{% url 'core:about' %}" class="border border-border px-6 py-3 rounded-button font-medium text-text-secondary hover:bg-muted">
+          About Me
+        </a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Featured Projects -->
+  <section class="mb-12">
+    <h2 class="text-2xl font-bold mb-4">Featured Projects</h2>
+    <p class="text-text-secondary max-w-3xl mb-8 leading-relaxed">
+      A selection of projects that reflect my approach to solving problems and building systems.
+    </p>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+      {% for project in featured_projects %}
+      <div class="bg-surface border border-border rounded-card p-6">
+        <h3 class="text-xl font-bold mb-2">{{ project.title }}</h3>
+        <p class="text-text-secondary mb-4">{{ project.short_description }}</p>
+        <a href="{{ project.get_absolute_url }}" class="text-primary hover:underline">Learn more →</a>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="mb-12">
+    <div class="md:col-span-2">
+      <h2 class="text-2xl font-bold mb-4">How I Think About Data Engineering</h2>
+      <p class="text-text-secondary leading-relaxed">
+        I treat data engineering as an applied discipline at the intersection of <span class="text-accent">software engineering</span>,
+        <span class="text-accent">systems design</span>, and <span class="text-accent">decision-making</span>. I prioritize clarity, explicit tradeoffs, and architectures
+        that respect the people who maintain them.
+        <br /><br />
+        For every data engineering project, I follow this general approach:
+      </p>
+    </div>
+
+    <ul class="space-y-3 text-text-secondary">
+      <li>→ Make it work, then make it right, then make it fast</li>
+      <li>→ Optimize for human comprehension</li>
+      <li>→ Design systems that evolve safely</li>
+    </ul>
+  </section>
+
+  <!-- Closing Thought / Wrap-Up -->
+  <section class="mb-20">
+    <div class="max-w-4xl">
+      <h2 class="text-2xl font-bold mb-4">
+        Let’s build better systems together
+      </h2>
+      <p class="text-text-secondary leading-relaxed mb-6">
+        I'm always exploring new ideas in data engineering, sharing tools, and thinking about how
+        systems can be made clearer, safer, and more maintainable. If you're interested in discussing
+        a project, swapping insights, or just geeking out over data, feel free to connect!
+      </p>
+      <div class="flex gap-4">
+        <a href="{% url 'core:home' %}" class="bg-primary hover:bg-primary-600 px-5 py-2 rounded-button font-medium">
+          Get in touch
+        </a>
+        <a href="{% url 'core:home' %}" class="border border-border px-5 py-2 rounded-button font-medium text-text-secondary hover:bg-muted">
+          Read my blog
+        </a>
+      </div>
+    </div>
+  </section>
+
+</section>
+{% endblock %}
