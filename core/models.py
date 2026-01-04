@@ -4,6 +4,13 @@ from django.urls import reverse
 
 
 class Project(models.Model):
+    class Status(models.TextChoices):
+        PLANNED = "planned", "Planned"
+        IN_PROGRESS = "in_progress", "In Progress"
+        IN_PRODUCTION = "in_production", "In Production"
+        ARCHIVED = "archived", "Archived"
+        CANCELLED = "cancelled", "Cancelled"
+
     # --- Core identity ---
     title = models.CharField(max_length=200)
     slug = models.SlugField(unique=True)
@@ -16,13 +23,17 @@ class Project(models.Model):
         blank=True,
         help_text="Why this project exists. What problem or curiosity drove it?",
     )
+    expected_outcome = models.TextField(
+        blank=True,
+        help_text="What I expected the outcome of this project to be. What did I hope to accomplish?",
+    )
     challenges = models.TextField(
         blank=True,
         help_text="Key technical or conceptual challenges encountered.",
     )
     lessons_learned = models.TextField(
         blank=True,
-        help_text="What you'd do differently, or what this taught you.",
+        help_text="What I'd do differently, or what this taught me.",
     )
 
     # --- Practical details ---
@@ -39,12 +50,18 @@ class Project(models.Model):
     )
 
     # --- Display & control ---
-    is_public = models.BooleanField(default=True)
-    is_featured = models.BooleanField(default=False)
+    status = models.CharField(
+        max_length=50,
+        choices=Status.choices,
+        default=Status.PLANNED,
+        help_text="The project's current status.",
+    )
     priority = models.PositiveIntegerField(
         default=99,
         help_text="Lower values appear first.",
     )
+    is_public = models.BooleanField(default=True)
+    is_featured = models.BooleanField(default=False)
 
     # --- Metadata ---
     created_at = models.DateTimeField(auto_now_add=True)
@@ -57,4 +74,4 @@ class Project(models.Model):
         return self.title
 
     def get_absolute_url(self):
-        return reverse("core:project-detail", kwargs={"slug": self.slug})
+        return reverse("core:project_detail", kwargs={"slug": self.slug})

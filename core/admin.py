@@ -62,6 +62,7 @@ class ProjectAdmin(admin.ModelAdmin):
                 ),
                 "fields": (
                     "motivation",
+                    "expected_outcome",
                     "challenges",
                     "lessons_learned",
                 ),
@@ -85,6 +86,7 @@ class ProjectAdmin(admin.ModelAdmin):
                     "is_public",
                     "is_featured",
                     "priority",
+                    "status",
                 )
             },
         ),
