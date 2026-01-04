@@ -1,6 +1,78 @@
 # core/models.py
 from django.db import models
 from django.urls import reverse
+from django.utils.text import slugify
+from django.utils import timezone
+import markdown
+import math
+
+
+class Tag(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+    slug = models.SlugField(max_length=60, unique=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class Post(models.Model):
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=220, unique=True)
+
+    summary = models.TextField(
+        help_text="Short description shown on the writings index page"
+    )
+
+    content = models.TextField(help_text="Markdown content")
+    content_html = models.TextField(editable=False)
+
+    tags = models.ManyToManyField(Tag, related_name="posts", blank=True)
+
+    published_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-published_at"]
+
+    def __str__(self):
+        return self.title
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.title)
+
+        self.content_html = markdown.markdown(
+            self.content,
+            extensions=[
+                "fenced_code",
+                "codehilite",
+                "tables",
+                "toc",
+            ],
+        )
+
+        super().save(*args, **kwargs)
+
+    def publish(self):
+        if self.published_at is None:
+            self.published_at = timezone.now()
+            self.save(update_fields=["published_at"])
+
+    def unpublish(self):
+        self.published_at = None
+        self.save(update_fields=["published_at"])
+
+    @property
+    def reading_time(self):
+        word_count = len(self.content.split())
+        return max(1, math.ceil(word_count / 200))
+
+    def get_absolute_url(self):
+        return reverse("core:writing_detail", args=[self.slug])
 
 
 class Project(models.Model):

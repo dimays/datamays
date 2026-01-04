@@ -1,6 +1,6 @@
 # core/admin.py
 from django.contrib import admin
-from .models import Project
+from .models import Project, Tag, Post
 
 
 @admin.register(Project)
@@ -106,3 +106,91 @@ class ProjectAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
     )
+
+
+@admin.register(Tag)
+class TagAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug")
+    search_fields = ("name",)
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(Post)
+class PostAdmin(admin.ModelAdmin):
+    list_display = (
+        "title",
+        "status",
+        "published_at",
+        "created_at",
+    )
+
+    list_filter = (
+        "published_at",
+        "tags",
+    )
+
+    search_fields = (
+        "title",
+        "summary",
+        "content",
+    )
+
+    prepopulated_fields = {"slug": ("title",)}
+
+    date_hierarchy = "published_at"
+    ordering = ("-published_at", "-created_at")
+
+    filter_horizontal = ("tags",)
+
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+        "content_html",
+    )
+
+    actions = (
+        "publish_selected",
+        "unpublish_selected",
+    )
+
+    fieldsets = (
+        (None, {
+            "fields": (
+                "title",
+                "slug",
+                "summary",
+                "tags",
+            )
+        }),
+        ("Content", {
+            "fields": (
+                "content",
+                "content_html",
+            )
+        }),
+        ("Publishing", {
+            "fields": (
+                "published_at",
+            )
+        }),
+        ("Metadata", {
+            "fields": (
+                "created_at",
+                "updated_at",
+            )
+        }),
+    )
+
+    @admin.display(description="Status")
+    def status(self, obj):
+        return "Published" if obj.published_at else "Draft"
+
+    @admin.action(description="Publish selected posts")
+    def publish_selected(self, request, queryset):
+        for post in queryset:
+            post.publish()
+
+    @admin.action(description="Unpublish selected posts")
+    def unpublish_selected(self, request, queryset):
+        for post in queryset:
+            post.unpublish()

@@ -1,5 +1,6 @@
 from django.views.generic import TemplateView, ListView, DetailView
-from .models import Project
+from django.shortcuts import get_object_or_404
+from .models import Project, Tag, Post
 from datetime import datetime
 
 
@@ -35,6 +36,45 @@ class ProjectDetailView(DetailView):
     model = Project
     template_name = "core/project_detail.html"
     context_object_name = "project"
+
+
+class WritingListView(ListView):
+    model = Post
+    template_name = "core/writings.html"
+    context_object_name = "posts"
+    paginate_by = 10
+
+    def get_queryset(self):
+        queryset = Post.objects.filter(published_at__isnull=False)
+
+        tag_slug = self.kwargs.get("tag_slug")
+        if tag_slug:
+            queryset = queryset.filter(tags__slug=tag_slug)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        context["tags"] = Tag.objects.all()
+        context["active_tag"] = self.kwargs.get("tag_slug")
+
+        return context
+
+
+class WritingDetailView(DetailView):
+    model = Post
+    template_name = "core/writing_detail.html"
+    context_object_name = "post"
+
+    def get_queryset(self):
+        return Post.objects.filter(published_at__isnull=False)
+
+    def get_object(self, queryset=None):
+        return get_object_or_404(
+            self.get_queryset(),
+            slug=self.kwargs["slug"],
+        )
 
 
 class StyleguideView(TemplateView):

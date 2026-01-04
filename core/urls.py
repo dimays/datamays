@@ -12,5 +12,17 @@ urlpatterns = [
         views.ProjectDetailView.as_view(),
         name="project_detail",
     ),
+    path("writings/", views.WritingListView.as_view(), name="writings_list"),
+    path(
+        "writings/tag/<slug:tag_slug>/",
+        views.WritingListView.as_view(),
+        name="writings_by_tag",
+    ),
+    path(
+        "writings/<slug:slug>/",
+        views.WritingDetailView.as_view(),
+        name="writing_detail",
+    ),
     path("styleguide/", views.StyleguideView.as_view(), name="styleguide"),
 ]
+
