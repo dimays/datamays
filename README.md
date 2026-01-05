@@ -4,6 +4,8 @@ Personal portfolio and data engineering showcase site.
 
 This repository hosts the code for [datamays.com](https://datamays.com), built with Django, Tailwind, and other supporting tools. The project uses **uv** for Python dependency management and a **VS Code Dev Container** for a consistent development environment.
 
+Feel free to fork and use as a foundation for your own personal portfolio!
+
 ---
 
 ## Table of Contents
