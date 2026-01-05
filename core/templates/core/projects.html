@@ -1,0 +1,32 @@
+{% extends "core/base.html" %}
+{% block title %}Projects — datamays{% endblock %}
+
+{% block content %}
+<section class="max-w-7xl mx-auto px-6 md:px-10 py-20">
+
+  <header class="mb-20">
+    <h1 class="text-4xl md:text-5xl font-extrabold mb-4">
+      Projects
+    </h1>
+    <p class="text-text-secondary max-w-3xl leading-relaxed">
+      Here’s a curated overview of my projects, including challenges I tackled and lessons I learned.
+      Click through for detailed write-ups where I go deeper into each journey.
+    </p>
+  </header>
+
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+    {% for project in projects %}
+    <div class="bg-surface border border-border rounded-card p-6">
+      <h3 class="text-xl font-bold mb-2">{{ project.title }}</h3>
+      <p class="text-text-secondary mb-4">{{ project.short_description }}</p>
+      <a href="{{ project.get_absolute_url }}" class="text-primary hover:underline">Learn more →</a>
+      {% if project.blog_post_url %}
+      <br />
+      <a href="{{ project.blog_post_url }}" class="text-accent hover:underline">Read the story →</a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+</section>
+{% endblock %}

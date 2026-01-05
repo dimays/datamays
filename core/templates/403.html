@@ -1,0 +1,37 @@
+{% extends "core/base.html" %}
+{% block title %}403 Forbidden — datamays{% endblock %}
+
+{% block content %}
+<main class="pt-24">
+  <div class="max-w-3xl mx-auto px-6 md:px-0 py-32 text-center">
+    
+    <!-- Big 403 -->
+    <h1 class="text-6xl md:text-7xl font-extrabold text-primary mb-4">403</h1>
+    
+    <!-- Forbidden header -->
+    <h2 class="text-2xl md:text-3xl font-semibold mb-6">Access Forbidden</h2>
+    
+    <!-- Brand twist -->
+    <p class="text-lg text-text-secondary mb-8">
+      You don't have permission to view this page… but <span id="datamaysText" class="font-bold text-primary">datamays</span> is still here.
+    </p>
+
+    <!-- Return home button -->
+    <a href="{% url 'core:home' %}" class="inline-block bg-primary hover:bg-primary-600 transition text-white font-medium px-6 py-3 rounded-button">
+      Return Home
+    </a>
+  </div>
+</main>
+
+<script>
+  // subtle “datamays” text animation for 403 page
+  const textEl = document.getElementById('datamaysText');
+  const alternate = 'david mays';
+  let toggle = false;
+
+  setInterval(() => {
+    textEl.textContent = toggle ? 'datamays' : alternate;
+    toggle = !toggle;
+  }, 1000);
+</script>
+{% endblock %}

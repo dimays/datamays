@@ -4,34 +4,43 @@
   <div class="max-w-7xl mx-auto px-6 md:px-10 h-20 flex items-center justify-between">
     
     <!-- Logo -->
-    <a href="/" class="flex items-center gap-2">
-    <img
-        src="{% static 'img/logo_transparent.png' %}"
+    <a href="{% url 'core:home' %}" class="flex items-center gap-2 group">
+      <img
+        src="{% static 'img/datamays-logo-transparent.png' %}"
         alt="datamays logo"
         class="h-8 w-8"
-    />
-    <span class="text-xl font-bold tracking-tight">
-        datamays
-    </span>
-</a>
+      />
+      <span class="text-xl font-bold tracking-tight relative">
+        <span class="inline-block transition-opacity duration-200 group-hover:opacity-0">
+          datamays
+        </span>
+        <span class="absolute top-0 left-0 inline-block opacity-0 transition-opacity duration-200 group-hover:opacity-100 whitespace-nowrap">
+          david mays
+        </span>
+      </span>
+    </a>
 
     <!-- Desktop Nav -->
-    <nav class="hidden md:flex items-center gap-8 text-text-secondary text-sm">
-      <a href="/" class="hover:text-white transition">Home</a>
-      <a href="/projects" class="hover:text-white transition">Projects</a>
-      <a href="/writing" class="hover:text-white transition">Writing</a>
-      <a href="/about" class="hover:text-white transition">About</a>
+    <nav class="hidden md:flex items-center gap-6 text-text-secondary text-sm">
+      <a href="{% url 'core:home' %}" class="hover:text-white transition">Home</a>
+      <a href="{% url 'core:projects_list' %}" class="hover:text-white transition">Projects</a>
+      <a href="{% url 'core:writings_list' %}" class="hover:text-white transition">Writing</a>
+      <a href="{% url 'core:about' %}" class="hover:text-white transition">About Me</a>
+      <a href="{% url 'core:styleguide' %}" class="hover:text-white transition">Styleguide</a>
+      {% if request.user.is_authenticated and request.user.is_superuser %}
+      <a href="{% url 'admin:index' %}" class="hover:text-white transition">Admin</a>
+      {% endif %}
     </nav>
 
     <!-- CTA -->
-    <a href="/contact"
+    <a href="{% url 'core:home' %}"
        class="hidden md:inline-block bg-primary hover:bg-primary-600 transition text-white font-medium px-5 py-2.5 rounded-button">
       Get in touch
     </a>
 
     <!-- Mobile Menu Trigger -->
     <button id="mobileMenuBtn"
-      class="md:hidden inline-flex items-center justify-center rounded-button border border-border p-2">
+      class="md:hidden inline-flex items-center justify-center rounded-button border border-border p-2 px-3">
       <span class="sr-only">Open menu</span>
       ☰
     </button>
@@ -40,12 +49,16 @@
   <!-- Mobile Menu -->
   <div id="mobileMenu" class="hidden md:hidden border-t border-border bg-background">
     <div class="px-6 py-6 flex flex-col gap-4 text-sm">
-      <a href="/" class="hover:text-white">Home</a>
-      <a href="/projects" class="hover:text-white">Projects</a>
-      <a href="/writing" class="hover:text-white">Writing</a>
-      <a href="/about" class="hover:text-white">About</a>
+      <a href="{% url 'core:home' %}" class="hover:text-white">Home</a>
+      <a href="{% url 'core:projects_list' %}" class="hover:text-white">Projects</a>
+      <a href="{% url 'core:writings_list' %}" class="hover:text-white">Writing</a>
+      <a href="{% url 'core:about' %}" class="hover:text-white">About Me</a>
+      <a href="{% url 'core:styleguide' %}" class="hover:text-white">Styleguide</a>
+      {% if request.user.is_authenticated and request.user.is_superuser %}
+      <a href="{% url 'admin:index' %}" class="hover:text-white">Admin</a>
+      {% endif %}
 
-      <a href="/contact"
+      <a href="{% url 'core:home' %}"
          class="mt-4 text-center bg-primary hover:bg-primary-600 transition px-4 py-2 rounded-button">
         Get in touch
       </a>
