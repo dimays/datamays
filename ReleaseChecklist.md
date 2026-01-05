@@ -8,16 +8,15 @@ The 2026 redesign must entail (at a minimum) the following tasks
   - 404.html
   - about.html
   - base.html
-  - devlog.html
   - home.html
   - project.html
-  - roadmap.html
+  - roadmap.html (with Linear/Github integration)
+  - writings.html
 - New/Updated Content
   - Home
-    - Concise overview, who I want people to "meet" and what I want them to  see right away
+    - Concise overview, who I want people to "meet" and what I want them to see right away
   - About
     - Professional background, relevant personal details, what I'm motivated by
-    - nice professional headshot
     - links to LinkedIn, resume, contact
   - Project Pages
     - Dreadlog
