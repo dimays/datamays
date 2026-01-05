@@ -93,20 +93,24 @@ class Project(models.Model):
     # --- Narrative sections ---
     motivation = models.TextField(
         blank=True,
-        help_text="Why this project exists. What problem or curiosity drove it?",
+        help_text="[Markdown] Why this project exists. What problem or curiosity drove it?",
     )
     expected_outcome = models.TextField(
         blank=True,
-        help_text="What I expected the outcome of this project to be. What did I hope to accomplish?",
+        help_text="[Markdown] What I expected the outcome of this project to be. What did I hope to accomplish?",
     )
     challenges = models.TextField(
         blank=True,
-        help_text="Key technical or conceptual challenges encountered.",
+        help_text="[Markdown] Key technical or conceptual challenges encountered.",
     )
     lessons_learned = models.TextField(
         blank=True,
-        help_text="What I'd do differently, or what this taught me.",
+        help_text="[Markdown] What I'd do differently, or what this taught me.",
     )
+    motivation_html = models.TextField(editable=False, default='fallback-value')
+    expected_outcome_html = models.TextField(editable=False, default='fallback-value')
+    challenges_html = models.TextField(editable=False, default='fallback-value')
+    lessons_learned_html = models.TextField(editable=False, default='fallback-value')
 
     # --- Practical details ---
     tech_stack = models.CharField(
@@ -116,9 +120,9 @@ class Project(models.Model):
     )
     repo_url = models.URLField(blank=True)
     live_url = models.URLField(blank=True)
-    blog_post_url = models.URLField(
+    blog_post_slug = models.TextField(
         blank=True,
-        help_text="Optional deep-dive writeup.",
+        help_text="Optional deep-dive writeup (use slug from post)",
     )
 
     # --- Display & control ---
@@ -147,3 +151,52 @@ class Project(models.Model):
 
     def get_absolute_url(self):
         return reverse("core:project_detail", kwargs={"slug": self.slug})
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.title)
+
+        self.motivation_html = markdown.markdown(
+            self.motivation,
+            extensions=[
+                "fenced_code",
+                "codehilite",
+                "tables",
+                "toc",
+            ],
+        )
+        self.expected_outcome_html = markdown.markdown(
+            self.expected_outcome,
+            extensions=[
+                "fenced_code",
+                "codehilite",
+                "tables",
+                "toc",
+            ],
+        )
+        self.challenges_html = markdown.markdown(
+            self.challenges,
+            extensions=[
+                "fenced_code",
+                "codehilite",
+                "tables",
+                "toc",
+            ],
+        )
+        self.lessons_learned_html = markdown.markdown(
+            self.lessons_learned,
+            extensions=[
+                "fenced_code",
+                "codehilite",
+                "tables",
+                "toc",
+            ],
+        )
+
+        super().save(*args, **kwargs)
+    
+    @property
+    def blog_post_url(self):
+        if self.blog_post_slug:
+            return reverse("core:writing_detail", kwargs={"slug": self.blog_post_slug})
+        return None

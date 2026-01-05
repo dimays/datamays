@@ -16,27 +16,36 @@
         {% else %}
         <h2 class="text-2xl font-bold mb-3">Why I'm Building This</h2>
         {% endif %}
-        <p class="text-text-secondary leading-relaxed mb-4">{{ project.motivation }}</p>
+        <div class="prose prose-neutral prose-invert max-w-none mb-4">
+          {{ project.motivation_html|safe }}
+        </div>
       </section>
 
-      {% if project.expected_outcome %}
+      {% if project.expected_outcome_html %}
       <section>
         <h2 class="text-2xl font-bold mb-3">Expected Outcome</h2>
-        <p class="text-text-secondary leading-relaxed mb-4">{{ project.expected_outcome }}</p>
+        <div class="prose prose-neutral prose-invert max-w-none mb-4">
+          {{ project.expected_outcome_html|safe }}
+        </div>
       </section>
+      
       {% endif %}
 
-      {% if project.challenges %}
+      {% if project.challenges_html %}
       <section>
         <h2 class="text-2xl font-bold mb-3">Challenges & Tradeoffs</h2>
-        <p class="text-text-secondary leading-relaxed mb-4">{{ project.challenges }}</p>
+        <div class="prose prose-neutral prose-invert max-w-none mb-4">
+          {{ project.challenges_html|safe }}
+        </div>
       </section>
       {% endif %}
 
-      {% if project.lessons_learned %}
+      {% if project.lessons_learned_html %}
       <section>
         <h2 class="text-2xl font-bold mb-3">Lessons Learned</h2>
-        <p class="text-text-secondary leading-relaxed mb-4">{{ project.lessons_learned }}</p>
+        <div class="prose prose-neutral prose-invert max-w-none mb-4">
+          {{ project.lessons_learned_html|safe }}
+        </div>
       </section>
       {% endif %}
     </div>

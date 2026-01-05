@@ -69,13 +69,24 @@ class ProjectAdmin(admin.ModelAdmin):
             },
         ),
         (
+            None,
+            {
+                "fields": (
+                    "motivation_html",
+                    "expected_outcome_html",
+                    "challenges_html",
+                    "lessons_learned_html",
+                ),
+            },
+        ),
+        (
             "Technical Details",
             {
                 "fields": (
                     "tech_stack",
                     "repo_url",
                     "live_url",
-                    "blog_post_url",
+                    "blog_post_slug",
                 )
             },
         ),
@@ -105,6 +116,10 @@ class ProjectAdmin(admin.ModelAdmin):
     readonly_fields = (
         "created_at",
         "updated_at",
+        "motivation_html",
+        "expected_outcome_html",
+        "challenges_html",
+        "lessons_learned_html",
     )
 
 

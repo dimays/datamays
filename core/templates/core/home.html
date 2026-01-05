@@ -43,6 +43,10 @@
         <h3 class="text-xl font-bold mb-2">{{ project.title }}</h3>
         <p class="text-text-secondary mb-4">{{ project.short_description }}</p>
         <a href="{{ project.get_absolute_url }}" class="text-primary hover:underline">Learn more →</a>
+        {% if project.blog_post_url %}
+        <br />
+        <a href="{{ project.blog_post_url }}" class="text-accent hover:underline">Read the story →</a>
+        {% endif %}
       </div>
       {% endfor %}
     </div>
