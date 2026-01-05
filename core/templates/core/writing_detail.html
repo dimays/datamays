@@ -5,8 +5,8 @@
 <article class="max-w-3xl mx-auto px-6 md:px-0 py-20">
 
   <!-- Post Header -->
-  <header class="mb-12">
-    <h1 class="text-4xl md:text-5xl font-extrabold mb-4"></h1>
+  <header class="mb-20">
+    <h1 class="text-4xl md:text-5xl font-extrabold mb-4">
       {{ post.title }}
     </h1>
 
@@ -23,9 +23,10 @@
   </header>
 
   <!-- Content -->
-  <div class="prose prose-neutral max-w-none">
+  <div class="prose prose-neutral prose-invert max-w-none">
     {{ post.content_html|safe }}
   </div>
+
 
   <!-- Tags -->
   {% if post.tags.exists %}
@@ -41,7 +42,7 @@
 
   <!-- Back link -->
   <div class="mt-16">
-    <a href="{% url 'core:writings' %}" class="text-primary hover:underline">
+    <a href="{% url 'core:writings_list' %}" class="text-primary hover:underline">
       ← Back to writings
     </a>
   </div>
