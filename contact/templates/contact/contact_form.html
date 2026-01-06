@@ -18,7 +18,7 @@
     <form method="post" class="space-y-6">
       {% csrf_token %}
 
-      <!-- Honeypot -->
+      <!-- Honeypot: If filled, likely spam/bot -->
       <div class="hidden">
         {{ form.website }}
       </div>
