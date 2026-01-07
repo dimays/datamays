@@ -15,6 +15,7 @@ dependencies = [
     "whitenoise>=6.9,<7.0",
     "dj-database-url>=2.2,<3.0",
     "Markdown>=3.10,<4.0",
+    "sentry-sdk[django]>=2.48.0",
 ]
 
 [tool.uv]
