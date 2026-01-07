@@ -2,7 +2,7 @@
 URL configuration for datamays project.
 
 The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/4.2/topics/http/urls/
+    https://docs.djangoproject.com/en/6.0/topics/http/urls/
 Examples:
 Function views
     1. Add an import:  from my_app import views
@@ -16,24 +16,9 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from django.contrib.sitemaps.views import sitemap
-from .sitemaps import StaticViewSitemap
-
-sitemaps = {
-    'static': StaticViewSitemap,
-}
 
 urlpatterns = [
-    path('', include('bio.urls')),
     path('admin/', admin.site.urls),
-    path('billboardstats/', include('billboardstats.urls')),
-    path(
-        'sitemap.xml',
-        sitemap,
-        {'sitemaps': sitemaps},
-        name='django.contrib.sitemaps.views.sitemap',
-    ),
+    path("", include("core.urls")),
+    path("contact/", include("contact.urls")),
 ]
-
-handler404 = 'bio.views.page_not_found_view'
-handler403 = 'bio.views.page_forbidden_view'

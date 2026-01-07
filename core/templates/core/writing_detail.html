@@ -1,0 +1,47 @@
+{% extends "core/base.html" %}
+{% block title %}{{ post.title }} — datamays{% endblock %}
+
+{% block content %}
+<article class="max-w-3xl mx-auto px-6 md:px-0 py-20">
+
+  <!-- Post Header -->
+  <header class="mb-12">
+    <h1 class="text-4xl md:text-5xl font-extrabold mb-4">
+      {{ post.title }}
+    </h1>
+
+    <div class="text-text-secondary text-sm mb-6">
+      <time datetime="{{ post.published_at|date:'Y-m-d' }}">
+        {{ post.published_at|date:"F j, Y" }}
+      </time>
+      · {{ post.reading_time }} min read
+    </div>
+  </header>
+
+  <!-- Content -->
+  <div class="prose prose-neutral prose-invert max-w-none">
+    {{ post.content_html|safe }}
+  </div>
+
+
+  <!-- Tags -->
+  {% if post.tags.exists %}
+  <div class="mt-12 flex flex-wrap gap-2">
+    {% for tag in post.tags.all %}
+      <a href="{% url 'core:writings_by_tag' tag.slug %}"
+         class="text-xs px-2 py-1 rounded-full bg-muted text-text-secondary">
+        {{ tag.name }}
+      </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Back link -->
+  <div class="mt-16">
+    <a href="{% url 'core:writings_list' %}" class="text-primary hover:underline">
+      ← Back to writing
+    </a>
+  </div>
+
+</article>
+{% endblock %}

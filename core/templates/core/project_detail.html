@@ -1,0 +1,72 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ project.title }} — datamays{% endblock %}
+
+{% block content %}
+<section class="max-w-7xl mx-auto px-6 md:px-10 py-20">
+  <div class="max-w-3xl">
+    <h1 class="text-5xl font-bold mb-4">{{ project.title }}</h1>
+    <p class="text-text-secondary text-xl mb-4">{{ project.tagline }}</p>
+    <p class="text-text-secondary leading-relaxed mb-8">Status: {{ project.get_status_display }}</p>
+
+    <div class="space-y-12">
+      <section>
+        {% if project.status == 'in_production' %}
+        <h2 class="text-2xl font-bold mb-3">Why I Built This</h2>
+        {% else %}
+        <h2 class="text-2xl font-bold mb-3">Why I'm Building This</h2>
+        {% endif %}
+        <div class="prose prose-neutral prose-invert max-w-none mb-4">
+          {{ project.motivation_html|safe }}
+        </div>
+      </section>
+
+      {% if project.expected_outcome_html %}
+      <section>
+        <h2 class="text-2xl font-bold mb-3">Expected Outcome</h2>
+        <div class="prose prose-neutral prose-invert max-w-none mb-4">
+          {{ project.expected_outcome_html|safe }}
+        </div>
+      </section>
+      
+      {% endif %}
+
+      {% if project.challenges_html %}
+      <section>
+        <h2 class="text-2xl font-bold mb-3">Challenges & Tradeoffs</h2>
+        <div class="prose prose-neutral prose-invert max-w-none mb-4">
+          {{ project.challenges_html|safe }}
+        </div>
+      </section>
+      {% endif %}
+
+      {% if project.lessons_learned_html %}
+      <section>
+        <h2 class="text-2xl font-bold mb-3">Lessons Learned</h2>
+        <div class="prose prose-neutral prose-invert max-w-none mb-4">
+          {{ project.lessons_learned_html|safe }}
+        </div>
+      </section>
+      {% endif %}
+    </div>
+
+    <div class="mt-16 flex flex-wrap gap-4">
+      {% if project.live_url %}
+        <a href="{{ project.live_url }}" class="bg-primary hover:bg-primary-600 px-6 py-3 rounded-button font-medium">
+          Explore Project
+        </a>
+      {% endif %}
+      {% if project.repo_url %}
+        <a href="{{ project.repo_url }}" class="border border-border bg-surface hover:bg-muted px-6 py-3 rounded-button font-medium">
+          View Source Code
+        </a>
+      {% endif %}
+      {% if project.blog_post_url %}
+        <a href="{{ project.blog_post_url }}" class="border border-border bg-surface hover:bg-muted px-6 py-3 rounded-button font-medium">
+          Read Full Write-Up
+        </a>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}

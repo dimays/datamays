@@ -1,0 +1,117 @@
+{% extends "core/base.html" %}
+{% block title %}About Me — datamays{% endblock %}
+
+{% block content %}
+<section class="max-w-7xl mx-auto px-6 md:px-10 py-20">
+
+  <header class="mb-20">
+    <h1 class="text-4xl md:text-5xl font-extrabold mb-4">
+      About Me
+    </h1>
+    <p class="text-text-secondary max-w-3xl leading-relaxed mb-4">
+      I grew up in northern Michigan in a home that valued curiosity, joy, and learning for its own sake.
+      I was home-educated alongside my four older siblings, surrounded by books, music, mathematics, and language.
+      This environment shaped who I am, how I think, and how I work.
+    </p>
+    <p class="text-text-secondary max-w-3xl leading-relaxed mb-4">
+      With a bachelor's in French and Francophone Studies from the University of Michigan, I began my professional
+      life as a French-to-English translator. While this work had its joys, the freelance translator life was not for me,
+      and I ultimately decided to pursue various interests while paying the bills with a job waiting tables, in the hopes
+      that eventually one of my hobbies would develop into a passion.
+    </p>
+    <p class="text-text-secondary max-w-3xl leading-relaxed">
+      Fast-forward to April of 2019, and I was teaching myself Python while working as a Customer Support Represenatative
+      at Wisely, a restaurant tech startup based in Ann Arbor, Michigan. At the time, I had no idea that this job would
+      inspire a lifelong love of building software, or that it might open new career doors I had never previously dreamed of.
+      But now, five years into my data career, I can confidently say that I am embedded in a world of building, continuous
+      learning, and system design; I get to serve others by supporting stakeholders and clients, and I belong to a remarkable
+      community of data professionals who inspire me every day.
+    </p>
+  </header>
+
+  <!-- Philosophy & Approach -->
+  <section class="mb-12">
+    <h2 class="text-2xl font-bold mb-3">My Approach</h2>
+    <p class="text-text-secondary max-w-3xl leading-relaxed">
+      I tackle problems by understanding them deeply, designing clear solutions, and iterating with care.
+      I document my work thoughtfully, build reusable systems, and enjoy helping others understand
+      complex concepts.
+    </p>
+  </section>
+
+  <!-- Current Work -->
+  <section class="mb-12">
+    <h2 class="text-2xl font-bold mb-3">What I'm Working On</h2>
+    <p class="text-text-secondary max-w-3xl leading-relaxed mb-8">
+      I'm constantly exploring new ideas in data engineering, building internal tools, and creating
+      example projects that others can learn from. My goal is to be a resource for fellow engineers
+      while growing my own skills.
+    </p>
+    <h4 class="font-bold mb-3">Current Interests</h2>
+    <ul class="space-y-1 text-text-secondary">
+      <li>→ Data platform architecture and evolution</li>
+      <li>→ Orchestration, observability, and reliability</li>
+      <li>→ Teaching complex concepts clearly and practically</li>
+    </ul>
+  </section>
+
+  <!-- Career Journey -->
+  <section class="mb-20">
+    <h2 class="text-2xl font-bold mb-6">Career Journey</h2>
+
+    <div class="space-y-8">
+        <!-- Senior Data Engineer -->
+        <div class="bg-surface border border-border rounded-card p-6 mb-4">
+        <h3 class="text-xl font-bold mb-1">
+            <span class="text-accent" >Senior Data Engineer</span> | Evolve <span class="text-text-secondary text-sm">(2025 - Present)</span>
+        </h3>
+        <p class="text-text-secondary leading-relaxed">
+            Leading internal data product initiatives, building reusable pipelines, and mentoring junior engineers.
+            Focused on reliability, observability, and creating systems that scale safely.
+            <br /><br />
+            So far, my time at Evolve includes the following personal highlights:
+        </p>
+        <ul class="space-y-1 text-text-secondary">
+            <li>→ built identity resolution system for resolving customer identities across multiple systems</li>
+            <li>→ defined dimensional modeling standards for our central data warehouse</li>
+            <li>→ learned all about Gitlab CI, Terraform, and Dev Containers</li>
+        </ul>
+        </p>
+        </div>
+
+        <!-- Previous Role -->
+        <div class="bg-surface border border-border rounded-card p-6 mb-4">
+        <h3 class="text-xl font-bold mb-1">
+            <span class="text-accent" >Senior Data Analyst</span> | Tegus, an AlphaSense Company <span class="text-text-secondary text-sm">(2023 - 2025)</span>
+        </h3>
+        <p class="text-text-secondary leading-relaxed">
+            Designed ETL workflows, built a broad set of analytics-ready dimensional models, defined a simplified, clear framework for RBAC in Snowflake, and improved warehouse performance.
+            Developed internal analytics and reporting with Tableau.
+        </p>
+        </div>
+
+        <!-- Earlier Roles -->
+        <div class="bg-surface border border-border rounded-card p-6 mb-4">
+        <h3 class="text-xl font-bold mb-1">
+            <span class="text-accent" >Senior Data Analyst</span> | Olo <span class="text-text-secondary text-sm">(2021 - 2023)</span>
+        </h3>
+        <p class="text-text-secondary leading-relaxed">
+            Facilitated the integration and upscaling of the Wisely Snowflake warehouse into a Snowflake account managed by Olo, including the detailed documentation and migration of several core data models for client-facing analytics.
+            Mentored junior analysts, participated in hiring of additional analysts and engineers, and helped the team and systems grow post-acquisition.
+        </p>
+        </div>
+
+        <div class="bg-surface border border-border rounded-card p-6 mb-4">
+        <h3 class="text-xl font-bold mb-1">
+            <span class="text-accent" >Data Analyst</span> | Wisely, an Olo Company <span class="text-text-secondary text-sm">(2019 - 2021)</span>
+        </h3>
+        <p class="text-text-secondary leading-relaxed">
+            Built dashboards, implemented a Customer Lifetime Value which eventually became a core product offering, supported diverse client-facing business intelligence needs, and learned the fundamentals
+            of scalable data systems.
+        </p>
+        </div>
+    </div>
+  </section>
+
+</section>
+{% endblock %}
