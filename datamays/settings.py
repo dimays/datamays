@@ -11,12 +11,13 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import dj_database_url
 import sentry_sdk
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 sentry_sdk.init(
@@ -26,9 +27,7 @@ sentry_sdk.init(
     send_default_pii=True,
 )
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
-
+DATABASE_URL = os.getenv('DATABASE_URL')
 SECRET_KEY = os.getenv('SECRET_KEY', 'fallback-secret-key')
 DEBUG = os.getenv("DEBUG_FLAG", "False") == "True"
 WORKING_ENV = os.getenv('WORKING_ENV').lower()
@@ -80,6 +79,7 @@ TEMPLATES = [
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [
             BASE_DIR / 'core' / 'templates',
+            BASE_DIR / 'contact' / 'templates',
         ],
         'APP_DIRS': True,
         'OPTIONS': {
@@ -98,12 +98,19 @@ WSGI_APPLICATION = 'datamays.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Use postgres DATABASE_URL if provided, otherwise use default sqlite3 database
+db_from_env = dj_database_url.config(default=DATABASE_URL)
+
+if db_from_env:
+    DATABASES = {'default': db_from_env}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        }
     }
-}
+    print("No valid DATABASE_URL found. Falling back to local SQLite database.")
 
 
 # Password validation
