@@ -89,8 +89,12 @@ class AccountConnection(TimestampedModel):
 
     @property
     def is_syncable(self):
+        # ERROR is included deliberately: it usually means a timeout or a
+        # provider blip, and refusing to retry would strand the connection
+        # permanently after one bad night. NEEDS_REAUTH and DISABLED are
+        # excluded because both genuinely require a person.
         return (
-            self.status == ConnectionStatus.ACTIVE
+            self.status in {ConnectionStatus.ACTIVE, ConnectionStatus.ERROR}
             and self.provider == Provider.SIMPLEFIN
             and bool(self.access_secret)
         )

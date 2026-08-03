@@ -82,6 +82,15 @@ class Account(TimestampedModel):
     credit_limit = money_field(null=True, blank=True)
     balance_as_of = models.DateTimeField(null=True, blank=True)
 
+    debt_reported_positive = models.BooleanField(
+        default=True,
+        help_text=(
+            "Most institutions report a debt as a positive 'amount owed'. "
+            "Clear this if a liability's balance shows the wrong sign after a "
+            "sync. Ignored for asset accounts."
+        ),
+    )
+
     is_active = models.BooleanField(default=True)
     include_in_net_worth = models.BooleanField(default=True)
     include_in_spending = models.BooleanField(
