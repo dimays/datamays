@@ -1,4 +1,5 @@
 {% extends "finance/base_finance.html" %}
+{% load finance_extras %}
 
 {% block finance_content %}
 <div class="flex flex-wrap items-center justify-between gap-3">
@@ -49,7 +50,7 @@
         </div>
 
         <p class="shrink-0 font-mono text-sm {% if txn.amount < 0 %}text-text-primary{% else %}text-success{% endif %}">
-          {% if txn.amount < 0 %}−{% endif %}${{ txn.display_amount|floatformat:2 }}
+          {% if txn.amount < 0 %}−{% endif %}${{ txn.display_amount|money }}
         </p>
       </div>
 

@@ -18,6 +18,13 @@ class HomeView(FinanceView):
     template_name = "finance/home.html"
     page_title = "Home"
 
+    def get_context_data(self, **kwargs):
+        from .services.widgets import build_homepage
+
+        context = super().get_context_data(**kwargs)
+        context.update(build_homepage(self.request.user))
+        return context
+
 
 class PlaceholderView(FinanceView):
     """Stands in for a screen that a later branch in this stack delivers."""
