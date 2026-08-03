@@ -31,11 +31,6 @@ class PlaceholderView(FinanceView):
         return context
 
 
-class TransactionsView(PlaceholderView):
-    page_title = "Transactions"
-    delivered_by = "finance/simplefin-provider"
-
-
 class SpendView(PlaceholderView):
     page_title = "Spend"
     delivered_by = "finance/dashboards"

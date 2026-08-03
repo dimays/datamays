@@ -260,6 +260,12 @@ FIELD_ENCRYPTION_KEYS = [
 # UTC gets wrong every evening after about 7pm Chicago time.
 FINANCE_TIME_ZONE = os.getenv("FINANCE_TIME_ZONE", "America/Chicago")
 
+# Transaction categorisation. Absent a key the deterministic steps still run
+# and anything unmatched queues for review, so the app degrades rather than
+# breaks.
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+FINANCE_CATEGORISER_MODEL = os.getenv("FINANCE_CATEGORISER_MODEL", "gpt-4o-mini")
+
 CONTACT_RECIPIENT_EMAIL = os.getenv("CONTACT_RECIPIENT_EMAIL")
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"

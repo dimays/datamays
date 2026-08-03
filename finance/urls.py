@@ -1,12 +1,12 @@
 from django.urls import path
 
-from . import views, views_auth, views_imports
+from . import views, views_auth, views_imports, views_transactions
 
 app_name = "finance"
 
 urlpatterns = [
     path("", views.HomeView.as_view(), name="home"),
-    path("transactions/", views.TransactionsView.as_view(), name="transactions"),
+    path("transactions/", views_transactions.TransactionListView.as_view(), name="transactions"),
     path("spend/", views.SpendView.as_view(), name="spend"),
     path("income/", views.IncomeView.as_view(), name="income"),
     path("savings/", views.SavingsView.as_view(), name="savings"),
