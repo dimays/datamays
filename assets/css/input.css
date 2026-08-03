@@ -1,3 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Keeps Alpine-controlled elements hidden until Alpine initialises them,
+   so dropdowns don't flash open on first paint. */
+[x-cloak] {
+  display: none !important;
+}

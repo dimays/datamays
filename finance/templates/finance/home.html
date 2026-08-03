@@ -1,0 +1,25 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+<section>
+  <h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Home</h1>
+  <p class="mt-2 max-w-2xl text-text-secondary">
+    Balances, recent activity, and budget attainment land here once accounts are connected.
+  </p>
+
+  <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    {% for widget in "123"|make_list %}
+      <div class="rounded-card border border-dashed border-border bg-surface/50 p-6">
+        <div class="h-3 w-24 rounded bg-muted"></div>
+        <div class="mt-4 h-7 w-32 rounded bg-muted"></div>
+        <div class="mt-3 h-3 w-full rounded bg-muted/60"></div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <p class="mt-8 text-sm text-text-muted">
+    Widgets arrive in <code class="rounded bg-muted px-1.5 py-0.5 text-xs">finance/home</code>,
+    once there is data to put in them.
+  </p>
+</section>
+{% endblock %}
