@@ -1,0 +1,16 @@
+{% comment %}
+Progress bar with a pace marker. The marker is where an even spend rate would
+have you by today — the gap between bar and marker is the actual signal.
+{% endcomment %}
+<div class="relative mt-3 h-2.5 w-full overflow-hidden rounded-full bg-muted">
+  <div class="h-full rounded-full transition-all
+              {% if period.is_over %}bg-error{% elif pace > 0 %}bg-warning{% else %}bg-success{% endif %}"
+       style="width: {{ bar_width }}%"></div>
+</div>
+{% if elapsed_percent %}
+  <div class="relative h-0">
+    <div class="absolute -top-3.5 h-3.5 w-0.5 bg-text-secondary/70"
+         style="left: {{ elapsed_percent }}%"
+         title="Where an even pace would be today"></div>
+  </div>
+{% endif %}

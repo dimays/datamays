@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, views_auth, views_imports, views_transactions
+from . import views, views_auth, views_budgets, views_imports, views_transactions
 
 app_name = "finance"
 
@@ -12,6 +12,11 @@ urlpatterns = [
     path("savings/", views.SavingsView.as_view(), name="savings"),
     path("settings/", views.SettingsView.as_view(), name="settings"),
     path("preferences/", views.PreferencesView.as_view(), name="preferences"),
+    # Budgets
+    path("budgets/", views_budgets.BudgetListView.as_view(), name="budgets"),
+    path("budgets/new/", views_budgets.BudgetCreateView.as_view(), name="budget_create"),
+    path("budgets/<int:pk>/", views_budgets.BudgetUpdateView.as_view(), name="budget_edit"),
+    path("budgets/<int:pk>/delete/", views_budgets.BudgetDeleteView.as_view(), name="budget_delete"),
     # Imports
     path("imports/", views_imports.ImportListView.as_view(), name="imports"),
     path("imports/new/", views_imports.ImportUploadView.as_view(), name="import_upload"),

@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -139,6 +140,28 @@ class BudgetPeriod(models.Model):
     def is_over(self):
         return self.actual_amount > self.target_amount
 
+    @property
+    def overspend(self):
+        return max(Decimal("0"), self.actual_amount - self.target_amount)
+
+    @property
+    def bar_width(self):
+        """Progress bar width, capped at 100 so an overspend cannot overflow."""
+        if not self.target_amount:
+            return 0
+
+        return min(100, int(self.actual_amount / self.target_amount * 100))
+
+    @property
+    def elapsed_percent(self):
+        """Where an even spend rate would put you today, as a percentage."""
+        return round(
+            periods.elapsed_fraction(
+                self.period_start, self.period_end, timezone.localdate()
+            )
+            * 100
+        )
+
     def pace_difference(self, on_date=None):
         """Actual spend minus what an even pace would predict by now.
 
@@ -149,10 +172,6 @@ class BudgetPeriod(models.Model):
         on_date = on_date or household_today()
         elapsed = periods.elapsed_fraction(self.period_start, self.period_end, on_date)
 
-        return self.actual_amount - (self.target_amount * decimal_from(elapsed))
+        expected = self.target_amount * Decimal(str(round(elapsed, 6)))
 
-
-def decimal_from(value: float):
-    from decimal import Decimal
-
-    return Decimal(str(round(value, 6)))
+        return self.actual_amount - expected
