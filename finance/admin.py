@@ -228,7 +228,7 @@ class ImportBatchAdmin(admin.ModelAdmin):
         "created_at",
     ]
     list_filter = ["status", "record_type", "institution"]
-    readonly_fields = ["detected_headers", "sample_rows", "suggested_map", "created_at"]
+    readonly_fields = ["detected_headers", "sample_rows", "suggested_map", "raw_content", "created_at"]
     inlines = [ImportRowInline]
 
 
