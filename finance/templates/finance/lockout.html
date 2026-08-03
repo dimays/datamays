@@ -1,0 +1,20 @@
+{% extends "finance/base_auth.html" %}
+{% block title %}Locked out{% endblock %}
+
+{% block auth_content %}
+<div class="text-center">
+  <p class="text-6xl" aria-hidden="true">🔒</p>
+
+  <h1 class="mt-6 text-2xl font-extrabold tracking-tight">Too many attempts</h1>
+
+  <p class="mt-3 text-text-secondary">
+    This username and address are locked for 15 minutes. If that was you, go
+    make a coffee. If it wasn't, your password is being guessed at — change it.
+  </p>
+
+  <a href="{% url 'core:home' %}"
+     class="mt-8 inline-block rounded-button border border-border bg-surface px-6 py-3 font-medium transition hover:bg-muted">
+    Back to datamays.com
+  </a>
+</div>
+{% endblock %}
