@@ -203,6 +203,22 @@ class SavingsDebtMetricsTests(ComputeMetricsTestCase):
 
         self.assertEqual(metrics["savings_change"], 1000.0)
 
+    def test_a_card_paid_off_to_exactly_zero_still_yields_a_real_change(self):
+        # A $0 balance is real data, not "nothing reported yet" -- a naive
+        # truthiness check on the Decimal would confuse the two and drop the
+        # change to None even though both snapshots exist.
+        card = make_account(
+            self.institution, name="Card", account_type=AccountType.CREDIT_CARD
+        )
+        self.snapshot(card, date(2026, 3, 31), "-400.00")
+        self.snapshot(card, date(2026, 6, 30), "0.00")
+
+        metrics = compute_metrics(self.start, self.end)
+
+        self.assertEqual(metrics["debt_balance_start"], 400.0)
+        self.assertEqual(metrics["debt_balance_end"], 0.0)
+        self.assertEqual(metrics["debt_change"], -400.0)
+
 
 class BudgetMetricsTests(ComputeMetricsTestCase):
     def test_periods_within_the_quarter_are_summed(self):

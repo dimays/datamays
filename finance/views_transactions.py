@@ -86,7 +86,7 @@ class TransactionListView(FinanceAccessMixin, ListView):
     def filtered_budget(self):
         budget_id = self.request.GET.get("budget")
 
-        if not budget_id:
+        if not budget_id or not budget_id.isdigit():
             return None
 
         # An invalid or stale id degrades to "no budget filter" rather than a

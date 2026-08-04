@@ -83,8 +83,11 @@ def compute_metrics(start: date, end: date) -> dict:
 
     savings_start = _type_balance_as_of(SAVINGS_TYPES, day_before)
     savings_end = _type_balance_as_of(SAVINGS_TYPES, end)
-    debt_start = _type_balance_as_of(DEBT_TYPES, day_before)
-    debt_end = _type_balance_as_of(DEBT_TYPES, end)
+    # Negated here, once, so every downstream read (including the delta) sees
+    # amounts owed on a consistent None-means-no-data footing — a $0 balance
+    # (a card paid off exactly) must not be mistaken for "nothing reported yet".
+    debt_owed_start = _negate(_type_balance_as_of(DEBT_TYPES, day_before))
+    debt_owed_end = _negate(_type_balance_as_of(DEBT_TYPES, end))
 
     return {
         "period_start": start.isoformat(),
@@ -101,9 +104,9 @@ def compute_metrics(start: date, end: date) -> dict:
         "savings_balance_start": _f(savings_start),
         "savings_balance_end": _f(savings_end),
         "savings_change": _f(_delta(savings_start, savings_end)),
-        "debt_balance_start": _f(-debt_start) if debt_start else 0.0,
-        "debt_balance_end": _f(-debt_end) if debt_end else 0.0,
-        "debt_change": _f(_delta(-debt_start if debt_start else None, -debt_end if debt_end else None)),
+        "debt_balance_start": _f(debt_owed_start) if debt_owed_start is not None else 0.0,
+        "debt_balance_end": _f(debt_owed_end) if debt_owed_end is not None else 0.0,
+        "debt_change": _f(_delta(debt_owed_start, debt_owed_end)),
         "budgets": _budget_summary(start, end),
     }
 
@@ -122,6 +125,10 @@ def _type_balance_as_of(account_types, when):
         total = (total or Decimal("0")) + snapshot.current
 
     return total
+
+
+def _negate(value):
+    return None if value is None else -value
 
 
 def _delta(start, end):

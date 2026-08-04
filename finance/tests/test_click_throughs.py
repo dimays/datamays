@@ -177,6 +177,10 @@ class TransactionListFilterTests(TestCase):
         response = self.client.get(reverse("finance:transactions"), {"budget": "999999"})
         self.assertEqual(response.status_code, 200)
 
+    def test_a_non_numeric_budget_id_degrades_to_no_filter_rather_than_erroring(self):
+        response = self.client.get(reverse("finance:transactions"), {"budget": "abc"})
+        self.assertEqual(response.status_code, 200)
+
     def test_spend_flag_matches_the_dashboards_own_definition(self):
         outflow = self.spend(self.groceries, day=5)
         income_cat = Category.objects.get(slug="income-salary")
