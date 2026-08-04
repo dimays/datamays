@@ -9,8 +9,9 @@ reconstructed from transactions — which is impossible for the accounts that
 only ever report a balance.
 """
 
+import calendar
 from collections import OrderedDict
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.db.models import Q, Sum
@@ -34,19 +35,34 @@ GRAINS = {
 }
 
 
-def _base_spend_queryset(start, end, account_ids=None):
-    # Excludes income and transfers, but *keeps* transactions with no category
-    # yet. Requiring an expense category silently dropped everything the
-    # categoriser had not reached — and since the hourly chain isolates step
-    # failures, a broken categorise run would have made the dashboards
-    # under-report spend while looking perfectly healthy.
-    queryset = Transaction.objects.filter(
-        posted_on__gte=start,
-        posted_on__lte=end,
-        is_transfer=False,
-        amount__lt=0,
-    ).filter(
+def spend_filter() -> Q:
+    """What counts as spend, as a reusable Q rather than a bound queryset.
+
+    Excludes income and transfers, but *keeps* transactions with no category
+    yet. Requiring an expense category silently dropped everything the
+    categoriser had not reached — and since the hourly chain isolates step
+    failures, a broken categorise run would have made the dashboards
+    under-report spend while looking perfectly healthy.
+
+    Split out from spend_transactions() so the activity list can apply this
+    exact definition (via TransactionListView's `spend=1`) without also being
+    forced to supply a date range — a chart click already carries its own
+    start/end, and re-deriving them here would risk the two drifting apart.
+    """
+    return Q(is_transfer=False, amount__lt=0) & (
         Q(category__kind=CategoryKind.EXPENSE) | Q(category__isnull=True)
+    )
+
+
+def spend_transactions(start, end, account_ids=None):
+    """Transactions that count as spend in a window — the shared definition.
+
+    Public rather than a module-private helper: clicking a bar in a chart
+    built from this function should show precisely the rows that produced its
+    number, not an approximation of them.
+    """
+    queryset = Transaction.objects.filter(
+        spend_filter(), posted_on__gte=start, posted_on__lte=end
     )
 
     if account_ids:
@@ -55,21 +71,44 @@ def _base_spend_queryset(start, end, account_ids=None):
     return queryset
 
 
+def _bucket_end(bucket_start: date, grain: str) -> date:
+    """The last day covered by a bucket, given its first day.
+
+    Needed so a clicked chart bar can link to a transaction list filtered to
+    exactly the days that fed it — Trunc*() gives back the bucket's start, not
+    its span.
+    """
+    if grain == "daily":
+        return bucket_start
+
+    if grain == "weekly":
+        # TruncWeek anchors to the Monday of the ISO week regardless of locale.
+        return bucket_start + timedelta(days=6)
+
+    last_day = calendar.monthrange(bucket_start.year, bucket_start.month)[1]
+    return bucket_start.replace(day=last_day)
+
+
 def spend_over_time(start, end, *, grain="monthly", account_ids=None):
     """Total outflow per period, as positive numbers."""
     trunc, label_format = GRAINS.get(grain, GRAINS["monthly"])
 
     rows = (
-        _base_spend_queryset(start, end, account_ids)
+        spend_transactions(start, end, account_ids)
         .annotate(bucket=trunc("posted_on"))
         .values("bucket")
         .annotate(total=Sum("amount"))
         .order_by("bucket")
     )
+    rows = list(rows)
 
     return {
         "labels": [row["bucket"].strftime(label_format) for row in rows],
         "values": [float(-row["total"]) for row in rows],
+        # Exact bounds per bucket, so a chart click can filter the activity
+        # list to precisely what that bar represents.
+        "bucket_starts": [row["bucket"].isoformat() for row in rows],
+        "bucket_ends": [_bucket_end(row["bucket"], grain).isoformat() for row in rows],
     }
 
 
@@ -80,7 +119,7 @@ def spend_by_category(start, end, *, account_ids=None, limit=10):
     not a chart — the leaf detail lives in the activity list.
     """
     rows = (
-        _base_spend_queryset(start, end, account_ids)
+        spend_transactions(start, end, account_ids)
         .values("category__id", "category__name", "category__parent__name")
         .annotate(total=Sum("amount"))
     )
@@ -120,6 +159,10 @@ def budget_attainment_over_time(budget, periods=12):
         "labels": [row.period_start.strftime("%b %Y") for row in rows],
         "actual": [float(row.actual_amount) for row in rows],
         "target": [float(row.target_amount) for row in rows],
+        # So a clicked bar can open the activity list scoped to that one
+        # historical period rather than the budget's current one.
+        "period_starts": [row.period_start.isoformat() for row in rows],
+        "period_ends": [row.period_end.isoformat() for row in rows],
     }
 
 
@@ -294,6 +337,29 @@ def net_worth_history(*, start=None, end=None):
         totals.append(round(sum(reported), 2) if reported else None)
 
     return {"labels": history["labels"], "values": totals}
+
+
+def net_worth_as_of(when: date) -> Decimal | None:
+    """Net worth on a single day, from each account's latest snapshot at or
+    before it.
+
+    None rather than 0 when nothing has reported yet by that date — used by
+    the QFR to tell "we had no data yet" apart from "net worth was zero", the
+    same distinction net_worth_history draws for its chart.
+    """
+    total = None
+
+    for account in Account.objects.filter(is_active=True, include_in_net_worth=True):
+        snapshot = (
+            account.balance_snapshots.filter(as_of__lte=when).order_by("-as_of").first()
+        )
+
+        if snapshot is None:
+            continue
+
+        total = (total or Decimal("0")) + snapshot.current
+
+    return total
 
 
 def default_range(months=12):

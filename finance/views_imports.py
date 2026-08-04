@@ -9,7 +9,7 @@ looked at the proposed columns and the resulting preview.
 from django import forms
 from django.contrib import messages
 from django.shortcuts import redirect
-from django.views.generic import DetailView, FormView, ListView
+from django.views.generic import DetailView, FormView, ListView, TemplateView
 
 from .access import FinanceAccessMixin
 from .models import (
@@ -72,6 +72,29 @@ FIELD_LABELS = {
     "deduction:insurance": "Insurance premium",
 }
 
+# What one row is expected to represent, and any shape rule that isn't
+# obvious from the field list alone (e.g. amount vs. debit/credit being
+# mutually exclusive). These three record types are fixed in the importer's
+# parsing logic (services/importer.py) rather than user-configurable — this
+# page exists so that fixed shape is actually visible somewhere, instead of
+# only living in this module.
+RECORD_TYPE_GRAIN = {
+    RecordType.TRANSACTIONS: (
+        "One row per transaction. Provide either a single signed 'amount' "
+        "column (negative for money out) or separate 'debit'/'credit' "
+        "columns — not both; the mapping step asks you to pick one."
+    ),
+    RecordType.BALANCES: (
+        "One row per statement date — a snapshot of the account's balance on "
+        "that day, not a running ledger of activity. Importing the same date "
+        "twice replaces the earlier snapshot rather than duplicating it."
+    ),
+    RecordType.PAYCHECK: (
+        "One row per pay period. Deductions are additive and all optional — "
+        "map whichever ones this employer actually itemizes on the stub."
+    ),
+}
+
 
 class UploadForm(forms.Form):
     institution = forms.ModelChoiceField(
@@ -115,6 +138,43 @@ class ImportListView(FinanceAccessMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Imports"
+        return context
+
+
+class ImportSchemaView(FinanceAccessMixin, TemplateView):
+    """Read-only reference: what a file needs to look like per record type.
+
+    Not an editable schema — the three record types are parsed by fixed logic
+    in services/importer.py, not driven by configuration, so there is nothing
+    here to safely make user-editable without also rewriting that parser.
+    What was missing was just *visibility*: this page is REQUIRED_FIELDS /
+    OPTIONAL_FIELDS / RECORD_TYPE_GRAIN, rendered instead of only living in
+    this module.
+    """
+
+    template_name = "finance/imports/schemas.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Import schemas"
+
+        context["record_types"] = [
+            {
+                "slug": record_type,
+                "label": label,
+                "grain": RECORD_TYPE_GRAIN[record_type],
+                "required": [
+                    (field, FIELD_LABELS.get(field, field))
+                    for field in REQUIRED_FIELDS[record_type]
+                ],
+                "optional": [
+                    (field, FIELD_LABELS.get(field, field))
+                    for field in OPTIONAL_FIELDS[record_type]
+                ],
+            }
+            for record_type, label in RecordType.choices
+        ]
+
         return context
 
 
