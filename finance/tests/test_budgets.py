@@ -101,7 +101,39 @@ class SpendCalculationTests(RollupTestCase):
 
         # Signed sum, so the refund nets off rather than being ignored.
         period = roll_up_budget(budget, date(2026, 4, 20))
-        self.assertEqual(period.actual_amount, Decimal("100.00"))
+        self.assertEqual(period.actual_amount, Decimal("70.00"))
+
+    def test_a_refund_bigger_than_the_periods_spend_floors_at_zero(self):
+        budget = self.make_budget()
+        self.spend("-20.00", self.groceries)
+        self.spend("50.00", self.groceries, day=16)
+
+        period = roll_up_budget(budget, date(2026, 4, 20))
+
+        self.assertEqual(period.actual_amount, Decimal("0"))
+
+    def test_a_refund_in_a_later_period_does_not_retroactively_adjust_the_earlier_one(self):
+        budget = self.make_budget()
+        self.spend("-100.00", self.groceries, day=20)  # April: the purchase
+
+        april = roll_up_budget(budget, date(2026, 4, 20))
+        self.assertEqual(april.actual_amount, Decimal("100.00"))
+
+        make_transaction(
+            self.checking,
+            posted_on=date(2026, 5, 5),
+            amount=Decimal("100.00"),
+            description_raw="REFUND",
+            category=self.groceries,
+        )
+        may = roll_up_budget(budget, date(2026, 5, 20))
+
+        # April still reads as spent -- rollups are computed per period from
+        # what posted in that period's own window, not retroactively matched
+        # back to the original purchase.
+        april.refresh_from_db()
+        self.assertEqual(april.actual_amount, Decimal("100.00"))
+        self.assertEqual(may.actual_amount, Decimal("0"))
 
     def test_transfers_never_count(self):
         budget = self.make_budget()

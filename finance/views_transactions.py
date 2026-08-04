@@ -57,7 +57,10 @@ class TransactionListView(FinanceAccessMixin, ListView):
 
         budgets = self.filtered_budgets()
         if budgets:
-            queryset = queryset.filter(self._budgets_q(budgets), is_transfer=False, amount__lt=0)
+            # No amount__lt=0 here — a refund against one of the budget's own
+            # categories is part of "what counts toward it" too, the same
+            # definition services.rollups.spend_for() sums.
+            queryset = queryset.filter(self._budgets_q(budgets), is_transfer=False)
 
         if self.request.GET.get("spend") == "1":
             # Independent of budget — a chart click and a budget click-through
