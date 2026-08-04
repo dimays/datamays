@@ -52,7 +52,7 @@
           <a href="{% url 'finance:account_edit' account.pk %}" class="truncate text-sm font-medium hover:underline">{{ account.name }}</a>
           <p class="text-xs text-text-muted">{{ account.institution.name }} · {{ account.get_account_type_display }}</p>
         </div>
-        <p class="shrink-0 font-mono text-sm">${{ account.display_balance|money }}</p>
+        <p class="shrink-0 font-mono text-sm">{{ account.display_balance|money_sign }}${{ account.display_balance|abs_money }}</p>
       </li>
     {% empty %}
       <li class="p-4 text-sm text-text-muted">No accounts discovered yet.</li>

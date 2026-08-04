@@ -25,7 +25,7 @@
           {% if account.display_balance is None %}
             <span class="text-text-muted">—</span>
           {% else %}
-            ${{ account.display_balance|money }}
+            {{ account.display_balance|money_sign }}${{ account.display_balance|abs_money }}
           {% endif %}
         </p>
       </li>

@@ -60,7 +60,11 @@ class SignConventionTests(TestCase):
 
         self.assertEqual(net_worth, Decimal("-286150.00"))
 
-    def test_display_balance_reads_a_debt_as_positive(self):
+    def test_display_balance_is_signed_like_current_balance(self):
+        # Previously abs()'d for a liability, which made debt_reported_positive
+        # invisible on the one screen a person would check it — the account
+        # row never showed a sign either way. Templates render the sign
+        # explicitly (money_sign + abs_money) instead of hiding it here.
         card = make_account(
             account_type=AccountType.CREDIT_CARD, current_balance=Decimal("-1350.00")
         )
@@ -68,7 +72,7 @@ class SignConventionTests(TestCase):
             name="Checking", current_balance=Decimal("4200.00")
         )
 
-        self.assertEqual(card.display_balance, Decimal("1350.00"))
+        self.assertEqual(card.display_balance, Decimal("-1350.00"))
         self.assertEqual(checking.display_balance, Decimal("4200.00"))
 
     def test_high_frequency_classification_drives_sync_cadence(self):

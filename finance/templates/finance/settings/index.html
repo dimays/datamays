@@ -83,7 +83,7 @@
               {% if not account.is_active %}· inactive{% endif %}
             </p>
           </div>
-          <p class="shrink-0 font-mono text-sm">${{ account.display_balance|money }}</p>
+          <p class="shrink-0 font-mono text-sm">{{ account.display_balance|money_sign }}${{ account.display_balance|abs_money }}</p>
         </a>
       </li>
     {% empty %}

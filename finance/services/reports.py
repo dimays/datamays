@@ -87,7 +87,8 @@ def build_sections(report, start, end):
     if "balances" in chosen:
         accounts = list(_accounts_for(report))
         lines = [
-            f"  {account.name}: ${account.display_balance:,.2f}"
+            f"  {account.name}: "
+            f"{'-' if account.display_balance < 0 else ''}${abs(account.display_balance):,.2f}"
             for account in accounts
             if account.display_balance is not None
         ]
