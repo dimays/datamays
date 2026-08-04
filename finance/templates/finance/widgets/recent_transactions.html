@@ -1,0 +1,26 @@
+{% load finance_extras %}
+<section class="rounded-card border border-border bg-surface p-5">
+  <div class="flex items-baseline justify-between gap-3">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">{{ label }}</h2>
+    <a href="{% url 'finance:transactions' %}" class="text-xs text-primary hover:underline">See all</a>
+  </div>
+
+  <ul class="mt-4 divide-y divide-border">
+    {% for txn in data.transactions %}
+      <li class="flex items-center justify-between gap-3 py-2.5">
+        <div class="min-w-0">
+          <p class="truncate text-sm">{{ txn.description_raw }}</p>
+          <p class="text-xs text-text-muted">
+            {{ txn.posted_on|date:"j M" }} · {{ txn.account.name }}
+            {% if txn.category %}· {{ txn.category.name }}{% endif %}
+          </p>
+        </div>
+        <p class="shrink-0 font-mono text-sm {% if txn.amount > 0 %}text-success{% endif %}">
+          {% if txn.amount < 0 %}−{% endif %}${{ txn.display_amount|money }}
+        </p>
+      </li>
+    {% empty %}
+      <li class="py-3 text-sm text-text-muted">Nothing yet.</li>
+    {% endfor %}
+  </ul>
+</section>

@@ -1,4 +1,5 @@
 {% extends "finance/base_finance.html" %}
+{% load finance_extras %}
 
 {% block finance_content %}
 <div class="flex flex-wrap items-center justify-between gap-3">
@@ -13,9 +14,8 @@
 
 <div class="mt-8 space-y-3">
   {% for row in rows %}
-    <a href="{% url 'finance:budget_edit' row.budget.pk %}"
-       class="block rounded-card border border-border bg-surface p-5 transition hover:border-primary/50">
-      <div class="flex flex-wrap items-baseline justify-between gap-2">
+    <div class="rounded-card border border-border bg-surface p-5 transition hover:border-primary/50">
+      <a href="{% url 'finance:budget_edit' row.budget.pk %}" class="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <h2 class="font-semibold">{{ row.budget.name }}</h2>
           <p class="mt-0.5 text-xs text-text-muted">
@@ -28,30 +28,36 @@
         {% if row.period %}
           <p class="font-mono text-sm">
             <span class="{% if row.period.is_over %}text-error{% else %}text-text-primary{% endif %}">
-              ${{ row.period.actual_amount|floatformat:0 }}
+              ${{ row.period.actual_amount|money:0 }}
             </span>
-            <span class="text-text-muted">/ ${{ row.period.target_amount|floatformat:0 }}</span>
+            <span class="text-text-muted">/ ${{ row.period.target_amount|money:0 }}</span>
           </p>
         {% endif %}
-      </div>
+      </a>
 
       {% if row.period %}
         {% include "finance/partials/budget_bar.html" with period=row.period pace=row.pace bar_width=row.period.bar_width elapsed_percent=row.period.elapsed_percent %}
 
         <p class="mt-3 text-sm">
           {% if row.period.is_over %}
-            <span class="text-error">${{ row.period.overspend|floatformat:0 }} over</span>
+            <span class="text-error">${{ row.period.overspend|money:0 }} over</span>
           {% elif row.pace > 0 %}
-            <span class="text-warning">${{ row.pace|floatformat:0 }} ahead of pace</span>
+            <span class="text-warning">${{ row.pace|money:0 }} ahead of pace</span>
           {% else %}
-            <span class="text-success">${{ row.period.remaining|floatformat:0 }} left</span>
+            <span class="text-success">${{ row.period.remaining|money:0 }} left</span>
           {% endif %}
           <span class="text-text-muted">· through {{ row.period.period_end|date:"j M" }}</span>
+          ·
+          <a href="{% url 'finance:transactions' %}?budget={{ row.budget.pk }}&start={{ row.period.period_start|date:'Y-m-d' }}&end={{ row.period.period_end|date:'Y-m-d' }}"
+             target="_blank" rel="noopener"
+             class="text-primary hover:underline">
+            View transactions
+          </a>
         </p>
       {% else %}
         <p class="mt-3 text-sm text-text-muted">No period computed yet — run the rollup.</p>
       {% endif %}
-    </a>
+    </div>
   {% empty %}
     <div class="rounded-card border border-dashed border-border bg-surface/50 p-8 text-center">
       <p class="text-text-secondary">No budgets yet.</p>

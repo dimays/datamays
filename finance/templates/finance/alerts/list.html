@@ -1,0 +1,68 @@
+{% extends "finance/base_finance.html" %}
+{% load finance_extras %}
+
+{% block finance_content %}
+<h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Alerts &amp; reports</h1>
+<p class="mt-2 text-text-secondary">Yours alone — {{ request.user.first_name|default:request.user.username }}'s thresholds, to your inbox.</p>
+
+{% include "finance/partials/messages.html" %}
+
+<section class="mt-8">
+  <div class="flex items-center justify-between gap-3">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Alerts</h2>
+    <a href="{% url 'finance:alert_create' %}"
+       class="rounded-button bg-primary px-3.5 py-2 text-xs font-medium text-white transition hover:bg-primary-600">New alert</a>
+  </div>
+
+  <div class="mt-3 space-y-2">
+    {% for alert in alerts %}
+      <a href="{% url 'finance:alert_edit' alert.pk %}"
+         class="block rounded-card border border-border bg-surface p-4 transition hover:border-primary/50 {% if not alert.is_active %}opacity-50{% endif %}">
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="truncate font-medium">{{ alert.name }}</p>
+            <p class="mt-0.5 text-xs text-text-muted">
+              {% if alert.account %}{{ alert.account.name }}{% else %}{{ alert.budget.name }}{% endif %} ·
+              {% if alert.kind == 'source_stale' %}
+                hasn't synced in over {{ alert.threshold|floatformat:0 }} {{ alert.get_threshold_unit_display|lower }}
+              {% else %}
+                {{ alert.get_comparison_display|lower }} {{ alert.threshold|money:0 }}{% if alert.kind == 'budget_percent' %}%{% endif %}
+              {% endif %}
+              {% if alert.last_triggered_at %}· last fired {{ alert.last_triggered_at|timesince }} ago{% endif %}
+            </p>
+          </div>
+        </div>
+      </a>
+    {% empty %}
+      <div class="rounded-card border border-dashed border-border bg-surface/50 p-6 text-center">
+        <p class="text-sm text-text-secondary">No alerts yet.</p>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="mt-8">
+  <div class="flex items-center justify-between gap-3">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Scheduled reports</h2>
+    <a href="{% url 'finance:report_create' %}"
+       class="rounded-button bg-primary px-3.5 py-2 text-xs font-medium text-white transition hover:bg-primary-600">New report</a>
+  </div>
+
+  <div class="mt-3 space-y-2">
+    {% for report in reports %}
+      <a href="{% url 'finance:report_edit' report.pk %}"
+         class="block rounded-card border border-border bg-surface p-4 transition hover:border-primary/50 {% if not report.is_active %}opacity-50{% endif %}">
+        <p class="truncate font-medium">{{ report.name }}</p>
+        <p class="mt-0.5 text-xs text-text-muted">
+          {{ report.get_cadence_display }}
+          {% if report.last_sent_at %}· last sent {{ report.last_sent_at|timesince }} ago{% else %}· never sent{% endif %}
+        </p>
+      </a>
+    {% empty %}
+      <div class="rounded-card border border-dashed border-border bg-surface/50 p-6 text-center">
+        <p class="text-sm text-text-secondary">No reports scheduled.</p>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

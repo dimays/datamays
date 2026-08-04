@@ -1,0 +1,70 @@
+{% extends "finance/base_finance.html" %}
+{% load static %}
+
+{% block finance_content %}
+<h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Preferences</h1>
+<p class="mt-2 text-text-secondary">Just for you — {{ request.user.first_name|default:request.user.username }}. These don't change what anyone else sees.</p>
+
+{% include "finance/partials/messages.html" %}
+
+<form method="post" class="mt-8 max-w-2xl space-y-5">
+  {% csrf_token %}
+
+  <fieldset class="rounded-card border border-border bg-surface p-4">
+    <legend class="px-1 text-sm font-medium">{{ form.widgets_selected.label }}</legend>
+    <p class="mb-3 text-xs text-text-muted">Drag to reorder — this is the order they'll appear on your homepage.</p>
+    {{ form.widget_order }}
+    <div data-widget-reorder data-order-input="#{{ form.widget_order.id_for_label }}" class="space-y-2">
+      {% for slug, label, checked in form.ordered_widget_rows %}
+        <label data-widget-row="{{ slug }}"
+               class="flex cursor-grab items-center gap-3 rounded-button border border-border bg-background px-3 py-2 text-sm text-text-secondary active:cursor-grabbing">
+          <span class="select-none text-text-muted" aria-hidden="true">⠿</span>
+          <input type="checkbox" name="widgets_selected" value="{{ slug }}" {% if checked %}checked{% endif %}
+                 class="h-4 w-4 rounded border-border bg-background text-primary focus:ring-primary" />
+          <span>{{ label }}</span>
+        </label>
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  <fieldset class="rounded-card border border-border bg-surface p-4">
+    <legend class="px-1 text-sm font-medium">{{ form.accounts_selected.label }}</legend>
+    <p class="mb-3 text-xs text-text-muted">{{ form.accounts_selected.help_text }}</p>
+    <div class="space-y-2.5">
+      {% for choice in form.accounts_selected %}
+        <label class="flex items-center gap-3 text-sm text-text-secondary">{{ choice.tag }} <span>{{ choice.choice_label }}</span></label>
+      {% empty %}
+        <p class="text-sm text-text-muted">No accounts yet.</p>
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  <fieldset class="rounded-card border border-border bg-surface p-4">
+    <legend class="px-1 text-sm font-medium">{{ form.budgets_selected.label }}</legend>
+    <p class="mb-3 text-xs text-text-muted">{{ form.budgets_selected.help_text }}</p>
+    <div class="space-y-2.5">
+      {% for choice in form.budgets_selected %}
+        <label class="flex items-center gap-3 text-sm text-text-secondary">{{ choice.tag }} <span>{{ choice.choice_label }}</span></label>
+      {% empty %}
+        <p class="text-sm text-text-muted">No budgets yet.</p>
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  <div>
+    <label for="{{ form.recent_transaction_count.id_for_label }}" class="mb-1.5 block text-sm font-medium">
+      How many recent transactions to show
+    </label>
+    {{ form.recent_transaction_count }}
+    {% if form.recent_transaction_count.errors %}
+      <p class="mt-1.5 text-sm text-error">{{ form.recent_transaction_count.errors.0 }}</p>
+    {% endif %}
+  </div>
+
+  <button type="submit" class="rounded-button bg-primary px-6 py-3 font-medium text-white transition hover:bg-primary-600">
+    Save preferences
+  </button>
+</form>
+{% endblock %}
+
+{% block extra_js %}<script src="{% static 'js/widget-reorder.js' %}"></script>{% endblock %}

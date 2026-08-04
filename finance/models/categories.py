@@ -3,10 +3,39 @@ import re
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models.functions import Coalesce
 
 from .base import TimestampedModel, money_field
 
 MAX_CATEGORY_DEPTH = 3
+
+
+class CategoryQuerySet(models.QuerySet):
+    def alphabetical(self):
+        """Ordered the way a person reads a dropdown, not the seed's insertion order.
+
+        Meta.ordering is (sort_order, name), which groups categories to match
+        the nested tree in the admin — but a flat dropdown rendering "Parent ›
+        Child" needs to sort by what's on screen. Grouping by the parent's name
+        (falling back to the category's own name for top-level rows) puts
+        "Food › Coffee" and "Food › Groceries" next to each other instead of
+        interleaved with unrelated categories that happen to share a
+        sort_order.
+
+        Some dropdowns (the budget form) offer a parent category alongside its
+        own children, since budgeting "Financial" as a whole is valid. Within
+        a group, that parent-as-its-own-entry sorts first rather than being
+        alphabetised against its children — "Financial" reads oddly slotted
+        between "Financial › Bank Fees" and "Financial › Taxes".
+        """
+        return self.annotate(
+            _group=Coalesce("parent__name", "name"),
+            _is_own_group_parent=models.Case(
+                models.When(parent__isnull=True, then=models.Value(0)),
+                default=models.Value(1),
+                output_field=models.IntegerField(),
+            ),
+        ).order_by("_group", "_is_own_group_parent", "name")
 
 
 class CategoryKind(models.TextChoices):
@@ -47,6 +76,8 @@ class Category(TimestampedModel):
         blank=True,
         help_text="Steers the classifier — say what belongs here and what doesn't.",
     )
+
+    objects = CategoryQuerySet.as_manager()
 
     class Meta:
         ordering = ["sort_order", "name"]

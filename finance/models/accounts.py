@@ -1,6 +1,6 @@
 from django.db import models
 
-from .base import TimestampedModel, money_field
+from .base import Owner, TimestampedModel, money_field
 from .institutions import AccountConnection, Institution
 
 
@@ -40,6 +40,28 @@ HIGH_FREQUENCY_TYPES = frozenset(
     }
 )
 
+# The Savings & Debt dashboard's two halves, and the QFR's — defined once so
+# the two can never quietly classify an account type differently from
+# each other.
+SAVINGS_TYPES = frozenset(
+    {
+        AccountType.SAVINGS,
+        AccountType.MONEY_MARKET,
+        AccountType.INVESTMENT,
+        AccountType.RETIREMENT,
+        AccountType.INSURANCE,
+    }
+)
+
+DEBT_TYPES = frozenset(
+    {
+        AccountType.STUDENT_LOAN,
+        AccountType.MORTGAGE,
+        AccountType.AUTO_LOAN,
+        AccountType.CREDIT_CARD,
+    }
+)
+
 
 class Account(TimestampedModel):
     institution = models.ForeignKey(
@@ -70,6 +92,12 @@ class Account(TimestampedModel):
 
     account_type = models.CharField(max_length=20, choices=AccountType.choices)
     currency = models.CharField(max_length=3, default="USD")
+    owner = models.CharField(
+        max_length=10,
+        choices=Owner.choices,
+        default=Owner.JOINT,
+        help_text="Whose account this is — doesn't restrict who can see or edit it.",
+    )
 
     # Denormalised from the newest snapshot so account lists and the homepage
     # do not need a subquery per account.
