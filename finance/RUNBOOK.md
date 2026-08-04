@@ -27,8 +27,10 @@ manager, not this repo.
 |---|---|---|
 | `FIELD_ENCRYPTION_KEYS` | Encrypts provider credentials | Yes |
 | `SECRET_KEY` | Signs sessions — the app refuses to boot without it outside dev | Yes |
-| `OPENAI_API_KEY` | Transaction categorisation | No — rules and memos still work without it |
+| `OPENAI_API_KEY` | Transaction categorisation and QFR narratives | No — both degrade gracefully without it |
 | `FINANCE_CATEGORISER_MODEL` | Defaults to `gpt-4o-mini` | No |
+| `FINANCE_QFR_MODEL` | Defaults to `gpt-4o-mini` | No |
+| `FINANCE_TIME_ZONE` | What "today" means for periods and alerts. Defaults to `America/Chicago` | No |
 | `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | Alerts and reports | Only if you want email |
 
 ### 3. Create the two accounts
@@ -82,6 +84,29 @@ run shows up in `heroku logs` rather than passing silently.
 SimpleFIN allows roughly 24 requests a day, which is why the hourly job is
 restricted to accounts that actually move hourly.
 
+## Quarterly Finance Reports
+
+Not on the scheduler — a QFR should reflect complete data for its quarter, and
+only you know when a backfill is genuinely finished. Generate by hand once a
+quarter has closed:
+
+```bash
+# One quarter
+heroku run python manage.py generate_qfrs --quarter 2026-Q2 --app datamays
+
+# Every completed quarter from a starting point through the most recent
+heroku run python manage.py generate_qfrs --since 2025-Q1 --app datamays
+```
+
+Idempotent by default — re-running leaves existing reports alone. Pass
+`--regenerate` to recompute and overwrite (useful after importing more
+history that should have counted toward an existing report).
+
+A report generates with its metrics either way; the four narrative sections
+are only written when `OPENAI_API_KEY` is set at generation time. Missing that
+key is not a failure — the report page says plainly that no narrative was
+generated, and the numbers are unaffected.
+
 ## When something looks wrong
 
 **Balances look stale.** The homepage flags accounts that haven't refreshed in
@@ -116,6 +141,12 @@ heroku run python manage.py rollup_budgets --backfill 12 --app datamays
 **Alerts are too noisy.** Each alert has a cooldown (default 24h). Budget
 alerts can also gate on how far through the period you are, which is how you
 say "only tell me if we hit 80% before the 15th".
+
+**A source-staleness alert won't fire, or fires when it shouldn't.** It
+compares against the account's most recent activity — a connection's
+`last_synced_at` if it has one, otherwise its newest balance snapshot. A
+brand-new account with no snapshot yet gets one grace cycle rather than
+firing immediately; give it a sync or an import first.
 
 ## Rotating the encryption key
 

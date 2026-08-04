@@ -16,8 +16,27 @@
 
 {% include "finance/partials/messages.html" %}
 
+{% if filtered_budget or filters.start or filters.end %}
+  <div class="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-card border border-primary/40 bg-primary/10 px-4 py-3 text-sm">
+    <p class="text-text-secondary">
+      {% if filtered_budget %}
+        Showing what counts toward <span class="font-medium text-text-primary">{{ filtered_budget.name }}</span>
+      {% else %}
+        Showing
+      {% endif %}
+      {% if filters.start or filters.end %}
+        <span class="font-medium text-text-primary">{{ filters.start|default:"the start" }} – {{ filters.end|default:"now" }}</span>
+      {% endif %}
+    </p>
+    <a href="{% url 'finance:transactions' %}" class="text-xs text-primary hover:underline">Clear filter</a>
+  </div>
+{% endif %}
+
 <form method="get" class="mt-6 grid gap-3 sm:grid-cols-3">
   {% if review_only %}<input type="hidden" name="review" value="1" />{% endif %}
+  {% if filtered_budget %}<input type="hidden" name="budget" value="{{ filtered_budget.pk }}" />{% endif %}
+  {% if filters.start %}<input type="hidden" name="start" value="{{ filters.start }}" />{% endif %}
+  {% if filters.end %}<input type="hidden" name="end" value="{{ filters.end }}" />{% endif %}
 
   <input name="q" value="{{ filters.q }}" placeholder="Search descriptions"
          class="rounded-button border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />

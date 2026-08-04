@@ -54,7 +54,7 @@ class BudgetForm(forms.ModelForm):
         # only produce budgets that can never be met.
         self.fields["categories"].queryset = Category.objects.filter(
             is_active=True, kind=CategoryKind.EXPENSE
-        ).select_related("parent")
+        ).select_related("parent").alphabetical()
 
         self.fields["accounts"].queryset = Account.objects.filter(is_active=True)
         self.fields["accounts"].required = False

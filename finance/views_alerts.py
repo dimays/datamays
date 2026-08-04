@@ -30,7 +30,8 @@ class AlertForm(forms.ModelForm):
         model = Alert
         fields = [
             "name", "kind", "account", "budget", "comparison", "threshold",
-            "only_after_period_fraction", "cooldown_hours", "is_active",
+            "threshold_unit", "only_after_period_fraction", "cooldown_hours",
+            "is_active",
         ]
         widgets = {
             "name": forms.TextInput(attrs={"class": FIELD_CLASSES}),
@@ -39,6 +40,7 @@ class AlertForm(forms.ModelForm):
             "budget": forms.Select(attrs={"class": FIELD_CLASSES}),
             "comparison": forms.Select(attrs={"class": FIELD_CLASSES}),
             "threshold": forms.NumberInput(attrs={"class": FIELD_CLASSES, "step": "0.01"}),
+            "threshold_unit": forms.Select(attrs={"class": FIELD_CLASSES}),
             "only_after_period_fraction": forms.NumberInput(
                 attrs={"class": FIELD_CLASSES, "step": "0.05", "min": 0, "max": 1}
             ),
@@ -46,7 +48,11 @@ class AlertForm(forms.ModelForm):
             "is_active": forms.CheckboxInput(attrs={"class": CHECKBOX_CLASSES}),
         }
         help_texts = {
-            "threshold": "A dollar amount, or a percentage for budget-percent alerts.",
+            "threshold": (
+                "A dollar amount, a percentage for budget-percent alerts, or a "
+                "count of the unit below for source-staleness alerts."
+            ),
+            "threshold_unit": "Only used by source-staleness alerts — hours, days, weeks, or months.",
             "only_after_period_fraction": (
                 "Optional, 0–1. Only fire past this point in the budget period — "
                 "0.5 means 'only in the second half of the month'."
@@ -59,6 +65,7 @@ class AlertForm(forms.ModelForm):
         self.fields["budget"].queryset = Budget.objects.filter(is_active=True)
         self.fields["account"].required = False
         self.fields["budget"].required = False
+        self.fields["threshold_unit"].required = False
 
 
 class AlertListView(FinanceAccessMixin, ListView):

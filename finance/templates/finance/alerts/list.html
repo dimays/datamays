@@ -23,7 +23,11 @@
             <p class="truncate font-medium">{{ alert.name }}</p>
             <p class="mt-0.5 text-xs text-text-muted">
               {% if alert.account %}{{ alert.account.name }}{% else %}{{ alert.budget.name }}{% endif %} ·
-              {{ alert.get_comparison_display|lower }} {{ alert.threshold|money:0 }}{% if alert.kind == 'budget_percent' %}%{% endif %}
+              {% if alert.kind == 'source_stale' %}
+                hasn't synced in over {{ alert.threshold|floatformat:0 }} {{ alert.get_threshold_unit_display|lower }}
+              {% else %}
+                {{ alert.get_comparison_display|lower }} {{ alert.threshold|money:0 }}{% if alert.kind == 'budget_percent' %}%{% endif %}
+              {% endif %}
               {% if alert.last_triggered_at %}· last fired {{ alert.last_triggered_at|timesince }} ago{% endif %}
             </p>
           </div>

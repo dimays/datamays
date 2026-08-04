@@ -12,17 +12,62 @@ but they say so.
 """
 
 import logging
+from datetime import datetime, time
 from decimal import Decimal
 
 from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
 
-from ..dates import household_today
-from ..models import Alert, AlertEvent, AlertKind, BudgetPeriod, Comparison
+from ..dates import household_timezone, household_today
+from ..models import UNIT_HOURS, Alert, AlertEvent, AlertKind, BudgetPeriod, Comparison, ThresholdUnit
 from ..periods import elapsed_fraction
 
 logger = logging.getLogger(__name__)
+
+
+def last_activity_at(account):
+    """When this account most recently reported anything, or None if never.
+
+    One definition serves both halves of "a source not syncing": an automated
+    connection's own last_synced_at is precise to the minute, while a manual
+    account (the mortgage, the life policy) has no connection to ask, so this
+    falls back to its newest balance snapshot — written both by sync and by
+    CSV import (services.sync.record_balance_snapshot,
+    services.importer._commit_balance), which makes it the one signal common
+    to every account regardless of how it's kept current.
+    """
+    if account.connection_id and account.connection.last_synced_at:
+        return account.connection.last_synced_at
+
+    snapshot = account.balance_snapshots.order_by("-as_of").first()
+
+    if snapshot is None:
+        return None
+
+    return timezone.make_aware(
+        datetime.combine(snapshot.as_of, time.min), household_timezone()
+    )
+
+
+def staleness_value(alert):
+    """Age since last activity, expressed in the alert's own unit.
+
+    Returning it pre-converted (rather than always in hours) is what lets
+    is_breached() stay a single generic `value > alert.threshold` — no
+    staleness-specific comparison logic needed anywhere else.
+    """
+    last_activity = last_activity_at(alert.account)
+
+    if last_activity is None:
+        # A brand-new account has no baseline to measure staleness against.
+        # It gets one grace cycle rather than alerting immediately.
+        return None
+
+    age_hours = (timezone.now() - last_activity).total_seconds() / 3600
+    unit_hours = UNIT_HOURS[alert.threshold_unit or ThresholdUnit.HOURS]
+
+    return Decimal(str(round(age_hours / unit_hours, 4)))
 
 
 def observed_value(alert):
@@ -38,6 +83,9 @@ def observed_value(alert):
             if alert.account.is_liability
             else alert.account.current_balance
         )
+
+    if alert.kind == AlertKind.SOURCE_STALE:
+        return staleness_value(alert)
 
     period = current_period_for(alert.budget)
 
@@ -122,6 +170,9 @@ def build_message(alert, value):
 
         return message
 
+    if alert.kind == AlertKind.SOURCE_STALE:
+        return _staleness_message(alert)
+
     period = current_period_for(alert.budget)
 
     if alert.kind == AlertKind.BUDGET_PERCENT:
@@ -148,6 +199,33 @@ def build_message(alert, value):
     )
 
 
+def _staleness_message(alert):
+    account = alert.account
+    last_activity = last_activity_at(account)
+    unit_label = alert.get_threshold_unit_display().lower()
+
+    if last_activity is None:
+        return (
+            f"{account.name} has no recorded sync or import yet — nothing to "
+            f"compare the {unit_label} threshold against."
+        )
+
+    # A connected account is meant to sync on its own; a manual one is meant
+    # to be refreshed by hand. The wording should say which kind of attention
+    # is actually needed.
+    verb = "synced" if account.connection_id else "been updated"
+    action = (
+        "Check the connection in Settings."
+        if account.connection_id
+        else "Import a fresh statement from Settings → Imports."
+    )
+
+    return (
+        f"{account.name} hasn't {verb} in over {alert.threshold:.0f} {unit_label} "
+        f"(last activity {timezone.localtime(last_activity):%-d %B %Y}). {action}"
+    )
+
+
 def _is_stale(account, days=3):
     if account.is_manual or account.balance_as_of is None:
         return False
@@ -161,7 +239,7 @@ def evaluate_alerts(*, send=True, now=None):
     fired = []
 
     alerts = Alert.objects.filter(is_active=True).select_related(
-        "account", "budget", "user"
+        "account", "account__connection", "budget", "user"
     )
 
     for alert in alerts:

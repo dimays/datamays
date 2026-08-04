@@ -39,6 +39,21 @@
   }
 
   /**
+   * Open a bar's linked transaction list in a new tab.
+   *
+   * `elements` comes from Chart.js's own onClick — it is already resolved to
+   * "which bar, in which dataset" by the time this runs, so there is no
+   * pixel math here. `noopener` matters: the opened tab must not be able to
+   * reach back into this one via window.opener.
+   */
+  function openLinkForElement(links, elements) {
+    if (!links || !elements.length) return;
+
+    var url = links[elements[0].index];
+    if (url) window.open(url, "_blank", "noopener");
+  }
+
+  /**
    * Fresh options per chart.
    *
    * Deliberately a factory rather than a cloned constant: structured cloning
@@ -52,6 +67,16 @@
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
+      onHover: options.links
+        ? function (event, elements) {
+            event.native.target.style.cursor = elements.length ? "pointer" : "default";
+          }
+        : undefined,
+      onClick: options.links
+        ? function (event, elements) {
+            openLinkForElement(options.links, elements);
+          }
+        : undefined,
       plugins: {
         legend: {
           position: options.legendPosition || "top",
@@ -104,7 +129,7 @@
         labels: data.labels,
         datasets: [{ label: canvas.dataset.label || "Spend", data: data.values, backgroundColor: COLORS[0], borderRadius: 4 }],
       },
-      options: makeOptions(),
+      options: makeOptions({ links: data.links }),
     });
   }
 
@@ -162,7 +187,7 @@
           { label: "Target", data: series.target, type: "line", borderColor: COLORS[2], borderWidth: 2, pointRadius: 0 },
         ],
       },
-      options: makeOptions(),
+      options: makeOptions({ links: series.links }),
     });
   }
 

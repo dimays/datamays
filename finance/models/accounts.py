@@ -40,6 +40,28 @@ HIGH_FREQUENCY_TYPES = frozenset(
     }
 )
 
+# The Savings & Debt dashboard's two halves, and the QFR's — defined once so
+# the two can never quietly classify an account type differently from
+# each other.
+SAVINGS_TYPES = frozenset(
+    {
+        AccountType.SAVINGS,
+        AccountType.MONEY_MARKET,
+        AccountType.INVESTMENT,
+        AccountType.RETIREMENT,
+        AccountType.INSURANCE,
+    }
+)
+
+DEBT_TYPES = frozenset(
+    {
+        AccountType.STUDENT_LOAN,
+        AccountType.MORTGAGE,
+        AccountType.AUTO_LOAN,
+        AccountType.CREDIT_CARD,
+    }
+)
+
 
 class Account(TimestampedModel):
     institution = models.ForeignKey(
