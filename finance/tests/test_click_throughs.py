@@ -181,6 +181,26 @@ class TransactionListFilterTests(TestCase):
         response = self.client.get(reverse("finance:transactions"), {"budget": "abc"})
         self.assertEqual(response.status_code, 200)
 
+    def test_resubmitting_the_filter_form_with_no_account_chosen_does_not_error(self):
+        # The "All accounts" option in the filter <select> always submits
+        # account="" — re-filtering (e.g. after a click-through set other
+        # filters) must not try account_id__in=[''].
+        response = self.client.get(reverse("finance:transactions"), {"account": ""})
+        self.assertEqual(response.status_code, 200)
+
+    def test_filters_combine_with_a_budget_click_through(self):
+        in_budget = self.spend(self.groceries, day=5)
+        out_of_budget = self.spend(self.fuel, day=6)
+
+        results = self.get_transactions(
+            budget=self.budget.pk, start="2026-04-01", end="2026-04-30",
+            account="", category="",
+        )
+
+        ids = {t.pk for t in results}
+        self.assertIn(in_budget.pk, ids)
+        self.assertNotIn(out_of_budget.pk, ids)
+
     def test_spend_flag_matches_the_dashboards_own_definition(self):
         outflow = self.spend(self.groceries, day=5)
         income_cat = Category.objects.get(slug="income-salary")
@@ -229,7 +249,123 @@ class TransactionListFilterTests(TestCase):
             reverse("finance:transactions"), {"budget": self.budget.pk}
         )
         self.assertContains(response, self.budget.name)
-        self.assertContains(response, "Clear filter")
+        self.assertContains(response, "Clear all filters")
+
+
+class MultiSelectFilterTests(TestCase):
+    """Accounts, categories, and budgets are all multi-select: OR within one
+    filter, AND across different filters — the standard faceted-search
+    convention. Budgets specifically union (any of the selected budgets'
+    categories/accounts count), since "show me these two budgets" means
+    "everything either one counts," not "only what both count.\""""
+
+    def setUp(self):
+        call_command("seed_finance_categories", verbosity=0)
+
+        self.institution = make_institution()
+        self.checking = make_account(self.institution, name="Checking")
+        self.card = make_account(
+            self.institution, name="Card", account_type=AccountType.CREDIT_CARD
+        )
+        self.groceries = Category.objects.get(slug="food-groceries")
+        self.restaurants = Category.objects.get(slug="food-restaurants")
+        self.fuel = Category.objects.get(slug="transport-fuel")
+
+        self.groceries_budget = Budget.objects.create(name="Groceries", amount=Decimal("500"))
+        self.groceries_budget.categories.set([self.groceries])
+
+        self.fuel_budget = Budget.objects.create(name="Fuel", amount=Decimal("200"))
+        self.fuel_budget.categories.set([self.fuel])
+
+        self.user = make_user("david", with_device=True)
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["otp_device_id"] = TOTPDevice.objects.get(user=self.user).persistent_id
+        session.save()
+
+    def spend(self, category, amount="-40.00", account=None, day=15, **kwargs):
+        return make_transaction(
+            account or self.checking,
+            posted_on=date(2026, 4, day),
+            amount=Decimal(amount),
+            category=category,
+            description_raw=f"SPEND {category.slug} {day}",
+            **kwargs,
+        )
+
+    def get(self, **params):
+        return self.client.get(reverse("finance:transactions"), params)
+
+    def get_transactions(self, **params):
+        return list(self.get(**params).context["transactions"])
+
+    def test_multiple_categories_are_ored_together(self):
+        groceries_txn = self.spend(self.groceries, day=5)
+        restaurants_txn = self.spend(self.restaurants, day=6)
+        fuel_txn = self.spend(self.fuel, day=7)
+
+        results = self.get_transactions(
+            category=[self.groceries.pk, self.restaurants.pk]
+        )
+        ids = {t.pk for t in results}
+
+        self.assertEqual(ids, {groceries_txn.pk, restaurants_txn.pk})
+        self.assertNotIn(fuel_txn.pk, ids)
+
+    def test_multiple_budgets_union_rather_than_intersect(self):
+        groceries_txn = self.spend(self.groceries, day=5)
+        fuel_txn = self.spend(self.fuel, day=6)
+        restaurants_txn = self.spend(self.restaurants, day=7)
+
+        results = self.get_transactions(
+            budget=[self.groceries_budget.pk, self.fuel_budget.pk]
+        )
+        ids = {t.pk for t in results}
+
+        self.assertEqual(ids, {groceries_txn.pk, fuel_txn.pk})
+        self.assertNotIn(restaurants_txn.pk, ids)
+
+    def test_a_budget_and_an_account_filter_still_and_together(self):
+        on_checking = self.spend(self.groceries, account=self.checking, day=5)
+        on_card = self.spend(self.groceries, account=self.card, day=6)
+
+        results = self.get_transactions(
+            budget=self.groceries_budget.pk, account=self.card.pk
+        )
+        ids = {t.pk for t in results}
+
+        self.assertEqual(ids, {on_card.pk})
+        self.assertNotIn(on_checking.pk, ids)
+
+    def test_a_budget_and_a_non_overlapping_category_yield_no_results_not_an_error(self):
+        # Groceries budget only covers the groceries category, so asking for
+        # it *and* fuel is a legitimate, well-defined request that happens to
+        # match nothing -- narrowing, not widening.
+        self.spend(self.groceries, day=5)
+
+        response = self.get(budget=self.groceries_budget.pk, category=self.fuel.pk)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["transactions"]), [])
+        self.assertContains(response, "No transactions match these filters")
+        self.assertTrue(response.context["has_active_filters"])
+
+    def test_the_banner_lists_every_active_filter_dimension(self):
+        response = self.get(
+            budget=self.groceries_budget.pk,
+            category=self.restaurants.pk,
+            account=self.checking.pk,
+        )
+
+        self.assertContains(response, self.groceries_budget.name)
+        self.assertContains(response, self.restaurants.full_path)
+        self.assertContains(response, self.checking.name)
+
+    def test_no_filters_active_shows_the_plain_empty_state(self):
+        response = self.get()
+
+        self.assertFalse(response.context["has_active_filters"])
+        self.assertContains(response, "No transactions yet.")
 
 
 class SpendBucketBoundaryTests(TestCase):

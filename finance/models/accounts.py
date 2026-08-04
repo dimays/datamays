@@ -1,6 +1,6 @@
 from django.db import models
 
-from .base import TimestampedModel, money_field
+from .base import Owner, TimestampedModel, money_field
 from .institutions import AccountConnection, Institution
 
 
@@ -92,6 +92,12 @@ class Account(TimestampedModel):
 
     account_type = models.CharField(max_length=20, choices=AccountType.choices)
     currency = models.CharField(max_length=3, default="USD")
+    owner = models.CharField(
+        max_length=10,
+        choices=Owner.choices,
+        default=Owner.JOINT,
+        help_text="Whose account this is — doesn't restrict who can see or edit it.",
+    )
 
     # Denormalised from the newest snapshot so account lists and the homepage
     # do not need a subquery per account.

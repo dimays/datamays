@@ -14,7 +14,7 @@ from .accounts import (
     AccountType,
     BalanceSource,
 )
-from .base import TimestampedModel, money_field
+from .base import Owner, TimestampedModel, money_field
 from .budgets import Budget, BudgetPeriod, BudgetPeriodType
 from .categories import (
     MAX_CATEGORY_DEPTH,
@@ -100,6 +100,7 @@ __all__ = [
     "MAX_CATEGORY_DEPTH",
     "MatchType",
     "MerchantCategoryMemo",
+    "Owner",
     "Paycheck",
     "PaycheckDeduction",
     "Provider",
