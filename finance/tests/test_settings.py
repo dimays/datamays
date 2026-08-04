@@ -282,6 +282,22 @@ class AccountSettingsTests(SettingsTestCase):
         self.assertEqual(card.name, "Capital One Venture")
         self.assertEqual(card.current_balance, Decimal("500.00"))
 
+    def test_the_settings_page_actually_renders_the_minus_sign_for_a_debt(self):
+        card = make_account(
+            self.institution,
+            name="Capital One",
+            connection=self.connection,
+            account_type=AccountType.CREDIT_CARD,
+            current_balance=Decimal("-500.00"),
+        )
+
+        response = self.client.get(reverse("finance:settings"))
+
+        self.assertContains(response, "-$500.00")
+        # Not the old behaviour: the raw amount must not also appear
+        # unsigned, which would mean the minus sign silently got dropped.
+        self.assertNotContains(response, ">$500.00<")
+
     def test_the_toggle_on_an_asset_account_never_touches_the_balance(self):
         # Ignored for asset accounts by design (per the field's own
         # help_text) -- guards the flip logic against a stray submission.

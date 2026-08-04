@@ -156,13 +156,18 @@ class Account(TimestampedModel):
 
     @property
     def display_balance(self):
-        """Balance as a person reads it: a debt of $1,200 shows as 1200.
+        """The balance as stored, signed — a debt reads as a negative number.
 
-        Storage stays signed for net worth; this is for presentation only.
+        Previously abs()'d for a liability so a debt always read as a
+        positive "amount owed," but that made debt_reported_positive
+        invisible on the one screen a person would actually check it: the
+        account itself never showed a sign either way, so there was no way
+        to see whether the setting was even doing anything. Every caller
+        pairs this with the money_sign/abs_money filters (or their own sign
+        handling, for the plain-text version in services/reports.py) to
+        render the sign explicitly rather than hiding it.
         """
-        if self.current_balance is None:
-            return None
-        return abs(self.current_balance) if self.is_liability else self.current_balance
+        return self.current_balance
 
 
 class BalanceSource(models.TextChoices):

@@ -225,8 +225,9 @@ class BalanceNormalisationTests(SyncTestCase):
         card = Account.objects.get()
         self.assertEqual(card.account_type, AccountType.CREDIT_CARD)
         self.assertEqual(card.current_balance, Decimal("-1350.00"))
-        # And still reads as a positive debt in the UI.
-        self.assertEqual(card.display_balance, Decimal("1350.00"))
+        # display_balance is signed the same as current_balance -- the sign
+        # is rendered explicitly in templates, not hidden at this layer.
+        self.assertEqual(card.display_balance, Decimal("-1350.00"))
 
     def test_an_overpaid_card_stays_a_positive_balance(self):
         # Negation rather than -abs() is what makes this come out right.

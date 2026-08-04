@@ -36,6 +36,22 @@ def abs_money(value, places=2):
 
 
 @register.filter
+def money_sign(value):
+    """'-' for a negative amount, '' otherwise — None-safe.
+
+    Pairs with abs_money so a template can prefix the sign without risking
+    a None comparison in {% if %}: {{ x|money_sign }}${{ x|abs_money }}.
+    """
+    if value is None or value == "":
+        return ""
+
+    try:
+        return "-" if Decimal(str(value)) < 0 else ""
+    except (InvalidOperation, TypeError, ValueError):
+        return ""
+
+
+@register.filter
 def get_item(mapping, key):
     """Look up a dict by a key held in a variable.
 

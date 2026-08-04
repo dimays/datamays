@@ -77,7 +77,9 @@ class BalanceWidgetTests(HomepageTestCase):
         self.assertEqual(len(data["accounts"]), 2)
         self.assertEqual(data["total"], Decimal("2850.00"))
 
-    def test_a_debt_is_shown_as_a_positive_figure(self):
+    def test_a_debt_carries_its_negative_sign_into_the_widget_data(self):
+        # The template is what turns this into "-$1,350.00"; this just
+        # confirms the widget hands it the real signed value to render.
         preference = UserPreference.for_user(self.user)
         preference.homepage_widgets = ["balances"]
         preference.save()
@@ -86,7 +88,7 @@ class BalanceWidgetTests(HomepageTestCase):
             a for a in self.widget("balances")["data"]["accounts"] if a.name == "Card"
         )
 
-        self.assertEqual(card.display_balance, Decimal("1350.00"))
+        self.assertEqual(card.display_balance, Decimal("-1350.00"))
 
     def test_a_stale_balance_is_flagged(self):
         # A quietly failing sync is the worst failure: the numbers look fine,
