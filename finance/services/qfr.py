@@ -78,7 +78,12 @@ def compute_metrics(start: date, end: date) -> dict:
         analytics.spend_filter(), posted_on__gte=start, posted_on__lte=end
     ).aggregate(total=Sum("amount"))["total"]
 
-    income = analytics.income_over_time(start, end, grain="monthly")
+    net_income = analytics.net_income_over_time(start, end, grain="monthly")
+    # Gross is optional supplementary detail (see analytics.income_over_time)
+    # and only ever reflects pay periods with an imported payslip — it can
+    # legitimately read lower than total_income_net for a household member
+    # whose pay is tracked from deposits alone.
+    payslip_detail = analytics.income_over_time(start, end, grain="monthly")
     by_category = analytics.spend_by_category(start, end, limit=BATCH_SIZE_CATEGORIES)
 
     savings_start = _type_balance_as_of(SAVINGS_TYPES, day_before)
@@ -100,8 +105,8 @@ def compute_metrics(start: date, end: date) -> dict:
         # raw total, which would otherwise report as negative spend.
         "total_spend": max(0.0, _f(-spend_total)) if spend_total else 0.0,
         "spend_by_category": dict(zip(by_category["labels"], by_category["values"])),
-        "total_income_gross": round(sum(income["gross"]), 2),
-        "total_income_net": round(sum(income["net"]), 2),
+        "total_income_gross": round(sum(payslip_detail["gross"]), 2),
+        "total_income_net": round(sum(net_income["values"]), 2),
         # Stored as amounts owed (positive), so "debt_change" being negative
         # always reads as "debt went down" — the way a person expects it to.
         "savings_balance_start": _f(savings_start),

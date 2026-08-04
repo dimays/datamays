@@ -281,6 +281,82 @@ class IncomeAnalyticsTests(AnalyticsTestCase):
         self.assertEqual(unmatched.count(), 0)
 
 
+class NetIncomeAnalyticsTests(AnalyticsTestCase):
+    """The primary income figure — every income-categorised deposit, no
+    payslip required. This is what makes the Income dashboard work for a
+    household member whose pay never gets a detailed payslip import."""
+
+    def deposit(self, amount, day, category=None, month=4, **kwargs):
+        return make_transaction(
+            self.checking,
+            posted_on=date(2026, month, day),
+            amount=Decimal(amount),
+            description_raw=f"DEPOSIT {month}-{day}",
+            category=category if category is not None else self.salary,
+            **kwargs,
+        )
+
+    def test_a_deposit_with_no_payslip_still_counts(self):
+        self.deposit("3400.00", 15)
+
+        result = analytics.net_income_over_time(date(2026, 4, 1), date(2026, 4, 30))
+
+        self.assertEqual(result["values"], [3400.0])
+        self.assertTrue(result["has_data"])
+
+    def test_a_paycheck_linked_deposit_also_counts(self):
+        # net_income_over_time reads transactions directly -- a linked
+        # Paycheck record neither adds to nor is required for this total.
+        deposit = self.deposit("3400.00", 15)
+        paycheck = Paycheck.objects.create(
+            user=self.user, employer="Acme", pay_date=date(2026, 4, 15),
+            gross=Decimal("5000.00"), net=Decimal("3400.00"),
+            deposit_transaction=deposit,
+        )
+
+        result = analytics.net_income_over_time(date(2026, 4, 1), date(2026, 4, 30))
+
+        self.assertEqual(result["values"], [3400.0])
+
+    def test_transfers_are_excluded(self):
+        transfer = self.deposit("500.00", 6)
+        transfer.is_transfer = True
+        transfer.save()
+
+        result = analytics.net_income_over_time(date(2026, 4, 1), date(2026, 4, 30))
+
+        self.assertEqual(result["values"], [])
+
+    def test_spend_is_excluded(self):
+        self.deposit("-100.00", 5, category=self.groceries)
+
+        result = analytics.net_income_over_time(date(2026, 4, 1), date(2026, 4, 30))
+
+        self.assertEqual(result["values"], [])
+
+    def test_an_uncategorised_deposit_is_not_assumed_to_be_income(self):
+        # Symmetric with spend_filter()'s caution in the other direction: an
+        # uncategorised positive amount could just as easily be an
+        # uncategorised refund.
+        make_transaction(
+            self.checking,
+            posted_on=date(2026, 4, 15),
+            amount=Decimal("3400.00"),
+            description_raw="UNCATEGORISED DEPOSIT",
+            category=None,
+        )
+
+        result = analytics.net_income_over_time(date(2026, 4, 1), date(2026, 4, 30))
+
+        self.assertEqual(result["values"], [])
+
+    def test_no_income_reports_no_data_rather_than_a_zero(self):
+        result = analytics.net_income_over_time(date(2026, 4, 1), date(2026, 4, 30))
+
+        self.assertFalse(result["has_data"])
+        self.assertEqual(result["values"], [])
+
+
 class BalanceHistoryTests(AnalyticsTestCase):
     def snapshot(self, account, day, amount):
         return AccountBalanceSnapshot.objects.create(
@@ -414,7 +490,10 @@ class DashboardRenderTests(AnalyticsTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "No spending recorded")
 
-    def test_income_dashboard_warns_when_payslips_are_missing(self):
+    def test_income_dashboard_shows_net_income_with_a_payslip_note(self):
+        # No Paycheck record at all -- net income still renders from the
+        # deposit alone, with a low-key pointer toward payslip import rather
+        # than the old empty state gated on payslip data existing.
         make_transaction(
             self.checking,
             posted_on=household_today(),
@@ -426,7 +505,9 @@ class DashboardRenderTests(AnalyticsTestCase):
         response = self.client.get(reverse("finance:income"))
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "net-income")
         self.assertContains(response, "no payslip imported")
+        self.assertNotContains(response, "No income for this window yet")
 
     def test_savings_dashboard_renders(self):
         AccountBalanceSnapshot.objects.create(

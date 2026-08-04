@@ -187,8 +187,48 @@ def budget_attainment_over_time(budget, periods=12):
     }
 
 
+def income_filter() -> Q:
+    """What counts as income, as a reusable Q — the mirror image of
+    spend_filter(). Requires an explicit Income-kind category rather than
+    "any positive amount," the same conservative choice spend_filter() makes
+    in the other direction: a deposit that hasn't been categorised yet is
+    just as likely to be an uncategorised refund as it is income, so it's
+    left out until the classifier (or a person) says which."""
+    return Q(is_transfer=False, amount__gt=0, category__kind=CategoryKind.INCOME)
+
+
+def net_income_over_time(start, end, *, grain="monthly"):
+    """Net income per period, straight from deposits — no payslip required.
+
+    The primary read of "how much came in": every income-categorised deposit
+    counts, whether or not a payslip was ever imported for it. This is what
+    makes the Income dashboard work for a household member whose pay never
+    gets a detailed payslip import — see income_over_time() for the
+    optional, payslip-only gross/tax/retained breakdown layered on top.
+    """
+    trunc, label_format = GRAINS.get(grain, GRAINS["monthly"])
+
+    rows = list(
+        Transaction.objects.filter(
+            income_filter(), posted_on__gte=start, posted_on__lte=end
+        )
+        .annotate(bucket=trunc("posted_on"))
+        .values("bucket")
+        .annotate(total=Sum("amount"))
+        .order_by("bucket")
+    )
+
+    return {
+        "labels": [row["bucket"].strftime(label_format) for row in rows],
+        "values": [float(row["total"]) for row in rows],
+        "has_data": bool(rows),
+    }
+
+
 def income_over_time(start, end, *, grain="monthly"):
-    """Gross and net pay per period, plus what the gap is made of.
+    """Gross pay and where it goes, for whatever pay periods have an
+    imported payslip — optional supplementary detail, not the primary income
+    figure. See net_income_over_time() for that.
 
     Aggregators only ever see the deposit, so this reads from imported
     paychecks. Retirement and HSA are separated out because that money is
@@ -235,8 +275,10 @@ def income_over_time(start, end, *, grain="monthly"):
 def deposits_without_paychecks(start, end):
     """Income transactions with no matching paycheck record.
 
-    Surfaced so the income dashboard can say "this is incomplete" rather than
-    quietly under-reporting when a payslip has not been imported.
+    Net income never depends on this — net_income_over_time() counts every
+    one of these deposits regardless. This is purely a pointer toward the
+    optional payslip-detail section: "import a payslip for these if you want
+    gross pay and the tax/retirement breakdown for them too."
     """
     return (
         Transaction.objects.filter(
