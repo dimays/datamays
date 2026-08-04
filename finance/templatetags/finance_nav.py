@@ -8,9 +8,7 @@ register = template.Library()
 PRIMARY_NAV = [
     {"url_name": "home", "label": "Home", "icon": "home"},
     {"url_name": "transactions", "label": "Activity", "icon": "list"},
-    {"url_name": "spend", "label": "Spend", "icon": "chart"},
-    {"url_name": "income", "label": "Income", "icon": "income"},
-    {"url_name": "savings", "label": "Savings", "icon": "bank"},
+    {"url_name": "charts", "label": "Charts", "icon": "chart"},
     {"url_name": "qfrs", "label": "QFRs", "icon": "report", "related": ["qfr_detail"]},
 ]
 

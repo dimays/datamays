@@ -470,10 +470,10 @@ class SpendChartLinkTests(TestCase):
             return_value=self.transaction_date + timedelta(days=1),
         ):
             response = self.client.get(
-                reverse("finance:spend"), {"range": "3m", "grain": "daily"}
+                reverse("finance:charts"), {"range": "3m", "grain": "weekly"}
             )
 
-        over_time = response.context["over_time_json"]
+        over_time = response.context["spend_over_time_json"]
         self.assertTrue(over_time["values"])
         self.assertEqual(len(over_time["links"]), len(over_time["values"]))
 
@@ -486,10 +486,10 @@ class SpendChartLinkTests(TestCase):
 
     def test_an_account_filter_carries_through_to_the_links(self):
         response = self.client.get(
-            reverse("finance:spend"), {"range": "3m", "grain": "daily", "account": "1"}
+            reverse("finance:charts"), {"range": "3m", "grain": "weekly", "account": "1"}
         )
 
-        for link in response.context["over_time_json"]["links"]:
+        for link in response.context["spend_over_time_json"]["links"]:
             self.assertIn("account=1", link)
 
 
