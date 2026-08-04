@@ -4,9 +4,9 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
-from django.utils import timezone
 
 from .. import periods
+from ..dates import household_today
 from .base import TimestampedModel, money_field
 
 
@@ -80,7 +80,7 @@ class Budget(TimestampedModel):
             raise ValidationError({"amount": "Enter the target as a positive number."})
 
     def period_for(self, on_date=None):
-        on_date = on_date or timezone.localdate()
+        on_date = on_date or household_today()
         return periods.period_containing(self.period_type, self.anchor_date, on_date)
 
     def current_period(self):
@@ -146,7 +146,7 @@ class BudgetPeriod(models.Model):
         afford this?" — being 80% through a budget is fine on the 25th and
         alarming on the 8th.
         """
-        on_date = on_date or timezone.localdate()
+        on_date = on_date or household_today()
         elapsed = periods.elapsed_fraction(self.period_start, self.period_end, on_date)
 
         return self.actual_amount - (self.target_amount * decimal_from(elapsed))

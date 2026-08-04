@@ -1,7 +1,7 @@
 from django.db import models
 
 from .base import TimestampedModel, money_field
-from .institutions import AccountConnection, Institution, Provider
+from .institutions import AccountConnection, Institution
 
 
 class AccountType(models.TextChoices):

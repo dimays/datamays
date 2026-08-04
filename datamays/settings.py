@@ -255,6 +255,11 @@ FIELD_ENCRYPTION_KEYS = [
     if key.strip()
 ]
 
+# The household's own timezone. Storage stays UTC; this only decides what
+# "today" means for budget periods, alert gates, and dashboard ranges — which
+# UTC gets wrong every evening after about 7pm Chicago time.
+FINANCE_TIME_ZONE = os.getenv("FINANCE_TIME_ZONE", "America/Chicago")
+
 CONTACT_RECIPIENT_EMAIL = os.getenv("CONTACT_RECIPIENT_EMAIL")
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
