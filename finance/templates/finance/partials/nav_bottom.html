@@ -1,0 +1,19 @@
+{% load finance_nav %}
+{% finance_nav as nav_items %}
+
+{# Thumb-reachable tab bar. Mobile only — desktop uses the header nav. #}
+<nav class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+     aria-label="Primary">
+  <ul class="mx-auto flex max-w-5xl items-stretch justify-between px-1">
+    {% for item in nav_items %}
+      <li class="flex-1">
+        <a href="{{ item.href }}"
+           class="flex flex-col items-center gap-1 px-1 py-2.5 text-[11px] font-medium transition {% if item.is_active %}text-accent{% else %}text-text-muted hover:text-text-secondary{% endif %}"
+           {% if item.is_active %}aria-current="page"{% endif %}>
+          {% include "finance/icons/"|add:item.icon|add:".html" %}
+          <span>{{ item.label }}</span>
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+</nav>

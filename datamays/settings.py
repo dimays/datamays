@@ -53,6 +53,7 @@ else:
 INSTALLED_APPS = [
     'core',
     'contact',
+    'finance',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -80,6 +81,7 @@ TEMPLATES = [
         'DIRS': [
             BASE_DIR / 'core' / 'templates',
             BASE_DIR / 'contact' / 'templates',
+            BASE_DIR / 'finance' / 'templates',
         ],
         'APP_DIRS': True,
         'OPTIONS': {
@@ -161,6 +163,15 @@ if WORKING_ENV == 'dev':
     REDIRECT_DOMAIN = 'http://localhost:8000/'
 else:
     REDIRECT_DOMAIN = 'https://www.datamays.com/'
+
+# Keys for finance field-level encryption (see finance/crypto.py). Comma
+# separated: the first key encrypts, every key can decrypt, which is what makes
+# rotation possible without downtime.
+FIELD_ENCRYPTION_KEYS = [
+    key.strip()
+    for key in os.getenv("FIELD_ENCRYPTION_KEYS", "").split(",")
+    if key.strip()
+]
 
 CONTACT_RECIPIENT_EMAIL = os.getenv("CONTACT_RECIPIENT_EMAIL")
 

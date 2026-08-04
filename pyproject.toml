@@ -16,6 +16,7 @@ dependencies = [
     "dj-database-url>=2.2,<3.0",
     "Markdown>=3.10,<4.0",
     "sentry-sdk[django]>=2.48.0",
+    "cryptography>=50.0.0",
 ]
 
 [tool.uv]
