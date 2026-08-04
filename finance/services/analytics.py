@@ -44,13 +44,25 @@ def spend_filter() -> Q:
     failures, a broken categorise run would have made the dashboards
     under-report spend while looking perfectly healthy.
 
+    A positive amount against an expense category counts too — a refund or a
+    credit posted as its own transaction should net back against the outflow
+    it corrects, not sit invisibly outside every spend total just because its
+    sign differs from the purchase. This is deliberately narrower than "any
+    positive amount, any category": an *uncategorised* positive transaction
+    is far more likely to be income the classifier hasn't reached yet than a
+    refund, so that bucket keeps the original amount__lt=0 requirement.
+    Aggregates built on this Q floor a negative net (more refunded than
+    spent) at zero rather than showing a category as having "spent" a
+    negative amount — see spend_over_time / spend_by_category.
+
     Split out from spend_transactions() so the activity list can apply this
     exact definition (via TransactionListView's `spend=1`) without also being
     forced to supply a date range — a chart click already carries its own
     start/end, and re-deriving them here would risk the two drifting apart.
     """
-    return Q(is_transfer=False, amount__lt=0) & (
-        Q(category__kind=CategoryKind.EXPENSE) | Q(category__isnull=True)
+    return Q(is_transfer=False) & (
+        Q(category__kind=CategoryKind.EXPENSE)
+        | Q(category__isnull=True, amount__lt=0)
     )
 
 
@@ -104,7 +116,11 @@ def spend_over_time(start, end, *, grain="monthly", account_ids=None):
 
     return {
         "labels": [row["bucket"].strftime(label_format) for row in rows],
-        "values": [float(-row["total"]) for row in rows],
+        # Floored at 0: a bucket where refunds outweighed purchases nets to a
+        # positive raw total (negated below), which would otherwise chart as
+        # negative spend — a bar reading "spent -$40" is a rendering bug, not
+        # a real answer to "how much did this period spend."
+        "values": [max(0.0, float(-row["total"])) for row in rows],
         # Exact bounds per bucket, so a chart click can filter the activity
         # list to precisely what that bar represents.
         "bucket_starts": [row["bucket"].isoformat() for row in rows],
@@ -135,6 +151,11 @@ def spend_by_category(start, end, *, account_ids=None, limit=10):
             or "Not yet categorised"
         )
         grouped[name] = grouped.get(name, Decimal("0")) + -row["total"]
+
+    # Floored per category, after rollup: a category refunded more than it
+    # spent in the window nets negative here, which would read as the
+    # category "making money" rather than what actually happened.
+    grouped = {name: max(Decimal("0"), total) for name, total in grouped.items()}
 
     ranked = sorted(grouped.items(), key=lambda item: item[1], reverse=True)
     top = ranked[:limit]

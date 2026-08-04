@@ -95,7 +95,10 @@ def compute_metrics(start: date, end: date) -> dict:
         "net_worth_start": _f(net_worth_start),
         "net_worth_end": _f(net_worth_end),
         "net_worth_change": _f(_delta(net_worth_start, net_worth_end)),
-        "total_spend": _f(-spend_total) if spend_total else 0.0,
+        # Floored at 0 for the same reason spend_by_category floors each
+        # category: a quarter refunded more than it spent nets to a positive
+        # raw total, which would otherwise report as negative spend.
+        "total_spend": max(0.0, _f(-spend_total)) if spend_total else 0.0,
         "spend_by_category": dict(zip(by_category["labels"], by_category["values"])),
         "total_income_gross": round(sum(income["gross"]), 2),
         "total_income_net": round(sum(income["net"]), 2),

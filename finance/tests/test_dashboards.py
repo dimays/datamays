@@ -106,6 +106,38 @@ class SpendAnalyticsTests(AnalyticsTestCase):
 
         self.assertEqual(result["values"], [100.0])
 
+    def test_a_refund_against_an_expense_category_nets_against_the_purchase(self):
+        self.spend("-100.00", self.groceries, 5)
+        self.spend("30.00", self.groceries, 12)  # a return, same category
+
+        result = analytics.spend_over_time(date(2026, 4, 1), date(2026, 4, 30))
+
+        self.assertEqual(result["values"], [70.0])
+
+    def test_a_positive_uncategorised_transaction_is_not_treated_as_a_refund(self):
+        # Uncategorised is far more likely to be income the classifier
+        # hasn't reached yet than a refund -- it must not net against spend.
+        self.spend("-100.00", self.groceries, 5)
+        make_transaction(
+            self.checking,
+            posted_on=date(2026, 4, 6),
+            amount=Decimal("3000.00"),
+            description_raw="UNCATEGORISED DEPOSIT",
+            category=None,
+        )
+
+        result = analytics.spend_over_time(date(2026, 4, 1), date(2026, 4, 30))
+
+        self.assertEqual(result["values"], [100.0])
+
+    def test_a_bucket_refunded_more_than_it_spent_floors_at_zero(self):
+        self.spend("-20.00", self.groceries, 5)
+        self.spend("50.00", self.groceries, 12)
+
+        result = analytics.spend_over_time(date(2026, 4, 1), date(2026, 4, 30))
+
+        self.assertEqual(result["values"], [0.0])
+
     def test_categories_roll_up_to_their_parent(self):
         self.spend("-100.00", self.groceries, 5)
         self.spend("-60.00", self.restaurants, 6)
@@ -118,6 +150,18 @@ class SpendAnalyticsTests(AnalyticsTestCase):
         # Groceries and restaurants both live under Food.
         self.assertEqual(pairs["Food"], 160.0)
         self.assertEqual(pairs["Transportation"], 40.0)
+
+    def test_a_category_refunded_more_than_it_spent_floors_at_zero_not_negative(self):
+        self.spend("-20.00", self.groceries, 5)
+        self.spend("50.00", self.groceries, 12)
+        self.spend("-40.00", self.fuel, 7)
+
+        result = analytics.spend_by_category(date(2026, 4, 1), date(2026, 4, 30))
+        pairs = dict(zip(result["labels"], result["values"]))
+
+        self.assertEqual(pairs["Food"], 0.0)
+        self.assertEqual(pairs["Transportation"], 40.0)
+        self.assertEqual(result["total"], 40.0)
 
     def test_categories_are_ranked_largest_first(self):
         self.spend("-40.00", self.fuel, 7)

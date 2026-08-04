@@ -139,6 +139,14 @@ class SpendMetricsTests(ComputeMetricsTestCase):
 
         self.assertEqual(metrics["total_spend"], 100.0)
 
+    def test_a_refund_nets_against_spend_and_floors_at_zero(self):
+        self.spend(5, "-20.00")
+        self.spend(12, "50.00")  # refunded more than was spent this quarter
+
+        metrics = compute_metrics(self.start, self.end)
+
+        self.assertEqual(metrics["total_spend"], 0.0)
+
     def test_spend_by_category_is_populated(self):
         self.spend(5, "-100.00")
 
