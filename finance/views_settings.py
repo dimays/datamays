@@ -385,8 +385,30 @@ class AccountUpdateView(FinanceAccessMixin, UpdateView):
         return context
 
     def form_valid(self, form):
-        messages.success(self.request, f"Updated {form.instance.name}.")
-        return super().form_valid(form)
+        # current_balance is normalised (services.sync.normalise_balance) only
+        # at sync time, so flipping this checkbox alone leaves the stored
+        # balance untouched until the next sync happens to run — which can be
+        # up to an hour away, and silently never for a manual account. Since
+        # the sign flip is self-inverse, apply it here immediately rather
+        # than make the household total wait on a background job to notice.
+        sign_flip_needed = (
+            "debt_reported_positive" in form.changed_data
+            and form.instance.is_liability
+        )
+
+        account = form.save(commit=False)
+
+        if sign_flip_needed:
+            if account.current_balance is not None:
+                account.current_balance = -account.current_balance
+            if account.available_balance is not None:
+                account.available_balance = -account.available_balance
+
+        account.save()
+        self.object = account
+
+        messages.success(self.request, f"Updated {account.name}.")
+        return redirect(self.get_success_url())
 
 
 class RuleListView(FinanceAccessMixin, ListView):

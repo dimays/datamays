@@ -207,6 +207,97 @@ class AccountSettingsTests(SettingsTestCase):
         self.account.refresh_from_db()
         self.assertFalse(self.account.debt_reported_positive)
 
+    def account_edit_payload(self, account, **overrides):
+        payload = {
+            "name": account.name,
+            "account_type": account.account_type,
+            "owner": "joint",
+            "sort_order": 100,
+            "notes": "",
+            "is_active": "on",
+            "include_in_net_worth": "on",
+            "include_in_spending": "on",
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_toggling_the_sign_convention_flips_the_stored_balance_immediately(self):
+        card = make_account(
+            self.institution,
+            name="Capital One",
+            connection=self.connection,
+            account_type=AccountType.CREDIT_CARD,
+            current_balance=Decimal("500.00"),
+            debt_reported_positive=True,
+        )
+
+        # debt_reported_positive omitted -- an unchecked checkbox submits
+        # nothing, which is how a real browser reports "turned it off."
+        self.client.post(
+            reverse("finance:account_edit", args=[card.pk]),
+            self.account_edit_payload(card),
+        )
+
+        card.refresh_from_db()
+        self.assertFalse(card.debt_reported_positive)
+        self.assertEqual(card.current_balance, Decimal("-500.00"))
+
+    def test_toggling_it_back_on_flips_the_balance_back(self):
+        card = make_account(
+            self.institution,
+            name="Capital One",
+            connection=self.connection,
+            account_type=AccountType.CREDIT_CARD,
+            current_balance=Decimal("-500.00"),
+            debt_reported_positive=False,
+        )
+
+        self.client.post(
+            reverse("finance:account_edit", args=[card.pk]),
+            self.account_edit_payload(card, debt_reported_positive="on"),
+        )
+
+        card.refresh_from_db()
+        self.assertTrue(card.debt_reported_positive)
+        self.assertEqual(card.current_balance, Decimal("500.00"))
+
+    def test_leaving_the_toggle_unchanged_does_not_touch_the_balance(self):
+        card = make_account(
+            self.institution,
+            name="Capital One",
+            connection=self.connection,
+            account_type=AccountType.CREDIT_CARD,
+            current_balance=Decimal("500.00"),
+            debt_reported_positive=True,
+        )
+
+        self.client.post(
+            reverse("finance:account_edit", args=[card.pk]),
+            self.account_edit_payload(
+                card, name="Capital One Venture", debt_reported_positive="on"
+            ),
+        )
+
+        card.refresh_from_db()
+        self.assertEqual(card.name, "Capital One Venture")
+        self.assertEqual(card.current_balance, Decimal("500.00"))
+
+    def test_the_toggle_on_an_asset_account_never_touches_the_balance(self):
+        # Ignored for asset accounts by design (per the field's own
+        # help_text) -- guards the flip logic against a stray submission.
+        self.account.current_balance = Decimal("4200.00")
+        self.account.debt_reported_positive = True
+        self.account.save()
+
+        self.client.post(
+            reverse("finance:account_edit", args=[self.account.pk]),
+            self.account_edit_payload(self.account),
+        )
+
+        self.account.refresh_from_db()
+        self.assertFalse(self.account.debt_reported_positive)
+        self.assertEqual(self.account.current_balance, Decimal("4200.00"))
+
 
 class RuleManagementTests(SettingsTestCase):
     def setUp(self):
