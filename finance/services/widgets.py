@@ -12,9 +12,9 @@ lookups rather than aggregates over the whole ledger.
 
 from decimal import Decimal
 
-from django.db.models import Q
 from django.utils import timezone
 
+from ..dates import household_today
 from ..models import Account, BudgetPeriod, Transaction, UserPreference
 
 WIDGET_CHOICES = [
@@ -90,7 +90,7 @@ def net_worth_widget(preference):
 
 
 def budgets_widget(preference):
-    today = timezone.localdate()
+    today = household_today()
 
     periods = (
         BudgetPeriod.objects.filter(

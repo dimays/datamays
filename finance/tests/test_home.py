@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
+from finance.dates import household_today
 from finance.models import (
     AccountConnection,
     AccountType,
@@ -149,7 +150,7 @@ class NetWorthWidgetTests(HomepageTestCase):
 
 class BudgetWidgetTests(HomepageTestCase):
     def make_period(self, name, actual, target="800.00"):
-        today = timezone.localdate()
+        today = household_today()
         budget = Budget.objects.create(name=name, amount=Decimal(target))
         budget.categories.set([self.groceries])
 
