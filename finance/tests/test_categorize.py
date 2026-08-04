@@ -7,7 +7,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 
 from finance.categories_seed import CARD_PAYMENT_SLUG, TRANSFER_SLUG, UNCATEGORIZED_SLUG
 from finance.models import (
@@ -372,3 +372,69 @@ class ConfirmationTests(PipelineTestCase):
 
         txn.refresh_from_db()
         self.assertEqual(txn.category, self.coffee)
+
+
+class ClassifierIsolationTests(TransactionTestCase):
+    """The provider call must not run inside an open database transaction.
+
+    TransactionTestCase rather than TestCase: the latter wraps each test in a
+    transaction, which would mask exactly the thing being asserted.
+    """
+
+    def test_categorisation_does_not_hold_a_transaction_across_the_call(self):
+        from django.db import transaction as db_transaction
+
+        call_command("seed_finance_categories", verbosity=0)
+        account = make_account(make_institution(), name="Checking")
+        make_transaction(account, description_raw="MYSTERY VENDOR LLC")
+
+        observed = {}
+
+        class RecordingClassifier(Classifier):
+            def classify(self, merchant_keys, categories):
+                observed["in_atomic_block"] = (
+                    db_transaction.get_connection().in_atomic_block
+                )
+                return []
+
+        categorise_transactions(classifier=RecordingClassifier())
+
+        # A held transaction pins a database connection for as long as the
+        # provider takes to answer.
+        self.assertFalse(observed["in_atomic_block"])
+
+    def test_the_provider_client_sets_a_timeout(self):
+        from finance.services.classifier import REQUEST_TIMEOUT_SECONDS
+
+        # An unbounded wait would stall every later step in the hourly chain.
+        self.assertGreater(REQUEST_TIMEOUT_SECONDS, 0)
+        self.assertLessEqual(REQUEST_TIMEOUT_SECONDS, 120)
+
+
+class ReviewQueueRedirectTests(PipelineTestCase):
+    def test_confirming_a_category_cannot_bounce_off_site(self):
+        from django.urls import reverse
+        from django_otp.plugins.otp_totp.models import TOTPDevice
+
+        from .test_access import make_user
+
+        user = make_user("david", with_device=True)
+        self.client.force_login(user)
+        session = self.client.session
+        session["otp_device_id"] = TOTPDevice.objects.get(user=user).persistent_id
+        session.save()
+
+        txn = make_transaction(self.checking)
+
+        response = self.client.post(
+            reverse("finance:transactions"),
+            {
+                "transaction": txn.pk,
+                "category": self.groceries.pk,
+                "next": "//evil.example.com/steal",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response["Location"].startswith("/"))
+        self.assertNotIn("evil.example.com", response["Location"])

@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 40
 
+# Without this the client waits indefinitely. The categoriser runs from the
+# hourly chain, so a hung request would stall every later step behind it.
+REQUEST_TIMEOUT_SECONDS = 45
+
 SYSTEM_PROMPT = """You categorise personal bank transactions for a two-person household.
 
 You will get a list of merchant descriptions and a list of allowed categories.
@@ -85,7 +89,11 @@ class OpenAIClassifier(Classifier):
     def _classify_batch(self, merchant_keys, categories):
         from openai import OpenAI
 
-        client = OpenAI(api_key=self.api_key)
+        client = OpenAI(
+            api_key=self.api_key,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+            max_retries=2,
+        )
         allowed = {category["slug"] for category in categories}
 
         response = client.chat.completions.create(

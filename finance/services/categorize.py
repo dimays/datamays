@@ -21,7 +21,6 @@ import logging
 from dataclasses import dataclass
 from datetime import timedelta
 
-from django.db import transaction as db_transaction
 from django.utils import timezone
 
 from ..categories_seed import CARD_PAYMENT_SLUG, TRANSFER_SLUG, UNCATEGORIZED_SLUG
@@ -164,9 +163,14 @@ def remember_merchant(merchant_key, category, user=None):
     return memo
 
 
-@db_transaction.atomic
 def categorise_transactions(queryset=None, *, classifier=None, detect_transfers=True):
-    """Run the pipeline over uncategorised transactions."""
+    """Run the pipeline over uncategorised transactions.
+
+    Deliberately not wrapped in a single transaction. The classifier step makes
+    a network call, and holding a database transaction open across it would pin
+    a connection for as long as the provider takes to answer — on a small
+    Postgres plan that is a real availability risk.
+    """
     summary = CategorisationSummary()
 
     if detect_transfers:
@@ -229,6 +233,8 @@ def _run_classifier(awaiting, classifier, summary):
     # One entry per distinct merchant, not per transaction — forty coffees
     # from one shop cost one line in one request.
     merchant_keys = sorted(awaiting)
+
+    # Outside any transaction: this is a network call to a third party.
     results = classifier.classify(merchant_keys, catalogue)
 
     by_slug = {

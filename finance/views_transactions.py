@@ -12,6 +12,7 @@ from django.views.generic import ListView
 
 from .access import FinanceAccessMixin
 from .models import Account, Category, CategoryRule, MatchType, Transaction
+from .redirects import safe_next
 from .services.categorize import confirm_category
 from .services.merchants import normalise_merchant
 
@@ -71,7 +72,7 @@ class TransactionListView(FinanceAccessMixin, ListView):
         if request.POST.get("create_rule"):
             self._create_rule(request, transaction, category)
 
-        return redirect(request.POST.get("next") or request.get_full_path())
+        return redirect(safe_next(request, default=request.get_full_path()))
 
     def _create_rule(self, request, transaction, category):
         pattern = normalise_merchant(transaction.description_raw)
