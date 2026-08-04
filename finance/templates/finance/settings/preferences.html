@@ -1,4 +1,5 @@
 {% extends "finance/base_finance.html" %}
+{% load static %}
 
 {% block finance_content %}
 <h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Preferences</h1>
@@ -11,10 +12,17 @@
 
   <fieldset class="rounded-card border border-border bg-surface p-4">
     <legend class="px-1 text-sm font-medium">{{ form.widgets_selected.label }}</legend>
-    <p class="mb-3 text-xs text-text-muted">They appear in this order on your homepage.</p>
-    <div class="space-y-2.5">
-      {% for choice in form.widgets_selected %}
-        <label class="flex items-center gap-3 text-sm text-text-secondary">{{ choice.tag }} <span>{{ choice.choice_label }}</span></label>
+    <p class="mb-3 text-xs text-text-muted">Drag to reorder — this is the order they'll appear on your homepage.</p>
+    {{ form.widget_order }}
+    <div data-widget-reorder data-order-input="#{{ form.widget_order.id_for_label }}" class="space-y-2">
+      {% for slug, label, checked in form.ordered_widget_rows %}
+        <label data-widget-row="{{ slug }}"
+               class="flex cursor-grab items-center gap-3 rounded-button border border-border bg-background px-3 py-2 text-sm text-text-secondary active:cursor-grabbing">
+          <span class="select-none text-text-muted" aria-hidden="true">⠿</span>
+          <input type="checkbox" name="widgets_selected" value="{{ slug }}" {% if checked %}checked{% endif %}
+                 class="h-4 w-4 rounded border-border bg-background text-primary focus:ring-primary" />
+          <span>{{ label }}</span>
+        </label>
       {% endfor %}
     </div>
   </fieldset>
@@ -58,3 +66,5 @@
   </button>
 </form>
 {% endblock %}
+
+{% block extra_js %}<script src="{% static 'js/widget-reorder.js' %}"></script>{% endblock %}

@@ -3,7 +3,7 @@ from django.db import models
 from django.utils import timezone
 
 from ..crypto import EncryptedTextField
-from .base import TimestampedModel
+from .base import Owner, TimestampedModel
 
 
 class Provider(models.TextChoices):
@@ -22,6 +22,12 @@ class Institution(TimestampedModel):
         help_text="How data from this institution normally arrives.",
     )
     website = models.URLField(blank=True)
+    owner = models.CharField(
+        max_length=10,
+        choices=Owner.choices,
+        default=Owner.JOINT,
+        help_text="Whose institution this is — doesn't restrict who can see or edit it.",
+    )
     is_active = models.BooleanField(default=True)
     notes = models.TextField(
         blank=True,

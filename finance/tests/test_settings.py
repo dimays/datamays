@@ -175,6 +175,7 @@ class AccountSettingsTests(SettingsTestCase):
             {
                 "name": "Joint Checking",
                 "account_type": AccountType.MONEY_MARKET,
+                "owner": "joint",
                 "mask": "4471",
                 "sort_order": 100,
                 "notes": "",
@@ -196,6 +197,7 @@ class AccountSettingsTests(SettingsTestCase):
             {
                 "name": "Checking",
                 "account_type": AccountType.CREDIT_CARD,
+                "owner": "joint",
                 "sort_order": 100,
                 "notes": "",
                 "is_active": "on",

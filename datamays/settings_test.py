@@ -9,10 +9,16 @@ Usage:
     uv run python manage.py test --settings=datamays.settings_test
 """
 
-import sentry_sdk
-from cryptography.fernet import Fernet
+import os
 
-from .settings import *  # noqa: F401,F403
+# Cleared before the star-import so settings.py never initialises a real
+# Sentry client — a test run must not report into production error tracking.
+os.environ["SENTRY_DSN"] = ""
+
+import sentry_sdk  # noqa: E402
+from cryptography.fernet import Fernet  # noqa: E402
+
+from .settings import *  # noqa: E402,F401,F403
 
 DATABASES = {
     "default": {

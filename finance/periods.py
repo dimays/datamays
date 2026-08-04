@@ -94,3 +94,37 @@ def elapsed_fraction(start: date, end: date, on_date: date) -> float:
     elapsed_days = (on_date - start).days + 1
 
     return max(0.0, min(1.0, elapsed_days / total_days))
+
+
+def quarter_bounds(year: int, quarter: int) -> tuple[date, date]:
+    """The calendar quarter's first and last day. Always the calendar quarter —
+    QFRs are not anchored like budgets, since "Q1" needs to mean the same thing
+    to everyone comparing reports."""
+    if quarter not in (1, 2, 3, 4):
+        raise ValueError(f"Quarter must be 1-4, got {quarter!r}.")
+
+    start_month = (quarter - 1) * 3 + 1
+    end_month = start_month + 2
+
+    start = date(year, start_month, 1)
+    end = date(year, end_month, calendar.monthrange(year, end_month)[1])
+
+    return start, end
+
+
+def quarter_containing(on_date: date) -> tuple[int, int]:
+    """(year, quarter) for the calendar quarter a date falls in."""
+    return on_date.year, (on_date.month - 1) // 3 + 1
+
+
+def previous_quarter(year: int, quarter: int) -> tuple[int, int]:
+    return (year - 1, 4) if quarter == 1 else (year, quarter - 1)
+
+
+def quarters_between(start_year: int, start_quarter: int, end_year: int, end_quarter: int):
+    """Every (year, quarter) from start through end, inclusive, oldest first."""
+    year, quarter = start_year, start_quarter
+
+    while (year, quarter) <= (end_year, end_quarter):
+        yield year, quarter
+        year, quarter = (year + 1, 1) if quarter == 4 else (year, quarter + 1)

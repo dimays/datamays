@@ -62,7 +62,13 @@
 </section>
 
 <section class="mt-8">
-  <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Accounts</h2>
+  <div class="flex items-center justify-between gap-3">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Accounts</h2>
+    <a href="{% url 'finance:account_create' %}"
+       class="rounded-button bg-primary px-3.5 py-2 text-xs font-medium text-white transition hover:bg-primary-600">
+      Add manual account
+    </a>
+  </div>
   <ul class="mt-3 divide-y divide-border rounded-card border border-border bg-surface">
     {% for account in accounts %}
       <li>
@@ -72,6 +78,7 @@
             <p class="truncate text-sm font-medium">{{ account.name }}</p>
             <p class="text-xs text-text-muted">
               {{ account.institution.name }} · {{ account.get_account_type_display }}
+              · {{ account.get_owner_display }}
               {% if account.is_manual %}· manual{% endif %}
               {% if not account.is_active %}· inactive{% endif %}
             </p>
@@ -85,7 +92,11 @@
   </ul>
 </section>
 
-<section class="mt-8 grid gap-3 sm:grid-cols-3">
+<section class="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+  <a href="{% url 'finance:institutions' %}" class="rounded-card border border-border bg-surface p-4 transition hover:border-primary/50">
+    <p class="text-sm font-medium">Institutions</p>
+    <p class="mt-1 text-xs text-text-muted">{{ institution_count }} on file</p>
+  </a>
   <a href="{% url 'finance:budgets' %}" class="rounded-card border border-border bg-surface p-4 transition hover:border-primary/50">
     <p class="text-sm font-medium">Budgets</p>
     <p class="mt-1 text-xs text-text-muted">{{ budget_count }} configured</p>

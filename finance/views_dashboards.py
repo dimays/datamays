@@ -7,17 +7,30 @@ tested without rendering anything.
 """
 
 from datetime import timedelta
+from urllib.parse import urlencode
 
+from django.urls import reverse
 
 from .dates import household_today
 from .models import (
     Account,
-    AccountType,
     Budget,
+    DEBT_TYPES,
+    SAVINGS_TYPES,
     UserPreference,
 )
 from .services import analytics
 from .views import FinanceView
+
+
+def _transactions_url(**params):
+    """A link to the activity list, carrying forward whatever filters apply.
+
+    Multi-value params (repeated `account=`) need urlencode(doseq=True) —
+    Django's own querystring builder doesn't take a plain dict of lists.
+    """
+    query = {key: value for key, value in params.items() if value not in (None, "", [])}
+    return f"{reverse('finance:transactions')}?{urlencode(query, doseq=True)}"
 
 RANGE_CHOICES = [
     ("3m", "3 months", 90),
@@ -106,19 +119,37 @@ class SpendView(DashboardView):
 
         budgets = Budget.objects.filter(is_active=True).prefetch_related("budget_periods")
 
+        # One link per bar, built server-side from the exact bounds that
+        # produced its number — so a click shows precisely what's behind it,
+        # not a re-derived approximation. Carries forward the account filter
+        # already active on this page.
+        over_time["links"] = [
+            _transactions_url(
+                spend="1", start=bucket_start, end=bucket_end, account=account_ids
+            )
+            for bucket_start, bucket_end in zip(
+                over_time["bucket_starts"], over_time["bucket_ends"]
+            )
+        ]
+
+        budget_series = []
+        for budget in budgets:
+            series = analytics.budget_attainment_over_time(budget)
+            series["links"] = [
+                _transactions_url(budget=budget.pk, start=period_start, end=period_end)
+                for period_start, period_end in zip(
+                    series["period_starts"], series["period_ends"]
+                )
+            ]
+            budget_series.append({"name": budget.name, **series})
+
         context.update(
             {
                 "over_time_json": over_time,
                 "by_category_json": by_category,
                 "total": by_category["total"],
                 "budgets": budgets,
-                "budget_series_json": [
-                    {
-                        "name": budget.name,
-                        **analytics.budget_attainment_over_time(budget),
-                    }
-                    for budget in budgets
-                ],
+                "budget_series_json": budget_series,
                 "has_data": bool(over_time["values"]),
             }
         )
@@ -175,20 +206,10 @@ class SavingsView(DashboardView):
     page_title = "Savings & Debt"
     dashboard_slug = "savings"
 
-    SAVINGS_TYPES = [
-        AccountType.SAVINGS,
-        AccountType.MONEY_MARKET,
-        AccountType.INVESTMENT,
-        AccountType.RETIREMENT,
-        AccountType.INSURANCE,
-    ]
-
-    DEBT_TYPES = [
-        AccountType.STUDENT_LOAN,
-        AccountType.MORTGAGE,
-        AccountType.AUTO_LOAN,
-        AccountType.CREDIT_CARD,
-    ]
+    # Shared with the QFR's own metrics, so the two can never quietly
+    # classify an account type differently from each other.
+    SAVINGS_TYPES = list(SAVINGS_TYPES)
+    DEBT_TYPES = list(DEBT_TYPES)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
