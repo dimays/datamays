@@ -1,0 +1,18 @@
+{% if spend_has_data %}
+  <section class="mt-4 rounded-card border border-border bg-surface p-5">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Budget attainment over time</h2>
+    {{ budget_series_json|json_script:"budget-series" }}
+    <div class="mt-4 space-y-6">
+      {% for budget in budgets %}
+        <div>
+          <p class="text-sm font-medium">{{ budget.name }}</p>
+          <div class="mt-2 h-48">
+            <canvas data-chart="budgets" data-source="budget-series" data-budget="{{ budget.name }}"></canvas>
+          </div>
+        </div>
+      {% empty %}
+        <p class="text-sm text-text-muted">No budgets yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}

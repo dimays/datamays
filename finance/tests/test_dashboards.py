@@ -580,6 +580,39 @@ class ChartsDashboardRenderTests(AnalyticsTestCase):
 
         self.assertEqual(self.client.get(reverse("finance:charts")).status_code, 403)
 
+    def test_a_deselected_section_does_not_render(self):
+        from finance.models import UserPreference
+
+        make_transaction(
+            self.checking,
+            posted_on=household_today(),
+            amount=Decimal("-100.00"),
+            description_raw="MARIANOS",
+            category=self.groceries,
+        )
+
+        preference = UserPreference.for_user(self.user)
+        preference.chart_sections = ["spend_over_time"]
+        preference.save()
+
+        response = self.client.get(reverse("finance:charts"))
+
+        self.assertContains(response, "spend-over-time")
+        self.assertNotContains(response, "spend-by-category-over-time")
+
+    def test_sections_render_in_the_saved_order(self):
+        from finance.models import UserPreference
+
+        preference = UserPreference.for_user(self.user)
+        preference.chart_sections = ["net_cash_flow", "spend_over_time"]
+        preference.save()
+
+        response = self.client.get(reverse("finance:charts"))
+
+        self.assertEqual(
+            response.context["chart_sections"], ["net_cash_flow", "spend_over_time"]
+        )
+
 
 class SpendByCategoryOverTimeAnalyticsTests(AnalyticsTestCase):
     def test_each_category_gets_its_own_aligned_series(self):

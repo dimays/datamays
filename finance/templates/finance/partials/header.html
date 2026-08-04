@@ -1,5 +1,6 @@
 {% load static finance_nav %}
 {% finance_nav as nav_items %}
+{% finance_secondary_nav as secondary_nav_items %}
 
 <header class="fixed inset-x-0 top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
   <div class="mx-auto flex h-16 max-w-5xl items-center justify-between gap-4 px-4 md:h-20 md:px-8">
@@ -16,6 +17,20 @@
            {% if item.is_active %}aria-current="page"{% endif %}>
           {{ item.label }}
         </a>
+      {% endfor %}
+      {% for item in secondary_nav_items %}
+        {% if item.is_button %}
+          <a href="{{ item.href }}"
+             class="rounded-button bg-primary px-3.5 py-2 text-xs font-medium text-white transition hover:bg-primary-600">
+            {{ item.label }}
+          </a>
+        {% else %}
+          <a href="{{ item.href }}"
+             class="transition hover:text-text-primary {% if item.is_active %}font-semibold text-text-primary{% endif %}"
+             {% if item.is_active %}aria-current="page"{% endif %}>
+            {{ item.label }}
+          </a>
+        {% endif %}
       {% endfor %}
     </nav>
 
@@ -35,14 +50,10 @@
            @keydown.escape.window="open = false"
            role="menu"
            class="absolute right-0 mt-2 w-52 overflow-hidden rounded-card border border-border bg-surface py-1 shadow-xl">
-        <a href="{% url 'finance:settings' %}" role="menuitem"
-           class="block px-4 py-2.5 text-sm text-text-secondary transition hover:bg-muted hover:text-text-primary">Settings</a>
         <a href="{% url 'finance:alerts' %}" role="menuitem"
            class="block px-4 py-2.5 text-sm text-text-secondary transition hover:bg-muted hover:text-text-primary">Alerts &amp; reports</a>
         <a href="{% url 'finance:preferences' %}" role="menuitem"
            class="block px-4 py-2.5 text-sm text-text-secondary transition hover:bg-muted hover:text-text-primary">Preferences</a>
-        <a href="{% url 'finance:help' %}" role="menuitem"
-           class="block px-4 py-2.5 text-sm text-text-secondary transition hover:bg-muted hover:text-text-primary">Help</a>
         <a href="{% url 'core:home' %}" role="menuitem"
            class="block border-t border-border px-4 py-2.5 text-sm text-text-muted transition hover:bg-muted hover:text-text-primary">Back to datamays.com</a>
 

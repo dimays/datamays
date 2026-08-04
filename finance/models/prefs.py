@@ -8,6 +8,18 @@ from .base import TimestampedModel, money_field
 # UserPreference so each person arranges their own homepage.
 DEFAULT_HOMEPAGE_WIDGETS = ["balances", "budgets", "recent_transactions"]
 
+# Charts tab sections, in the order they render by default — the same
+# arrange-your-own pattern as the homepage widgets above, one level down.
+DEFAULT_CHART_SECTIONS = [
+    "spend_over_time",
+    "spend_by_category_trend",
+    "spend_by_category",
+    "budget_attainment",
+    "net_income",
+    "net_cash_flow",
+    "savings_debt",
+]
+
 
 class UserPreference(TimestampedModel):
     user = models.OneToOneField(
@@ -29,6 +41,9 @@ class UserPreference(TimestampedModel):
         blank=True,
         help_text="Per-dashboard filter state, keyed by dashboard slug.",
     )
+    chart_sections = models.JSONField(
+        default=list, blank=True, help_text="Charts tab section slugs, in display order."
+    )
 
     recent_transaction_count = models.PositiveIntegerField(default=8)
 
@@ -41,6 +56,10 @@ class UserPreference(TimestampedModel):
     @property
     def widgets(self):
         return self.homepage_widgets or list(DEFAULT_HOMEPAGE_WIDGETS)
+
+    @property
+    def chart_section_order(self):
+        return self.chart_sections or list(DEFAULT_CHART_SECTIONS)
 
     @classmethod
     def for_user(cls, user):

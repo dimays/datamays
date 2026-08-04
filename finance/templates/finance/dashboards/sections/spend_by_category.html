@@ -1,0 +1,9 @@
+{% if spend_has_data %}
+  <section class="mt-4 rounded-card border border-border bg-surface p-5">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">By category</h2>
+    <div class="mt-4 h-72">
+      <canvas data-chart="doughnut" data-source="spend-by-category"></canvas>
+    </div>
+    {{ spend_by_category_json|json_script:"spend-by-category" }}
+  </section>
+{% endif %}
