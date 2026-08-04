@@ -21,6 +21,7 @@ dependencies = [
     "qrcode>=8.2",
     "django-axes>=8.3.1",
     "requests>=2.34.2",
+    "openai>=2.53.0",
 ]
 
 [tool.uv]

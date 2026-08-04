@@ -1,0 +1,105 @@
+{% extends "finance/base_finance.html" %}
+{% load finance_extras %}
+
+{% block finance_content %}
+<h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Confirm columns</h1>
+<p class="mt-2 max-w-2xl text-text-secondary">
+  Here's what <span class="font-medium text-text-primary">{{ batch.original_filename }}</span>
+  looks like it contains. Anything marked <span class="text-warning">unsure</span> is worth a
+  second look — a wrong column lands plausible numbers in the wrong place.
+</p>
+
+{% include "finance/partials/messages.html" %}
+
+<div class="mt-8 overflow-x-auto rounded-card border border-border">
+  <table class="w-full min-w-max text-sm">
+    <thead class="bg-surface text-left text-xs uppercase tracking-wide text-text-muted">
+      <tr>
+        {% for header in batch.detected_headers %}<th class="px-4 py-3 font-medium">{{ header }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-border">
+      {% for row in batch.sample_rows|slice:":4" %}
+        <tr>
+          {% for header in batch.detected_headers %}
+            <td class="whitespace-nowrap px-4 py-2.5 text-text-secondary">{{ row|get_item:header|default:"—" }}</td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<form method="post" class="mt-8 max-w-2xl space-y-5">
+  {% csrf_token %}
+
+  {% for field in fields %}
+    <div class="rounded-card border border-border bg-surface p-4">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <label for="field-{{ field.key }}" class="text-sm font-medium">
+          {{ field.label }}
+          {% if field.required %}<span class="text-error">*</span>{% endif %}
+        </label>
+
+        {% if field.suggested and field.confidence < 0.9 %}
+          <span class="rounded-full bg-warning/15 px-2.5 py-0.5 text-xs font-medium text-warning">unsure</span>
+        {% elif field.suggested %}
+          <span class="rounded-full bg-success/15 px-2.5 py-0.5 text-xs font-medium text-success">detected</span>
+        {% endif %}
+      </div>
+
+      <select id="field-{{ field.key }}" name="{{ field.key }}"
+              class="mt-2 w-full rounded-button border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+        <option value="">— not in this file —</option>
+        {% for header in batch.detected_headers %}
+          <option value="{{ header }}" {% if header == field.suggested %}selected{% endif %}>{{ header }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  {% endfor %}
+
+  <div class="rounded-card border border-border bg-surface p-4">
+    <label for="amount_convention" class="text-sm font-medium">How does this file show money going out?</label>
+    <p class="mt-1 text-xs text-text-muted">
+      Getting this backwards inverts the whole statement, so check it against the sample above.
+    </p>
+    <select id="amount_convention" name="amount_convention"
+            class="mt-2 w-full rounded-button border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+      {% for value, label in amount_conventions %}
+        <option value="{{ value }}" {% if value == detected_convention %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="rounded-card border border-border bg-surface p-4">
+    <label for="date_format" class="text-sm font-medium">Date format</label>
+    <p class="mt-1 text-xs text-text-muted">Leave blank to work it out per row.</p>
+    <input id="date_format" name="date_format" value="{{ detected_date_format }}"
+           class="mt-2 w-full rounded-button border border-border bg-background px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+  </div>
+
+  <div x-data="{ save: true }" class="rounded-card border border-border bg-surface p-4">
+    <label class="flex items-center gap-3 text-sm font-medium">
+      <input type="checkbox" name="save_mapping" x-model="save" checked
+             class="h-4 w-4 rounded border-border bg-background text-primary focus:ring-primary" />
+      Remember this mapping for {{ batch.institution.name }}
+    </label>
+
+    <div x-show="save" x-cloak class="mt-3">
+      <input name="mapping_name" placeholder="{{ batch.institution.name }} default"
+             class="w-full rounded-button border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+    </div>
+  </div>
+
+  <div class="flex flex-col gap-3 sm:flex-row">
+    <button type="submit"
+            class="rounded-button bg-primary px-6 py-3 font-medium text-white transition hover:bg-primary-600">
+      Preview import
+    </button>
+    <a href="{% url 'finance:imports' %}"
+       class="rounded-button border border-border px-6 py-3 text-center font-medium text-text-secondary transition hover:bg-muted">
+      Cancel
+    </a>
+  </div>
+</form>
+{% endblock %}

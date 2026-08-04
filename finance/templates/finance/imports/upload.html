@@ -1,0 +1,35 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+<h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Import a file</h1>
+<p class="mt-2 max-w-2xl text-text-secondary">
+  Upload a CSV export. The next screen shows which column it thinks is which,
+  for you to confirm before anything is saved.
+</p>
+
+{% include "finance/partials/messages.html" %}
+
+<form method="post" enctype="multipart/form-data" class="mt-8 max-w-lg space-y-5">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="rounded-button border border-error/40 bg-error/10 px-4 py-3 text-sm text-error" role="alert">
+      {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  {% for field in form %}
+    <div>
+      <label for="{{ field.id_for_label }}" class="mb-1.5 block text-sm font-medium">{{ field.label }}</label>
+      {{ field }}
+      {% if field.help_text %}<p class="mt-1.5 text-xs text-text-muted">{{ field.help_text }}</p>{% endif %}
+      {% if field.errors %}<p class="mt-1.5 text-sm text-error">{{ field.errors.0 }}</p>{% endif %}
+    </div>
+  {% endfor %}
+
+  <button type="submit"
+          class="w-full rounded-button bg-primary px-6 py-3 font-medium text-white transition hover:bg-primary-600 sm:w-auto">
+    Continue
+  </button>
+</form>
+{% endblock %}

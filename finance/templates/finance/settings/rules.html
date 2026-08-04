@@ -1,0 +1,50 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+<h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Category rules</h1>
+<p class="mt-2 max-w-2xl text-text-secondary">
+  Rules run before the classifier and always win. Add them from the review queue
+  by ticking “always” when you confirm a category.
+</p>
+
+{% include "finance/partials/messages.html" %}
+
+<div class="mt-8 space-y-2">
+  {% for rule in rules %}
+    <div class="rounded-card border border-border bg-surface p-4 {% if not rule.is_active %}opacity-50{% endif %}">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="min-w-0">
+          <p class="truncate text-sm">
+            <span class="text-text-muted">{{ rule.get_match_type_display|lower }}</span>
+            <span class="font-mono">“{{ rule.pattern }}”</span>
+            <span class="text-text-muted">→</span>
+            <span class="font-medium">{{ rule.category.full_path }}</span>
+          </p>
+          <p class="mt-1 text-xs text-text-muted">
+            priority {{ rule.priority }}
+            {% if rule.account %}· {{ rule.account.name }} only{% endif %}
+            {% if rule.min_amount or rule.max_amount %}· amount bounded{% endif %}
+          </p>
+        </div>
+
+        <form method="post" class="flex shrink-0 gap-2">
+          {% csrf_token %}
+          <input type="hidden" name="rule" value="{{ rule.pk }}" />
+          <button type="submit" name="action" value="toggle"
+                  class="rounded-button border border-border px-3 py-1.5 text-xs transition hover:bg-muted">
+            {% if rule.is_active %}Pause{% else %}Resume{% endif %}
+          </button>
+          <button type="submit" name="action" value="delete"
+                  class="rounded-button px-3 py-1.5 text-xs text-error transition hover:bg-error/10">
+            Delete
+          </button>
+        </form>
+      </div>
+    </div>
+  {% empty %}
+    <div class="rounded-card border border-dashed border-border bg-surface/50 p-8 text-center">
+      <p class="text-text-secondary">No rules yet — the classifier is handling everything.</p>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

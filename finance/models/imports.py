@@ -128,7 +128,15 @@ class ImportBatch(TimestampedModel):
     )
 
     original_filename = models.CharField(max_length=255)
-    uploaded_file = models.FileField(upload_to="finance/imports/%Y/%m/")
+    raw_content = models.TextField(
+        blank=True,
+        help_text=(
+            "The uploaded file's text. Kept in the database rather than on "
+            "disk because Heroku's filesystem is ephemeral — a dyno restart "
+            "between upload and mapping would otherwise lose the file "
+            "mid-wizard. It also doubles as the audit trail."
+        ),
+    )
 
     status = models.CharField(
         max_length=20, choices=ImportStatus.choices, default=ImportStatus.UPLOADED

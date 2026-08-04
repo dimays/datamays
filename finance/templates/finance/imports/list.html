@@ -1,0 +1,61 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+<div class="flex flex-wrap items-center justify-between gap-4">
+  <h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Imports</h1>
+  <div class="flex gap-2">
+    <a href="{% url 'finance:import_schemas' %}"
+       class="rounded-button border border-border bg-surface px-4 py-2.5 text-sm font-medium transition hover:bg-muted">
+      Field reference
+    </a>
+    <a href="{% url 'finance:import_upload' %}"
+       class="rounded-button bg-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600">
+      Import a file
+    </a>
+  </div>
+</div>
+
+<p class="mt-2 max-w-2xl text-text-secondary">
+  For the accounts nobody can sync automatically — the life policy, the
+  mortgage, and payslips. Not sure what a file needs to include? See the
+  <a href="{% url 'finance:import_schemas' %}" class="text-primary hover:underline">field reference</a>.
+</p>
+
+{% include "finance/partials/messages.html" %}
+
+<div class="mt-8 space-y-3">
+  {% for batch in batches %}
+    <div class="rounded-card border border-border bg-surface p-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="min-w-0">
+          <p class="truncate font-medium">{{ batch.original_filename }}</p>
+          <p class="mt-1 text-sm text-text-muted">
+            {{ batch.institution.name }} · {{ batch.get_record_type_display }} · {{ batch.created_at|date:"j M Y, H:i" }}
+          </p>
+        </div>
+
+        <div class="flex items-center gap-3">
+          {% if batch.status == 'committed' %}
+            <span class="rounded-full bg-success/15 px-3 py-1 text-xs font-medium text-success">
+              {{ batch.created_count }} imported
+            </span>
+          {% elif batch.status == 'failed' %}
+            <span class="rounded-full bg-error/15 px-3 py-1 text-xs font-medium text-error">Failed</span>
+          {% elif batch.status == 'cancelled' %}
+            <span class="rounded-full bg-muted px-3 py-1 text-xs font-medium text-text-muted">Cancelled</span>
+          {% else %}
+            <a href="{% url 'finance:import_map' batch.pk %}"
+               class="rounded-button border border-border px-3 py-1.5 text-xs font-medium transition hover:bg-muted">
+              Continue
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  {% empty %}
+    <div class="rounded-card border border-dashed border-border bg-surface/50 p-8 text-center">
+      <p class="text-text-secondary">No files imported yet.</p>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}
