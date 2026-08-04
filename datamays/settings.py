@@ -265,6 +265,7 @@ FINANCE_TIME_ZONE = os.getenv("FINANCE_TIME_ZONE", "America/Chicago")
 # breaks.
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 FINANCE_CATEGORISER_MODEL = os.getenv("FINANCE_CATEGORISER_MODEL", "gpt-4o-mini")
+FINANCE_QFR_MODEL = os.getenv("FINANCE_QFR_MODEL", "gpt-4o-mini")
 
 CONTACT_RECIPIENT_EMAIL = os.getenv("CONTACT_RECIPIENT_EMAIL")
 
