@@ -3,7 +3,7 @@
 
 {% block finance_content %}
 <h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">{{ connection.label }}</h1>
-<p class="mt-2 text-text-secondary">{{ connection.institution.name }} · {{ connection.get_provider_display }}</p>
+<p class="mt-2 text-text-secondary">{{ connection.get_provider_display }}</p>
 
 {% include "finance/partials/messages.html" %}
 
@@ -50,7 +50,7 @@
       <li class="flex items-center justify-between gap-3 p-4">
         <div class="min-w-0">
           <a href="{% url 'finance:account_edit' account.pk %}" class="truncate text-sm font-medium hover:underline">{{ account.name }}</a>
-          <p class="text-xs text-text-muted">{{ account.get_account_type_display }}</p>
+          <p class="text-xs text-text-muted">{{ account.institution.name }} · {{ account.get_account_type_display }}</p>
         </div>
         <p class="shrink-0 font-mono text-sm">${{ account.display_balance|money }}</p>
       </li>

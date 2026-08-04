@@ -278,6 +278,83 @@ class AccountDiscoveryTests(SyncTestCase):
         self.assertEqual(Account.objects.get().account_type, AccountType.MONEY_MARKET)
 
 
+class InstitutionResolutionTests(SyncTestCase):
+    """A single SimpleFIN connection can span more than one real institution —
+    SimpleFIN Bridge lets a person link several to one setup token, so trusting
+    connection.institution for every account would silently mislabel all but
+    the first one. Each account's institution comes from the provider's own
+    report of it instead."""
+
+    def test_an_account_is_attributed_to_the_institution_the_provider_reports(self):
+        self.run_sync(
+            fetch_result(accounts=[account_payload(institution_name="Chase")])
+        )
+
+        account = Account.objects.get()
+        self.assertEqual(account.institution.name, "Chase")
+
+    def test_two_accounts_from_different_institutions_land_on_different_institutions(self):
+        result = fetch_result(
+            accounts=[
+                account_payload(provider_account_id="ACT-1", institution_name="Chase"),
+                account_payload(provider_account_id="ACT-2", institution_name="Capital One"),
+            ],
+            transactions={},
+        )
+
+        run = self.run_sync(result)
+
+        self.assertEqual(run.status, SyncStatus.SUCCESS)
+        chase = Account.objects.get(provider_account_id="ACT-1")
+        capital_one = Account.objects.get(provider_account_id="ACT-2")
+        self.assertEqual(chase.institution.name, "Chase")
+        self.assertEqual(capital_one.institution.name, "Capital One")
+        self.assertNotEqual(chase.institution_id, capital_one.institution_id)
+
+    def test_a_repeat_institution_name_reuses_the_same_institution_row(self):
+        result = fetch_result(
+            accounts=[
+                account_payload(provider_account_id="ACT-1", institution_name="Chase"),
+                account_payload(provider_account_id="ACT-2", institution_name="Chase"),
+            ],
+            transactions={},
+        )
+
+        self.run_sync(result)
+
+        institutions = {a.institution_id for a in Account.objects.all()}
+        self.assertEqual(len(institutions), 1)
+
+    def test_a_connection_with_no_fallback_institution_still_works_when_the_provider_reports_one(self):
+        self.connection.institution = None
+        self.connection.save()
+
+        run = self.run_sync(
+            fetch_result(accounts=[account_payload(institution_name="Chase")])
+        )
+
+        self.assertEqual(run.status, SyncStatus.SUCCESS)
+        self.assertEqual(Account.objects.get().institution.name, "Chase")
+
+    def test_falls_back_to_the_connections_institution_when_the_provider_reports_none(self):
+        # institution_name defaults to "" on AccountPayload -- some providers
+        # or edge-case accounts may not report one.
+        run = self.run_sync(fetch_result(accounts=[account_payload(institution_name="")]))
+
+        self.assertEqual(run.status, SyncStatus.SUCCESS)
+        self.assertEqual(Account.objects.get().institution_id, self.institution.id)
+
+    def test_no_provider_name_and_no_fallback_fails_that_account_only(self):
+        self.connection.institution = None
+        self.connection.save()
+
+        run = self.run_sync(fetch_result(accounts=[account_payload(institution_name="")]))
+
+        self.assertEqual(run.status, SyncStatus.PARTIAL)
+        self.assertEqual(run.accounts_synced, 0)
+        self.assertEqual(Account.objects.count(), 0)
+
+
 class FailureHandlingTests(SyncTestCase):
     def test_rejected_credentials_flag_the_connection_for_reauth(self):
         run = self.run_sync(side_effect=ProviderAuthError("access url rejected"))

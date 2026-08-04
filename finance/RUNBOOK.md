@@ -52,9 +52,12 @@ Safe to re-run; it matches on slug and never deletes.
 
 ### 5. Connect the institutions
 
-Authorize each one at <https://bridge.simplefin.org/>, then paste the setup
-token at **Settings → Connect an institution**. The app exchanges it, stores it
-encrypted, and pulls 90 days as a test.
+Authorize them at <https://bridge.simplefin.org/>, then paste the setup token
+at **Settings → Connect an institution**. A single SimpleFIN Bridge setup can
+link several institutions to one token — the app doesn't need a separate
+token per institution, since each account is matched to its own institution
+automatically from what SimpleFIN reports for it during sync. The app
+exchanges the token, stores it encrypted, and pulls 90 days as a test.
 
 Institutions SimpleFIN cannot reach — Northwestern Mutual, CrossCountry
 Mortgage, One Wealth, employer 401(k)s — get a manual account and a CSV import

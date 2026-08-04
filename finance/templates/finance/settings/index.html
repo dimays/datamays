@@ -40,7 +40,7 @@
           <div class="min-w-0">
             <p class="truncate font-medium">{{ connection.label }}</p>
             <p class="mt-0.5 text-xs text-text-muted">
-              {{ connection.institution.name }}
+              {{ connection.accounts.count }} account{{ connection.accounts.count|pluralize }}
               {% if connection.last_synced_at %}· synced {{ connection.last_synced_at|timesince }} ago
               {% else %}· never synced{% endif %}
             </p>
