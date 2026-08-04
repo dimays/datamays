@@ -18,12 +18,14 @@ from decimal import Decimal
 from django.db import transaction as db_transaction
 from django.utils import timezone
 
+from ..dates import household_today, to_household_date
 from ..models import (
     LIABILITY_TYPES,
     Account,
     AccountBalanceSnapshot,
     AccountConnection,
     AccountType,
+    ConnectionStatus,
     BalanceSource,
     SyncRun,
     SyncStatus,
@@ -32,7 +34,7 @@ from ..models import (
     TransactionSource,
     build_fingerprint,
 )
-from ..providers.base import ProviderAuthError, ProviderError
+from ..providers.base import ProviderAuthError, ProviderError, redact
 from ..providers.registry import get_adapter
 
 logger = logging.getLogger(__name__)
@@ -137,9 +139,9 @@ def next_fingerprint(account_id, posted_on, amount, description):
 
 def default_since(connection: AccountConnection) -> date:
     if connection.last_synced_at is None:
-        return timezone.localdate() - timedelta(days=INITIAL_HISTORY_DAYS)
+        return household_today() - timedelta(days=INITIAL_HISTORY_DAYS)
 
-    return timezone.localdate(connection.last_synced_at) - timedelta(days=OVERLAP_DAYS)
+    return to_household_date(connection.last_synced_at) - timedelta(days=OVERLAP_DAYS)
 
 
 def upsert_account(connection: AccountConnection, payload) -> Account:
@@ -175,7 +177,7 @@ def upsert_account(connection: AccountConnection, payload) -> Account:
     if balance is not None:
         record_balance_snapshot(
             account,
-            as_of=payload.balance_as_of or timezone.localdate(),
+            as_of=payload.balance_as_of or household_today(),
             current=balance,
             available=account.available_balance,
         )
@@ -294,7 +296,7 @@ def sync_connection(
                 summary.accounts_synced += 1
         except Exception as exc:  # noqa: BLE001 — one account must not sink the run
             logger.exception("Failed syncing account %s", account_payload.provider_account_id)
-            summary.errors.append(f"{account_payload.name}: {exc}")
+            summary.errors.append(f"{account_payload.name}: {redact(exc)}")
 
     run.accounts_synced = summary.accounts_synced
     run.transactions_created = summary.transactions_created
@@ -313,7 +315,7 @@ def sync_connection(
 def sync_all_connections(*, since=None, trigger=SyncTrigger.SCHEDULE, high_frequency_only=False):
     """Sync every active connection. Returns the runs, in order."""
     connections = AccountConnection.objects.filter(
-        status__in=["active", "error"]
+        status__in=[ConnectionStatus.ACTIVE, ConnectionStatus.ERROR]
     ).select_related("institution")
 
     if high_frequency_only:

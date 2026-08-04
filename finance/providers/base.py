@@ -8,10 +8,25 @@ formats. Adding a second provider later should mean writing one adapter and
 touching nothing else.
 """
 
+import re
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from typing import Protocol
+
+
+CREDENTIAL_IN_URL = re.compile(r"(https?://)[^/\s:@]+:[^/\s@]+@")
+
+
+def redact(message) -> str:
+    """Strip embedded HTTP Basic credentials from text before it is stored.
+
+    Provider errors land in `connection.last_error`, which is rendered on the
+    connection page. A SimpleFIN access URL carries its credential in the
+    userinfo, so any exception echoing the URL would put it on screen.
+    `requests` happens not to today; this does not rely on that staying true.
+    """
+    return CREDENTIAL_IN_URL.sub(r"\1<redacted>@", str(message))
 
 
 class ProviderError(Exception):

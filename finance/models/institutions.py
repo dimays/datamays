@@ -106,7 +106,11 @@ class AccountConnection(TimestampedModel):
         self.save(update_fields=["last_synced_at", "last_error", "status", "updated_at"])
 
     def mark_failed(self, message, *, needs_reauth=False):
-        self.last_error = str(message)[:2000]
+        from ..providers.base import redact
+
+        # Last line of defence: everything written to last_error is rendered
+        # on the connection page, so nothing carrying a credential gets there.
+        self.last_error = redact(message)[:2000]
         self.status = (
             ConnectionStatus.NEEDS_REAUTH if needs_reauth else ConnectionStatus.ERROR
         )

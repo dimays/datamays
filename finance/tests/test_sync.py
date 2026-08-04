@@ -369,3 +369,39 @@ class SyncRunObservabilityTests(SyncTestCase):
 
         self.connection.refresh_from_db()
         self.assertGreaterEqual(self.connection.last_synced_at, before)
+
+
+class CredentialRedactionTests(TestCase):
+    """Provider errors are rendered on the connection page.
+
+    A SimpleFIN access URL carries its credential in the userinfo, so an
+    exception echoing the URL would put that credential on screen.
+    """
+
+    def test_embedded_credentials_are_stripped(self):
+        from finance.providers.base import redact
+
+        cleaned = redact(
+            "Max retries exceeded with url "
+            "https://abc123:tok_9f8e7d@bridge.simplefin.org/simplefin/accounts"
+        )
+
+        self.assertNotIn("tok_9f8e7d", cleaned)
+        self.assertNotIn("abc123", cleaned)
+        self.assertIn("bridge.simplefin.org", cleaned)
+
+    def test_ordinary_messages_are_untouched(self):
+        from finance.providers.base import redact
+
+        self.assertEqual(redact("could not reach host"), "could not reach host")
+
+    def test_mark_failed_redacts_whatever_it_is_given(self):
+        connection = AccountConnection.objects.create(
+            institution=make_institution(), label="Byline", access_secret="x"
+        )
+
+        connection.mark_failed("failed on https://u:p4ssw0rd@bridge.simplefin.org/x")
+
+        connection.refresh_from_db()
+        self.assertNotIn("p4ssw0rd", connection.last_error)
+        self.assertIn("<redacted>", connection.last_error)

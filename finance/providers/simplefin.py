@@ -24,6 +24,7 @@ from .base import (
     ProviderAuthError,
     ProviderError,
     TransactionPayload,
+    redact,
 )
 
 TIMEOUT_SECONDS = 60
@@ -55,7 +56,7 @@ def claim_access_url(setup_token: str) -> str:
     try:
         response = requests.post(claim_url, timeout=TIMEOUT_SECONDS)
     except requests.RequestException as exc:
-        raise ProviderError(f"Could not reach SimpleFIN: {exc}") from exc
+        raise ProviderError(f"Could not reach SimpleFIN: {redact(exc)}") from exc
 
     if response.status_code == 403:
         raise ProviderAuthError(
@@ -145,7 +146,7 @@ class SimpleFINAdapter:
         try:
             response = requests.get(url, params=params, timeout=TIMEOUT_SECONDS)
         except requests.RequestException as exc:
-            raise ProviderError(f"Could not reach SimpleFIN: {exc}") from exc
+            raise ProviderError(f"Could not reach SimpleFIN: {redact(exc)}") from exc
 
         if response.status_code in (401, 403):
             raise ProviderAuthError(
