@@ -1,0 +1,26 @@
+{% extends "finance/base_auth.html" %}
+{% block title %}Nothing to see here{% endblock %}
+
+{% block auth_content %}
+<div class="text-center">
+  <p class="text-6xl" aria-hidden="true">🕵️</p>
+
+  <h1 class="mt-6 text-3xl font-extrabold tracking-tight">Get out of here, nosey!</h1>
+
+  <p class="mt-3 text-text-secondary">
+    This corner of the site is strictly a two-person operation, and you are not
+    one of the two.
+  </p>
+
+  <a href="{% url 'core:home' %}"
+     class="mt-8 inline-block rounded-button bg-primary px-6 py-3 font-medium text-white transition hover:bg-primary-600">
+    Back to datamays.com
+  </a>
+
+  <p class="mt-10 text-xs text-text-muted">
+    <a href="{% url 'finance:login' %}" class="underline underline-offset-4 transition hover:text-text-secondary">
+      …unless you live here
+    </a>
+  </p>
+</div>
+{% endblock %}

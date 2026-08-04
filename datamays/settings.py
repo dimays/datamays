@@ -11,8 +11,11 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+from datetime import timedelta
+
 import dj_database_url
 import sentry_sdk
+from django.core.exceptions import ImproperlyConfigured
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -20,17 +23,49 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
+DATABASE_URL = os.getenv('DATABASE_URL')
+SECRET_KEY = os.getenv('SECRET_KEY', 'fallback-secret-key')
+DEBUG = os.getenv("DEBUG_FLAG", "False") == "True"
+WORKING_ENV = os.getenv('WORKING_ENV').lower()
+
+# SECRET_KEY signs session cookies. Silently falling back to a public literal
+# would let anyone forge a session for the finance app, so outside local dev
+# a missing key is fatal rather than merely unfortunate.
+if WORKING_ENV != 'dev' and SECRET_KEY == 'fallback-secret-key':
+    raise ImproperlyConfigured(
+        "SECRET_KEY is not set. Refusing to start with the placeholder key "
+        "outside local development, because it signs session cookies."
+    )
+
+
+def _scrub_finance_data(event, hint):
+    """Strip request, user, and frame locals from finance errors.
+
+    send_default_pii is on for the public site, which would otherwise ship
+    balances, transaction descriptions, and account identifiers to Sentry via
+    request bodies and stack-frame locals. Errors from /finance are reported
+    with the traceback only.
+    """
+    url = (event.get("request") or {}).get("url") or ""
+
+    if "/finance" in url:
+        event.pop("request", None)
+        event.pop("user", None)
+
+        for value in (event.get("exception") or {}).get("values", []):
+            for frame in (value.get("stacktrace") or {}).get("frames", []):
+                frame.pop("vars", None)
+
+    return event
+
+
 sentry_sdk.init(
     dsn=os.getenv('SENTRY_DSN'),
     # Add data like request headers and IP for users,
     # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
     send_default_pii=True,
+    before_send=_scrub_finance_data,
 )
-
-DATABASE_URL = os.getenv('DATABASE_URL')
-SECRET_KEY = os.getenv('SECRET_KEY', 'fallback-secret-key')
-DEBUG = os.getenv("DEBUG_FLAG", "False") == "True"
-WORKING_ENV = os.getenv('WORKING_ENV').lower()
 
 if WORKING_ENV == 'dev':
     ALLOWED_HOSTS = [
@@ -60,6 +95,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_otp',
+    'django_otp.plugins.otp_totp',
+    'axes',
 ]
 
 MIDDLEWARE = [
@@ -69,9 +107,34 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # Must follow AuthenticationMiddleware: it decorates request.user with
+    # is_verified() so views can tell a password-only session from one that
+    # has also cleared the second factor.
+    'django_otp.middleware.OTPMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Axes must come last so it observes the final authentication outcome.
+    'axes.middleware.AxesMiddleware',
 ]
+
+# AxesStandaloneBackend must be first — it short-circuits authentication for
+# locked-out credentials before the real backend ever checks a password.
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesStandaloneBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+# /finance is internet-facing on a public repo, so the login form is a known
+# target. Five misses locks the (IP, username) pair for fifteen minutes.
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = timedelta(minutes=15)
+AXES_LOCKOUT_PARAMETERS = [["ip_address", "username"]]
+AXES_RESET_ON_SUCCESS = True
+AXES_LOCKOUT_TEMPLATE = "finance/lockout.html"
+
+LOGIN_URL = "finance:login"
+LOGIN_REDIRECT_URL = "finance:home"
+LOGOUT_REDIRECT_URL = "core:home"
 
 ROOT_URLCONF = 'datamays.urls'
 
@@ -158,6 +221,25 @@ if WORKING_ENV == 'dev':
 else:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_SSL_REDIRECT = True
+
+    # Session and CSRF cookies now carry access to financial data, so they must
+    # never travel over plaintext HTTP.
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+    # One year. Deliberately without preload: preloading is effectively
+    # irreversible, and includeSubDomains already commits every current and
+    # future datamays.com subdomain to HTTPS.
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+
+# Two weeks. Long enough that a phone isn't re-authenticating constantly,
+# short enough that a stolen session eventually dies on its own. Second-factor
+# verification is what makes the long window acceptable.
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 14
 
 if WORKING_ENV == 'dev':
     REDIRECT_DOMAIN = 'http://localhost:8000/'
