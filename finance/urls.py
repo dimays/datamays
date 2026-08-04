@@ -6,6 +6,7 @@ from . import (
     views_budgets,
     views_dashboards,
     views_imports,
+    views_settings,
     views_transactions,
 )
 
@@ -17,8 +18,12 @@ urlpatterns = [
     path("spend/", views_dashboards.SpendView.as_view(), name="spend"),
     path("income/", views_dashboards.IncomeView.as_view(), name="income"),
     path("savings/", views_dashboards.SavingsView.as_view(), name="savings"),
-    path("settings/", views.SettingsView.as_view(), name="settings"),
-    path("preferences/", views.PreferencesView.as_view(), name="preferences"),
+    path("settings/", views_settings.SettingsHomeView.as_view(), name="settings"),
+    path("settings/connections/new/", views_settings.ConnectionCreateView.as_view(), name="connection_create"),
+    path("settings/connections/<int:pk>/", views_settings.ConnectionDetailView.as_view(), name="connection_detail"),
+    path("settings/accounts/<int:pk>/", views_settings.AccountUpdateView.as_view(), name="account_edit"),
+    path("settings/rules/", views_settings.RuleListView.as_view(), name="rules"),
+    path("preferences/", views_settings.PreferencesView.as_view(), name="preferences"),
     # Budgets
     path("budgets/", views_budgets.BudgetListView.as_view(), name="budgets"),
     path("budgets/new/", views_budgets.BudgetCreateView.as_view(), name="budget_create"),
