@@ -1,0 +1,41 @@
+{% extends "finance/base_auth.html" %}
+{% load static %}
+{% block title %}Sign in — Household Finance{% endblock %}
+
+{% block auth_content %}
+<div class="mb-8 flex items-center justify-center gap-2">
+  <img src="{% static 'img/datamays-logo-transparent.png' %}" alt="" class="h-8 w-8" />
+  <span class="text-lg font-bold tracking-tight">Household Finance</span>
+</div>
+
+<form method="post" class="space-y-4">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="rounded-button border border-error/40 bg-error/10 px-4 py-3 text-sm text-error" role="alert">
+      {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  <div>
+    <label for="{{ form.username.id_for_label }}" class="sr-only">Username</label>
+    {{ form.username }}
+  </div>
+
+  <div>
+    <label for="{{ form.password.id_for_label }}" class="sr-only">Password</label>
+    {{ form.password }}
+  </div>
+
+  <button type="submit"
+          class="w-full rounded-button bg-primary px-6 py-3 font-medium text-white transition hover:bg-primary-600">
+    Sign in
+  </button>
+</form>
+
+<p class="mt-8 text-center text-xs text-text-muted">
+  <a href="{% url 'core:home' %}" class="underline underline-offset-4 transition hover:text-text-secondary">
+    Back to datamays.com
+  </a>
+</p>
+{% endblock %}

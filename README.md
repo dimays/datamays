@@ -64,6 +64,32 @@ uv run python manage.py runserver 0.0.0.0:8000
 
 Visit [http://localhost:8000](http://localhost:8000) in your browser.
 
+### Running Tests
+
+```bash
+uv run python manage.py test --settings=datamays.settings_test
+```
+
+> Always pass `--settings=datamays.settings_test`. The default settings read
+> `DATABASE_URL` from `.env`, which points at the deployed Postgres — running
+> tests against it would ask the production database server to create a test
+> database. The test settings pin the suite to in-memory SQLite and disable
+> Sentry.
+
+### Household Finance
+
+The private finance app lives at `/finance`, documented for two different
+readers:
+
+- [`finance/RUNBOOK.md`](finance/RUNBOOK.md) — operating it: setup, Heroku
+  Scheduler jobs, key rotation, generating QFRs, and what to do when a sync
+  goes wrong.
+- [`finance/ARCHITECTURE.md`](finance/ARCHITECTURE.md) — working on it: app
+  layout, the sign and money conventions, the sync → categorize → rollup →
+  alerts pipeline, and testing conventions.
+
+What each screen does is covered in-app, under the header menu's Help link.
+
 ### Tailwind / Frontend Dev Server
 
 ```bash
@@ -104,6 +130,11 @@ uv sync
 npm install <package-name>
 npm remove <package-name>
 ```
+
+> `static/css/tailwind.css` and `static/js/*.min.js` are committed build
+> artifacts — Heroku does not run Node. After changing templates or bumping a
+> frontend package, re-run `npm run tailwind:build` (and `npm run vendor:js`
+> for htmx/Alpine) and commit the result.
 
 ---
 

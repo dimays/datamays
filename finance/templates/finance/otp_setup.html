@@ -1,0 +1,46 @@
+{% extends "finance/base_auth.html" %}
+{% block title %}Set up two-factor — Household Finance{% endblock %}
+
+{% block auth_content %}
+<div class="text-center">
+  <h1 class="text-2xl font-extrabold tracking-tight">Set up two-factor</h1>
+  <p class="mt-2 text-sm text-text-secondary">
+    Scan this with an authenticator app — 1Password, Authy, Google
+    Authenticator — then enter the code it shows.
+  </p>
+</div>
+
+{# White plate: QR codes need light quiet-zones to scan reliably. #}
+<div class="mx-auto mt-6 w-48 rounded-card bg-white p-3 [&_svg]:h-full [&_svg]:w-full">
+  {{ qr_svg }}
+</div>
+
+<details class="mt-4 text-center text-xs text-text-muted">
+  <summary class="cursor-pointer underline underline-offset-4">Can't scan it?</summary>
+  <p class="mt-3">Enter this key manually:</p>
+  <code class="mt-2 block break-all rounded bg-muted px-3 py-2 font-mono text-[11px] text-text-secondary">{{ secret }}</code>
+</details>
+
+<form method="post" class="mt-8 space-y-4">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="rounded-button border border-error/40 bg-error/10 px-4 py-3 text-sm text-error" role="alert">
+      {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  <div>
+    <label for="{{ form.token.id_for_label }}" class="sr-only">Authentication code</label>
+    {{ form.token }}
+    {% if form.token.errors %}
+      <p class="mt-2 text-sm text-error" role="alert">{{ form.token.errors.0 }}</p>
+    {% endif %}
+  </div>
+
+  <button type="submit"
+          class="w-full rounded-button bg-primary px-6 py-3 font-medium text-white transition hover:bg-primary-600">
+    Confirm and finish
+  </button>
+</form>
+{% endblock %}
