@@ -17,6 +17,7 @@ from decimal import Decimal
 
 from django.db import transaction as db_transaction
 from django.utils import timezone
+from django.utils.text import slugify
 
 from ..dates import household_today, to_household_date
 from ..models import (
@@ -27,6 +28,7 @@ from ..models import (
     AccountType,
     ConnectionStatus,
     BalanceSource,
+    Institution,
     SyncRun,
     SyncStatus,
     SyncTrigger,
@@ -144,6 +146,34 @@ def default_since(connection: AccountConnection) -> date:
     return to_household_date(connection.last_synced_at) - timedelta(days=OVERLAP_DAYS)
 
 
+def resolve_institution(connection: AccountConnection, payload) -> Institution:
+    """Which Institution a newly-discovered account belongs to.
+
+    Trusts the provider's own report of it (`payload.institution_name`) over
+    the connection's institution, since one SimpleFIN access can span several
+    real institutions — assuming they all match the connection's would
+    silently mislabel every account after the first. `connection.institution`
+    is only a fallback for the rare account that doesn't come with one.
+    """
+    name = (getattr(payload, "institution_name", "") or "").strip()
+
+    if name:
+        institution, _ = Institution.objects.get_or_create(
+            name=name,
+            defaults={"slug": slugify(name)[:140], "provider": connection.provider},
+        )
+        return institution
+
+    if connection.institution_id:
+        return connection.institution
+
+    raise ProviderError(
+        f"{connection.get_provider_display()} did not report an institution "
+        f"for account {payload.provider_account_id!r}, and this connection "
+        "has no fallback institution set."
+    )
+
+
 def upsert_account(connection: AccountConnection, payload) -> Account:
     account = Account.objects.filter(
         connection=connection, provider_account_id=payload.provider_account_id
@@ -152,7 +182,7 @@ def upsert_account(connection: AccountConnection, payload) -> Account:
     if account is None:
         account = Account(
             connection=connection,
-            institution=connection.institution,
+            institution=resolve_institution(connection, payload),
             provider_account_id=payload.provider_account_id,
             name=payload.name,
             account_type=guess_account_type(payload.name),

@@ -21,7 +21,6 @@ from finance.models import (
     Category,
     CategoryRule,
     ConnectionStatus,
-    Institution,
     UserPreference,
 )
 from finance.providers.base import ProviderError
@@ -88,7 +87,6 @@ class ConnectionManagementTests(SettingsTestCase):
         response = self.client.post(
             reverse("finance:connection_create"),
             {
-                "institution_name": "Chase",
                 "label": "Chase (personal)",
                 "setup_token": "a-token",
             },
@@ -98,7 +96,9 @@ class ConnectionManagementTests(SettingsTestCase):
 
         connection = AccountConnection.objects.get(label="Chase (personal)")
         self.assertEqual(connection.access_secret, ACCESS_URL)
-        self.assertTrue(Institution.objects.filter(name="Chase").exists())
+        # No institution is chosen up front anymore -- a single token can
+        # cover more than one, resolved per account during sync instead.
+        self.assertIsNone(connection.institution)
 
         # Test-on-save: a connection that cannot pull is not really connected.
         sync.assert_called_once()
@@ -109,12 +109,12 @@ class ConnectionManagementTests(SettingsTestCase):
 
         response = self.client.post(
             reverse("finance:connection_create"),
-            {"institution_name": "Chase", "setup_token": "already-used"},
+            {"label": "Chase (personal)", "setup_token": "already-used"},
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "claimed once")
-        self.assertFalse(AccountConnection.objects.filter(institution__name="Chase").exists())
+        self.assertFalse(AccountConnection.objects.filter(label="Chase (personal)").exists())
 
     @patch("finance.views_settings.sync_connection")
     def test_a_failing_first_sync_still_saves_the_connection_with_a_warning(self, sync):
@@ -124,11 +124,11 @@ class ConnectionManagementTests(SettingsTestCase):
         with patch("finance.views_settings.claim_access_url", return_value=ACCESS_URL):
             response = self.client.post(
                 reverse("finance:connection_create"),
-                {"institution_name": "Nelnet", "setup_token": "token"},
+                {"label": "Nelnet", "setup_token": "token"},
                 follow=True,
             )
 
-        self.assertTrue(AccountConnection.objects.filter(institution__name="Nelnet").exists())
+        self.assertTrue(AccountConnection.objects.filter(label="Nelnet").exists())
         self.assertContains(response, "could not reach institution")
 
     def test_a_connection_can_be_disabled_and_re_enabled(self):

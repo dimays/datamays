@@ -49,7 +49,15 @@ class ConnectionStatus(models.TextChoices):
 
 
 class AccountConnection(TimestampedModel):
-    """An authorized link to an institution.
+    """An authorized credential grant — for SimpleFIN, one Access URL.
+
+    Deliberately not scoped to a single institution: SimpleFIN lets a person
+    link several real institutions to one Bridge setup and hand back a single
+    token for all of them, and this model has to allow that shape rather than
+    force a token-per-institution workflow the provider doesn't require.
+    Which institution each discovered account actually belongs to is resolved
+    per account, from the provider's own report of it — see
+    `services.sync.resolve_institution`.
 
     For SimpleFIN, `access_secret` holds the Access URL, which embeds HTTP
     Basic credentials — hence the encrypted field. It is read-only by
@@ -58,7 +66,17 @@ class AccountConnection(TimestampedModel):
     """
 
     institution = models.ForeignKey(
-        Institution, on_delete=models.CASCADE, related_name="connections"
+        Institution,
+        on_delete=models.CASCADE,
+        related_name="connections",
+        null=True,
+        blank=True,
+        help_text=(
+            "Optional. A connection can span several institutions, discovered "
+            "automatically per account during sync — this is only a fallback, "
+            "used when the provider doesn't report an institution for a given "
+            "account."
+        ),
     )
     label = models.CharField(
         max_length=120,
@@ -100,7 +118,7 @@ class AccountConnection(TimestampedModel):
         ordering = ["institution__name", "label"]
 
     def __str__(self):
-        return f"{self.institution.name} — {self.label}"
+        return f"{self.institution.name} — {self.label}" if self.institution else self.label
 
     @property
     def is_syncable(self):

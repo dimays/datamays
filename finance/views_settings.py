@@ -150,22 +150,22 @@ class InstitutionUpdateView(FinanceAccessMixin, UpdateView):
 
 
 class ConnectionForm(forms.Form):
-    """Step one of adding an integration: authenticate."""
+    """Step one of adding an integration: authenticate.
 
-    institution_name = forms.CharField(
-        label="Institution",
-        max_length=120,
-        widget=forms.TextInput(
-            attrs={"class": FIELD_CLASSES, "placeholder": "Byline Bank"}
-        ),
-    )
+    No institution field — a single SimpleFIN setup token can cover more than
+    one real institution (that's how SimpleFIN Bridge itself works), so which
+    institution each discovered account belongs to is resolved automatically
+    during sync from the provider's own data, not chosen up front here.
+    """
+
     label = forms.CharField(
         label="Name this connection",
         max_length=120,
         required=False,
         widget=forms.TextInput(
-            attrs={"class": FIELD_CLASSES, "placeholder": "Byline (joint)"}
+            attrs={"class": FIELD_CLASSES, "placeholder": "Byline + Capital One (joint)"}
         ),
+        help_text="However you want to recognise this in Settings — it can cover more than one institution.",
     )
     setup_token = forms.CharField(
         label="SimpleFIN setup token",
@@ -202,16 +202,8 @@ class ConnectionCreateView(FinanceAccessMixin, FormView):
             form.add_error("setup_token", str(exc))
             return self.form_invalid(form)
 
-        name = form.cleaned_data["institution_name"].strip()
-
-        institution, _ = Institution.objects.get_or_create(
-            name=name,
-            defaults={"slug": slugify(name)[:140], "provider": Provider.SIMPLEFIN},
-        )
-
         connection = AccountConnection.objects.create(
-            institution=institution,
-            label=form.cleaned_data["label"] or f"{name} (SimpleFIN)",
+            label=form.cleaned_data["label"] or "SimpleFIN",
             provider=Provider.SIMPLEFIN,
             access_secret=access_url,
             created_by=self.request.user,
@@ -223,10 +215,14 @@ class ConnectionCreateView(FinanceAccessMixin, FormView):
         run = sync_connection(connection, trigger=SyncTrigger.MANUAL)
 
         if run.status == SyncStatus.SUCCESS:
+            institution_count = (
+                connection.accounts.values("institution").distinct().count()
+            )
             messages.success(
                 self.request,
-                f"Connected {institution.name}: {run.accounts_synced} accounts, "
-                f"{run.transactions_created} transactions.",
+                f"Connected: {institution_count} institution"
+                f"{'s' if institution_count != 1 else ''}, {run.accounts_synced} "
+                f"accounts, {run.transactions_created} transactions.",
             )
         else:
             messages.warning(
@@ -258,7 +254,7 @@ class ConnectionDetailView(FinanceAccessMixin, TemplateView):
             {
                 "page_title": connection.label,
                 "connection": connection,
-                "accounts": connection.accounts.all(),
+                "accounts": connection.accounts.select_related("institution"),
                 "runs": connection.sync_runs.all()[:20],
             }
         )
