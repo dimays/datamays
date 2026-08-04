@@ -11,13 +11,16 @@ from django import forms
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.utils.text import slugify
 from django.views.generic import CreateView, FormView, ListView, TemplateView, UpdateView
 
 from .access import FinanceAccessMixin
+from .dates import household_today
 from .models import (
     Account,
     AccountConnection,
+    BalanceSource,
     Budget,
     CategoryRule,
     ConnectionStatus,
@@ -30,7 +33,7 @@ from .models import (
 )
 from .providers.base import ProviderError
 from .providers.simplefin import claim_access_url
-from .services.sync import sync_connection
+from .services.sync import record_balance_snapshot, sync_connection
 from .services.widgets import WIDGET_CHOICES
 from .views import FinanceView
 from .views_dashboards import CHART_SECTION_CHOICES
@@ -297,6 +300,36 @@ class ConnectionDetailView(FinanceAccessMixin, TemplateView):
         return redirect("finance:connection_detail", pk=connection.pk)
 
 
+class BalanceUpdateForm(forms.Form):
+    """A one-off balance reading, typed in by hand — the lightweight
+    alternative to a full CSV balances import for a single account.
+
+    Deliberately a plain Form, not a ModelForm: saving it does more than set
+    two fields on the Account (see AccountUpdateView._update_balance), it also
+    records an AccountBalanceSnapshot so the reading feeds the same balance
+    history charts a sync or CSV import would.
+    """
+
+    as_of = forms.DateField(
+        label="Balance as of",
+        widget=forms.DateInput(attrs={"class": FIELD_CLASSES, "type": "date"}),
+    )
+    current_balance = forms.DecimalField(
+        label="Balance",
+        max_digits=12,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={"class": FIELD_CLASSES, "step": "0.01"}),
+        help_text="Signed the same way it reads everywhere else in the app — negative for a debt.",
+    )
+    available_balance = forms.DecimalField(
+        label="Available balance",
+        max_digits=12,
+        decimal_places=2,
+        required=False,
+        widget=forms.NumberInput(attrs={"class": FIELD_CLASSES, "step": "0.01"}),
+    )
+
+
 class AccountForm(forms.ModelForm):
     class Meta:
         model = Account
@@ -383,7 +416,49 @@ class AccountUpdateView(FinanceAccessMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = f"Edit {self.object.name}"
+        context.setdefault(
+            "balance_form",
+            BalanceUpdateForm(initial={"as_of": household_today()}),
+        )
         return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+
+        if request.POST.get("action") == "update_balance":
+            return self._update_balance(request)
+
+        return super().post(request, *args, **kwargs)
+
+    def _update_balance(self, request):
+        """A one-off manual reading — the lightweight alternative to a CSV
+        balances import for a single account, connected or not. For a
+        connected account this is only as durable as the next sync, which
+        will overwrite it with whatever the provider reports."""
+        account = self.object
+        balance_form = BalanceUpdateForm(request.POST)
+
+        if not balance_form.is_valid():
+            context = self.get_context_data(
+                form=AccountForm(instance=account), balance_form=balance_form
+            )
+            return self.render_to_response(context)
+
+        account.current_balance = balance_form.cleaned_data["current_balance"]
+        account.available_balance = balance_form.cleaned_data["available_balance"]
+        account.balance_as_of = timezone.now()
+        account.save(update_fields=["current_balance", "available_balance", "balance_as_of", "updated_at"])
+
+        record_balance_snapshot(
+            account,
+            as_of=balance_form.cleaned_data["as_of"],
+            current=account.current_balance,
+            available=account.available_balance,
+            source=BalanceSource.MANUAL,
+        )
+
+        messages.success(request, f"Updated {account.name}'s balance.")
+        return redirect(self.get_success_url())
 
     def form_valid(self, form):
         # current_balance is normalised (services.sync.normalise_balance) only

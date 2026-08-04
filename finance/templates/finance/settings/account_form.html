@@ -33,4 +33,36 @@
        class="rounded-button border border-border px-6 py-3 text-center font-medium text-text-secondary transition hover:bg-muted">Cancel</a>
   </div>
 </form>
+
+{% if balance_form %}
+  <section class="mt-10 max-w-lg rounded-card border border-border bg-surface p-5">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Update balance</h2>
+    <p class="mt-1.5 text-xs text-text-muted">
+      A quick one-off reading, without a full CSV import — type in today's
+      statement or account-page balance directly.
+      {% if not account.is_manual %}
+        This account syncs automatically, so a manual reading here only
+        lasts until the next sync overwrites it.
+      {% endif %}
+    </p>
+
+    <form method="post" class="mt-4 space-y-4">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="update_balance" />
+
+      {% for field in balance_form %}
+        <div>
+          <label for="{{ field.id_for_label }}" class="mb-1.5 block text-sm font-medium">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<p class="mt-1.5 text-xs text-text-muted">{{ field.help_text }}</p>{% endif %}
+          {% if field.errors %}<p class="mt-1.5 text-sm text-error">{{ field.errors.0 }}</p>{% endif %}
+        </div>
+      {% endfor %}
+
+      <button type="submit" class="rounded-button border border-border px-6 py-3 font-medium transition hover:bg-muted">
+        Update balance
+      </button>
+    </form>
+  </section>
+{% endif %}
 {% endblock %}

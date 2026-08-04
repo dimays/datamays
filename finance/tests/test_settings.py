@@ -5,6 +5,7 @@ matter most here check that the boundary holds and that the stored credential
 never reaches a page.
 """
 
+from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -15,8 +16,10 @@ from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from finance.models import (
     Account,
+    AccountBalanceSnapshot,
     AccountConnection,
     AccountType,
+    BalanceSource,
     Budget,
     Category,
     CategoryRule,
@@ -333,6 +336,83 @@ class AccountSettingsTests(SettingsTestCase):
         self.account.refresh_from_db()
         self.assertFalse(self.account.debt_reported_positive)
         self.assertEqual(self.account.current_balance, Decimal("4200.00"))
+
+
+class ManualBalanceUpdateTests(SettingsTestCase):
+    """The lightweight alternative to a CSV balances import for one account."""
+
+    def update_balance(self, account, **overrides):
+        payload = {
+            "action": "update_balance",
+            "as_of": "2026-08-01",
+            "current_balance": "5000.00",
+            "available_balance": "",
+        }
+        payload.update(overrides)
+        return self.client.post(reverse("finance:account_edit", args=[account.pk]), payload)
+
+    def test_it_updates_the_account_fields(self):
+        self.update_balance(self.account, current_balance="5123.45")
+
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.current_balance, Decimal("5123.45"))
+        self.assertIsNotNone(self.account.balance_as_of)
+
+    def test_it_records_a_snapshot_sourced_as_manual(self):
+        self.update_balance(self.account, current_balance="5123.45")
+
+        snapshot = AccountBalanceSnapshot.objects.get(
+            account=self.account, as_of=date(2026, 8, 1)
+        )
+        self.assertEqual(snapshot.current, Decimal("5123.45"))
+        self.assertEqual(snapshot.source, BalanceSource.MANUAL)
+
+    def test_it_works_on_a_connected_account_too(self):
+        # The account this test case sets up already has a live connection —
+        # per the explicit ask, manual entry is available for any account,
+        # not only ones with no connection.
+        self.assertIsNotNone(self.account.connection_id)
+
+        response = self.update_balance(self.account, current_balance="6000.00")
+
+        self.assertRedirects(response, reverse("finance:settings"))
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.current_balance, Decimal("6000.00"))
+
+    def test_available_balance_is_optional(self):
+        self.update_balance(self.account, current_balance="100.00", available_balance="90.00")
+
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.available_balance, Decimal("90.00"))
+
+    def test_an_invalid_amount_is_rejected_without_touching_the_account(self):
+        response = self.update_balance(self.account, current_balance="not-a-number")
+
+        self.account.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.account.current_balance, Decimal("4200.00"))
+
+    def test_re_running_for_the_same_date_overwrites_rather_than_stacks(self):
+        self.update_balance(self.account, current_balance="100.00")
+        self.update_balance(self.account, current_balance="200.00")
+
+        self.assertEqual(
+            AccountBalanceSnapshot.objects.filter(
+                account=self.account, as_of=date(2026, 8, 1)
+            ).count(),
+            1,
+        )
+        snapshot = AccountBalanceSnapshot.objects.get(
+            account=self.account, as_of=date(2026, 8, 1)
+        )
+        self.assertEqual(snapshot.current, Decimal("200.00"))
+
+    def test_it_is_gated_like_everything_else(self):
+        self.client.logout()
+
+        response = self.update_balance(self.account)
+
+        self.assertEqual(response.status_code, 403)
 
 
 class RuleManagementTests(SettingsTestCase):
