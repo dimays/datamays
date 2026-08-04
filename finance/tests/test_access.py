@@ -1,10 +1,11 @@
 from django.conf import settings
 from django.contrib.auth.models import Group, User
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import reverse
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from finance.access import FINANCE_GROUP
+from finance.redirects import is_safe_path, safe_next
 from finance.views_auth import OTPVerifyView
 
 PROTECTED_URL_NAMES = [
@@ -180,3 +181,38 @@ class OTPRedirectSafetyTests(TestCase):
 
     def test_relative_next_is_honoured(self):
         self.assertEqual(self._success_url_for("/finance/spend/"), "/finance/spend/")
+
+
+class RedirectSafetyTests(SimpleTestCase):
+    """`next` is attacker-controllable wherever it is honoured."""
+
+    def test_hostile_targets_are_rejected(self):
+        hostile = [
+            "//evil.example.com",
+            "https://evil.example.com",
+            "http://evil.example.com",
+            "javascript:alert(1)",
+            "\\\\evil.example.com",
+            "/finance/\r\nSet-Cookie: x=1",
+            "",
+            None,
+        ]
+
+        for value in hostile:
+            with self.subTest(next=value):
+                self.assertFalse(is_safe_path(value))
+
+    def test_same_site_paths_are_allowed(self):
+        for value in ["/finance/", "/finance/transactions/?review=1"]:
+            with self.subTest(next=value):
+                self.assertTrue(is_safe_path(value))
+
+    def test_safe_next_uses_the_caller_supplied_default_when_unsafe(self):
+        request = RequestFactory().post("/finance/x/", {"next": "//evil.example.com"})
+
+        self.assertEqual(safe_next(request, default="/finance/"), "/finance/")
+
+    def test_safe_next_honours_a_relative_target(self):
+        request = RequestFactory().post("/finance/x/", {"next": "/finance/spend/"})
+
+        self.assertEqual(safe_next(request, default="/finance/"), "/finance/spend/")

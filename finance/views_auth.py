@@ -13,6 +13,7 @@ from django_otp import login as otp_login
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from .access import HouseholdMemberMixin
+from .redirects import safe_next
 from .forms import FinanceLoginForm, OTPTokenForm
 
 
@@ -143,11 +144,6 @@ class OTPVerifyView(HouseholdMemberMixin, FormView):
         return redirect(self.get_success_url())
 
     def get_success_url(self):
-        next_url = self.request.GET.get("next")
-
-        # Only same-site relative paths, so ?next= cannot bounce a verified
-        # session off to another host.
-        if next_url and next_url.startswith("/") and not next_url.startswith("//"):
-            return next_url
-
-        return reverse("finance:home")
+        # Shared validator rather than an inline check, so every place that
+        # honours a caller-supplied destination rejects the same things.
+        return safe_next(self.request, default=reverse("finance:home"))
