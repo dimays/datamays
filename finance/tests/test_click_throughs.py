@@ -144,11 +144,20 @@ class TransactionListFilterTests(TestCase):
         self.assertEqual({t.pk for t in results}, {in_budget_1.pk, in_budget_2.pk})
         self.assertNotIn(out_of_budget.pk, {t.pk for t in results})
 
-    def test_budget_filter_excludes_transfers_and_inflow_like_the_rollup_does(self):
+    def test_budget_filter_excludes_transfers_like_the_rollup_does(self):
         self.spend(self.groceries, day=5)
         transfer = self.spend(self.groceries, amount="-100.00", day=6)
         transfer.is_transfer = True
         transfer.save()
+
+        results = self.get_transactions(
+            budget=self.budget.pk, start="2026-04-01", end="2026-04-30"
+        )
+
+        self.assertNotIn(transfer.pk, {t.pk for t in results})
+
+    def test_budget_filter_includes_a_refund_like_the_rollup_does(self):
+        purchase = self.spend(self.groceries, day=5)
         refund = self.spend(self.groceries, amount="30.00", day=7)
 
         results = self.get_transactions(
@@ -156,8 +165,8 @@ class TransactionListFilterTests(TestCase):
         )
         ids = {t.pk for t in results}
 
-        self.assertNotIn(transfer.pk, ids)
-        self.assertNotIn(refund.pk, ids)
+        self.assertIn(purchase.pk, ids)
+        self.assertIn(refund.pk, ids)
 
     def test_budget_filter_honours_the_budgets_own_account_restriction(self):
         scoped = Budget.objects.create(name="Card only", amount=Decimal("200"))

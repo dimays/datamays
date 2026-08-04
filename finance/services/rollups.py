@@ -41,7 +41,23 @@ def expand_categories(categories):
 
 
 def spend_for(budget: Budget, start, end) -> Decimal:
-    """Total outflow against a budget in a window, as a positive number."""
+    """Total outflow against a budget in a window, as a positive number.
+
+    A refund or credit posted in-window, against one of the budget's own
+    categories, reduces the total — this sums signed amounts across the
+    whole window rather than only the negative ones, so a return nets
+    against whatever else the category spent in *that* period. A refund
+    landing in a later period than the purchase it corrects isn't matched
+    back to it; it simply reduces that later period's own total, which can
+    read as one period high and the next low around the correction. Floored
+    at 0 so a category refunded more than it spent in a period shows as
+    "nothing spent," not negative spend.
+
+    Budget categories are always expense-kind by construction (see
+    BudgetForm), so there's no equivalent here of analytics.spend_filter()'s
+    care around uncategorised positive amounts being mistaken for a refund —
+    every category in category_ids was deliberately chosen as spending.
+    """
     category_ids = expand_categories(budget.categories.all())
 
     if not category_ids:
@@ -52,9 +68,6 @@ def spend_for(budget: Budget, start, end) -> Decimal:
         posted_on__gte=start,
         posted_on__lte=end,
         is_transfer=False,
-        # Only money leaving. A refund reduces the total, which is why this
-        # sums signed amounts rather than counting rows.
-        amount__lt=0,
     )
 
     account_ids = list(budget.accounts.values_list("pk", flat=True))
@@ -64,7 +77,7 @@ def spend_for(budget: Budget, start, end) -> Decimal:
 
     total = Transaction.objects.filter(filters).aggregate(total=Sum("amount"))["total"]
 
-    return -(total or Decimal("0"))
+    return max(Decimal("0"), -(total or Decimal("0")))
 
 
 def rollover_for(budget: Budget, start) -> Decimal:
