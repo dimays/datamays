@@ -1,8 +1,10 @@
 """The sync service: idempotency, sign normalisation, and failure isolation."""
 
-from datetime import date
+from datetime import date, datetime
+from datetime import timezone as dt_timezone
 from decimal import Decimal
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from django.test import TestCase
 from django.utils import timezone
@@ -24,6 +26,8 @@ from finance.providers.base import (
     TransactionPayload,
 )
 from finance.services.sync import (
+    INITIAL_HISTORY_DAYS,
+    default_since,
     guess_account_type,
     normalise_balance,
     sync_connection,
@@ -76,6 +80,42 @@ class SyncTestCase(TestCase):
                 adapter.fetch.return_value = result if result is not None else fetch_result()
 
             return sync_connection(self.connection)
+
+
+class InitialHistoryWindowTests(SyncTestCase):
+    """The window requested on a brand-new connection must stay under
+    SimpleFIN's 90-day cap regardless of what time of day the sync runs.
+
+    Two sources of slop stack in the same direction: the adapter sends
+    `since` as midnight UTC (so the true elapsed span to "now" always has a
+    fractional day added on top of the nominal day count), and
+    household_today() can already be a day behind UTC late in the evening in
+    America/Chicago. Both are exercised here via the worst case: just before
+    midnight Chicago time, when UTC has already rolled over to the next day.
+    """
+
+    def test_the_initial_window_never_exceeds_the_90_day_cap(self):
+        worst_case_now = datetime(
+            2026, 8, 4, 23, 59, 59, tzinfo=ZoneInfo("America/Chicago")
+        )
+
+        with patch("finance.dates.timezone.now", return_value=worst_case_now):
+            since = default_since(self.connection)
+
+        # Mirrors providers.simplefin._get_accounts' own construction of the
+        # start-date param, so this checks what SimpleFIN actually receives.
+        start_date_epoch = datetime(
+            since.year, since.month, since.day, tzinfo=dt_timezone.utc
+        ).timestamp()
+
+        elapsed_seconds = worst_case_now.timestamp() - start_date_epoch
+
+        self.assertLessEqual(elapsed_seconds, 90 * 86400)
+
+    def test_the_constant_leaves_a_real_margin_under_90(self):
+        # Guards against someone bumping this back toward 90 without
+        # re-checking the worst case above.
+        self.assertLessEqual(INITIAL_HISTORY_DAYS, 88)
 
 
 class IdempotencyTests(SyncTestCase):

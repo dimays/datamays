@@ -48,7 +48,17 @@ OVERLAP_DAYS = 7
 
 # First sync of a new connection: enough history for budgets and dashboards to
 # have something to say immediately.
-INITIAL_HISTORY_DAYS = 90
+#
+# Kept a few days short of SimpleFIN's stated 90-day cap rather than equal to
+# it. The adapter sends `since` as midnight UTC (test_the_since_date_is_sent
+# _as_an_epoch_start_date) so the actual elapsed span to "now" always has a
+# fractional day added on top of the nominal day count — and household_today()
+# can already be a day behind UTC late in the evening in America/Chicago. A
+# value of exactly 90 reliably tips over SimpleFIN's limit and gets the
+# request capped, which then reports as a sync error and — because
+# last_synced_at never advances on a failed run — repeats on every retry
+# instead of self-correcting.
+INITIAL_HISTORY_DAYS = 87
 
 # Name fragments that reliably indicate an account type. Only used to
 # pre-fill a guess on first discovery; the type is editable in settings.
