@@ -463,12 +463,12 @@ class SnapshotCommandTests(AnalyticsTestCase):
         )
 
 
-class DashboardRenderTests(AnalyticsTestCase):
+class ChartsDashboardRenderTests(AnalyticsTestCase):
     def setUp(self):
         super().setUp()
         self.sign_in()
 
-    def test_spend_dashboard_renders_with_data(self):
+    def test_charts_page_renders_with_spend_data(self):
         # Dated today rather than a fixed day-of-month, which could fall
         # outside the range when the test runs early in a month.
         make_transaction(
@@ -479,18 +479,19 @@ class DashboardRenderTests(AnalyticsTestCase):
             category=self.groceries,
         )
 
-        response = self.client.get(reverse("finance:spend"))
+        response = self.client.get(reverse("finance:charts"))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "spend-over-time")
+        self.assertContains(response, "spend-by-category-over-time")
 
-    def test_spend_dashboard_handles_no_data(self):
-        response = self.client.get(reverse("finance:spend"))
+    def test_charts_page_handles_no_data(self):
+        response = self.client.get(reverse("finance:charts"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "No spending recorded")
+        self.assertContains(response, "Nothing to chart")
 
-    def test_income_dashboard_shows_net_income_with_a_payslip_note(self):
+    def test_income_section_shows_net_income_with_a_payslip_note(self):
         # No Paycheck record at all -- net income still renders from the
         # deposit alone, with a low-key pointer toward payslip import rather
         # than the old empty state gated on payslip data existing.
@@ -502,42 +503,195 @@ class DashboardRenderTests(AnalyticsTestCase):
             category=self.salary,
         )
 
-        response = self.client.get(reverse("finance:income"))
+        response = self.client.get(reverse("finance:charts"))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "net-income")
         self.assertContains(response, "no payslip imported")
-        self.assertNotContains(response, "No income for this window yet")
 
-    def test_savings_dashboard_renders(self):
+    def test_net_cash_flow_section_renders(self):
+        make_transaction(
+            self.checking,
+            posted_on=household_today(),
+            amount=Decimal("3400.00"),
+            description_raw="ACME PAYROLL",
+            category=self.salary,
+        )
+        make_transaction(
+            self.checking,
+            posted_on=household_today(),
+            amount=Decimal("-100.00"),
+            description_raw="MARIANOS",
+            category=self.groceries,
+        )
+
+        response = self.client.get(reverse("finance:charts"))
+
+        self.assertContains(response, "cash-flow")
+
+    def test_savings_section_renders(self):
         AccountBalanceSnapshot.objects.create(
             account=self.checking,
             as_of=household_today(),
             current=Decimal("1000.00"),
         )
 
-        response = self.client.get(reverse("finance:savings"))
+        response = self.client.get(reverse("finance:charts"))
 
         self.assertEqual(response.status_code, 200)
 
     def test_the_range_filter_is_honoured(self):
-        response = self.client.get(reverse("finance:spend"), {"range": "3m"})
+        response = self.client.get(reverse("finance:charts"), {"range": "3m"})
 
         self.assertEqual(response.context["selected_range"], "3m")
         span = (response.context["end"] - response.context["start"]).days
         self.assertEqual(span, 90)
 
     def test_an_unknown_grain_falls_back_to_monthly(self):
-        response = self.client.get(reverse("finance:spend"), {"grain": "hourly"})
+        response = self.client.get(reverse("finance:charts"), {"grain": "hourly"})
 
         self.assertEqual(response.context["selected_grain"], "monthly")
 
-    def test_dashboards_are_gated_like_everything_else(self):
+    def test_a_grain_unavailable_for_the_range_falls_back_to_monthly(self):
+        # Annually needs a full year to mean anything; a 3-month range asking
+        # for it should not silently draw a single misleading bar.
+        response = self.client.get(
+            reverse("finance:charts"), {"range": "3m", "grain": "annually"}
+        )
+
+        self.assertEqual(response.context["selected_grain"], "monthly")
+
+    def test_quarterly_is_offered_once_the_range_covers_it(self):
+        response = self.client.get(reverse("finance:charts"), {"range": "12m"})
+
+        self.assertIn(
+            "quarterly", dict(response.context["grain_choices"])
+        )
+
+    def test_quarterly_is_not_offered_for_a_short_range(self):
+        response = self.client.get(reverse("finance:charts"), {"range": "3m"})
+
+        self.assertNotIn(
+            "quarterly", dict(response.context["grain_choices"])
+        )
+
+    def test_charts_page_is_gated_like_everything_else(self):
         self.client.logout()
 
-        for name in ["spend", "income", "savings"]:
-            with self.subTest(dashboard=name):
-                self.assertEqual(self.client.get(reverse(f"finance:{name}")).status_code, 403)
+        self.assertEqual(self.client.get(reverse("finance:charts")).status_code, 403)
+
+
+class SpendByCategoryOverTimeAnalyticsTests(AnalyticsTestCase):
+    def test_each_category_gets_its_own_aligned_series(self):
+        self.spend("-100.00", self.groceries, 5, month=3)
+        self.spend("-40.00", self.fuel, 6, month=4)
+
+        result = analytics.spend_by_category_over_time(
+            date(2026, 3, 1), date(2026, 4, 30), grain="monthly"
+        )
+
+        by_label = {series["label"]: series["values"] for series in result["series"]}
+
+        self.assertEqual(by_label["Food"], [100.0, 0.0])
+        self.assertEqual(by_label["Transportation"], [0.0, 40.0])
+
+    def test_a_long_tail_is_grouped_as_everything_else(self):
+        self.spend("-100.00", self.groceries, 5, month=4)
+        self.spend("-40.00", self.fuel, 6, month=4)
+
+        result = analytics.spend_by_category_over_time(
+            date(2026, 4, 1), date(2026, 4, 30), grain="monthly", limit=1
+        )
+
+        labels = [series["label"] for series in result["series"]]
+        self.assertEqual(labels, ["Food", "Everything else"])
+
+    def test_an_empty_window_still_reports_no_data(self):
+        result = analytics.spend_by_category_over_time(
+            date(2020, 1, 1), date(2020, 3, 31)
+        )
+
+        self.assertFalse(result["has_data"])
+        self.assertEqual(result["series"], [])
+
+
+class NetCashFlowAnalyticsTests(AnalyticsTestCase):
+    def test_income_minus_spend_per_period(self):
+        self.deposit_income("3000.00", 6, month=4)
+        self.spend("-1200.00", self.groceries, 5, month=4)
+
+        result = analytics.net_cash_flow_over_time(
+            date(2026, 4, 1), date(2026, 4, 30), grain="monthly"
+        )
+
+        self.assertEqual(result["values"], [1800.0])
+        self.assertTrue(result["has_data"])
+
+    def test_a_period_with_only_spend_is_negative(self):
+        self.spend("-500.00", self.groceries, 5, month=4)
+
+        result = analytics.net_cash_flow_over_time(
+            date(2026, 4, 1), date(2026, 4, 30), grain="monthly"
+        )
+
+        self.assertEqual(result["values"], [-500.0])
+
+    def test_buckets_align_even_when_only_one_side_has_data(self):
+        self.deposit_income("1000.00", 6, month=3)
+        self.spend("-200.00", self.groceries, 5, month=4)
+
+        result = analytics.net_cash_flow_over_time(
+            date(2026, 3, 1), date(2026, 4, 30), grain="monthly"
+        )
+
+        self.assertEqual(result["values"], [1000.0, -200.0])
+
+    def test_an_empty_window_reports_no_data(self):
+        result = analytics.net_cash_flow_over_time(date(2020, 1, 1), date(2020, 3, 31))
+
+        self.assertFalse(result["has_data"])
+
+    def deposit_income(self, amount, day, month=4):
+        return make_transaction(
+            self.checking,
+            posted_on=date(2026, month, day),
+            amount=Decimal(amount),
+            description_raw=f"DEPOSIT {month}-{day}",
+            category=self.salary,
+        )
+
+
+class QuarterlyAndAnnualGrainAnalyticsTests(AnalyticsTestCase):
+    def test_spend_over_time_buckets_by_quarter(self):
+        self.spend("-100.00", self.groceries, 5, month=1)
+        self.spend("-40.00", self.groceries, 6, month=5)
+
+        result = analytics.spend_over_time(
+            date(2026, 1, 1), date(2026, 6, 30), grain="quarterly"
+        )
+
+        self.assertEqual(result["labels"], ["Q1 2026", "Q2 2026"])
+        self.assertEqual(result["values"], [100.0, 40.0])
+
+    def test_net_income_over_time_buckets_by_year(self):
+        self.deposit(3000, 6, month=1)
+        self.deposit(1000, 6, month=6)
+
+        result = analytics.net_income_over_time(
+            date(2026, 1, 1), date(2026, 12, 31), grain="annually"
+        )
+
+        self.assertEqual(result["labels"], ["2026"])
+        self.assertEqual(result["values"], [4000.0])
+
+    def deposit(self, amount, day, month=4):
+        return make_transaction(
+            self.checking,
+            posted_on=date(2026, month, day),
+            amount=Decimal(str(amount)),
+            description_raw=f"DEPOSIT {month}-{day}",
+            category=self.salary,
+        )
 
 
 class UncategorisedSpendTests(TestCase):

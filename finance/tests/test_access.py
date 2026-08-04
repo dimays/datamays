@@ -11,9 +11,7 @@ from finance.views_auth import OTPVerifyView
 PROTECTED_URL_NAMES = [
     "home",
     "transactions",
-    "spend",
-    "income",
-    "savings",
+    "charts",
     "settings",
     "preferences",
 ]

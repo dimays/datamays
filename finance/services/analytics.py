@@ -1,4 +1,4 @@
-"""Aggregations behind the three dashboards.
+"""Aggregations behind the Charts tab.
 
 Returns plain dicts of labels and series, ready to hand to a chart, so the
 views stay thin and the arithmetic is testable without rendering anything.
@@ -15,7 +15,13 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.db.models import Q, Sum
-from django.db.models.functions import TruncDay, TruncMonth, TruncWeek
+from django.db.models.functions import (
+    TruncDay,
+    TruncMonth,
+    TruncQuarter,
+    TruncWeek,
+    TruncYear,
+)
 
 from ..dates import household_today
 from ..models import (
@@ -27,12 +33,65 @@ from ..models import (
     Paycheck,
     Transaction,
 )
+from ..periods import quarter_bounds, quarter_containing, quarters_between
 
 GRAINS = {
     "daily": (TruncDay, "%-d %b"),
     "weekly": (TruncWeek, "%-d %b"),
     "monthly": (TruncMonth, "%b %Y"),
+    # Quarterly has no strftime equivalent of "Q1 2026" — see _bucket_label.
+    "quarterly": (TruncQuarter, None),
+    "annually": (TruncYear, "%Y"),
 }
+
+
+def _bucket_label(bucket_start: date, grain: str) -> str:
+    if grain == "quarterly":
+        year, quarter = quarter_containing(bucket_start)
+        return f"Q{quarter} {year}"
+
+    _, label_format = GRAINS.get(grain, GRAINS["monthly"])
+    return bucket_start.strftime(label_format)
+
+
+def _bucket_starts(start: date, end: date, grain: str) -> list:
+    """Every bucket's start date from start through end, inclusive, matching
+    how the grain's Trunc* database function would group a posted_on.
+
+    Used only where buckets must line up across two independent queries —
+    net cash flow subtracts spend from income bucket-by-bucket, and the
+    category-trend chart shares one x-axis across several categories — so a
+    period with no matching rows still needs a $0 entry rather than being
+    silently skipped and throwing the alignment off.
+    """
+    if grain == "quarterly":
+        start_year, start_quarter = quarter_containing(start)
+        end_year, end_quarter = quarter_containing(end)
+        return [
+            quarter_bounds(year, quarter)[0]
+            for year, quarter in quarters_between(
+                start_year, start_quarter, end_year, end_quarter
+            )
+        ]
+
+    if grain == "annually":
+        return [date(year, 1, 1) for year in range(start.year, end.year + 1)]
+
+    if grain == "weekly":
+        cursor = start - timedelta(days=start.weekday())
+        starts = []
+        while cursor <= end:
+            starts.append(cursor)
+            cursor += timedelta(days=7)
+        return starts
+
+    # monthly
+    starts = []
+    cursor = start.replace(day=1)
+    while cursor <= end:
+        starts.append(cursor)
+        cursor = (cursor.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return starts
 
 
 def spend_filter() -> Q:
@@ -97,13 +156,20 @@ def _bucket_end(bucket_start: date, grain: str) -> date:
         # TruncWeek anchors to the Monday of the ISO week regardless of locale.
         return bucket_start + timedelta(days=6)
 
+    if grain == "quarterly":
+        _, quarter = quarter_containing(bucket_start)
+        return quarter_bounds(bucket_start.year, quarter)[1]
+
+    if grain == "annually":
+        return date(bucket_start.year, 12, 31)
+
     last_day = calendar.monthrange(bucket_start.year, bucket_start.month)[1]
     return bucket_start.replace(day=last_day)
 
 
 def spend_over_time(start, end, *, grain="monthly", account_ids=None):
     """Total outflow per period, as positive numbers."""
-    trunc, label_format = GRAINS.get(grain, GRAINS["monthly"])
+    trunc, _ = GRAINS.get(grain, GRAINS["monthly"])
 
     rows = (
         spend_transactions(start, end, account_ids)
@@ -115,7 +181,7 @@ def spend_over_time(start, end, *, grain="monthly", account_ids=None):
     rows = list(rows)
 
     return {
-        "labels": [row["bucket"].strftime(label_format) for row in rows],
+        "labels": [_bucket_label(row["bucket"], grain) for row in rows],
         # Floored at 0: a bucket where refunds outweighed purchases nets to a
         # positive raw total (negated below), which would otherwise chart as
         # negative spend — a bar reading "spent -$40" is a rendering bug, not
@@ -197,7 +263,7 @@ def income_filter() -> Q:
     return Q(is_transfer=False, amount__gt=0, category__kind=CategoryKind.INCOME)
 
 
-def net_income_over_time(start, end, *, grain="monthly"):
+def net_income_over_time(start, end, *, grain="monthly", account_ids=None):
     """Net income per period, straight from deposits — no payslip required.
 
     The primary read of "how much came in": every income-categorised deposit
@@ -206,20 +272,24 @@ def net_income_over_time(start, end, *, grain="monthly"):
     gets a detailed payslip import — see income_over_time() for the
     optional, payslip-only gross/tax/retained breakdown layered on top.
     """
-    trunc, label_format = GRAINS.get(grain, GRAINS["monthly"])
+    trunc, _ = GRAINS.get(grain, GRAINS["monthly"])
+
+    queryset = Transaction.objects.filter(
+        income_filter(), posted_on__gte=start, posted_on__lte=end
+    )
+
+    if account_ids:
+        queryset = queryset.filter(account_id__in=account_ids)
 
     rows = list(
-        Transaction.objects.filter(
-            income_filter(), posted_on__gte=start, posted_on__lte=end
-        )
-        .annotate(bucket=trunc("posted_on"))
+        queryset.annotate(bucket=trunc("posted_on"))
         .values("bucket")
         .annotate(total=Sum("amount"))
         .order_by("bucket")
     )
 
     return {
-        "labels": [row["bucket"].strftime(label_format) for row in rows],
+        "labels": [_bucket_label(row["bucket"], grain) for row in rows],
         "values": [float(row["total"]) for row in rows],
         "has_data": bool(rows),
     }
@@ -269,6 +339,112 @@ def income_over_time(start, end, *, grain="monthly"):
         "retained": [float(v["retained"]) for v in buckets.values()],
         "other": [float(v["other"]) for v in buckets.values()],
         "has_data": bool(buckets),
+    }
+
+
+def spend_by_category_over_time(start, end, *, grain="monthly", account_ids=None, limit=6):
+    """Spend per top-level category, per period — for spotting a category
+    trending up or down, not just its total for the whole window.
+
+    Every category's series shares one x-axis (via _bucket_starts), with 0
+    for a period it had no spend in — a chart with several lines has to
+    agree on what the x-axis even means, unlike a single-series bar chart
+    where an omitted period is harmless.
+    """
+    bucket_starts = _bucket_starts(start, end, grain)
+    trunc, _ = GRAINS.get(grain, GRAINS["monthly"])
+
+    rows = list(
+        spend_transactions(start, end, account_ids)
+        .annotate(bucket=trunc("posted_on"))
+        .values("bucket", "category__parent__name", "category__name")
+        .annotate(total=Sum("amount"))
+    )
+
+    per_category = {}
+    grand_totals = {}
+
+    for row in rows:
+        name = (
+            row["category__parent__name"]
+            or row["category__name"]
+            or "Not yet categorised"
+        )
+        per_bucket = per_category.setdefault(name, {})
+        amount = -row["total"]
+        per_bucket[row["bucket"]] = per_bucket.get(row["bucket"], Decimal("0")) + amount
+        grand_totals[name] = grand_totals.get(name, Decimal("0")) + amount
+
+    ranked = sorted(grand_totals.items(), key=lambda item: item[1], reverse=True)
+    top_names = [name for name, _ in ranked[:limit]]
+    rest_names = [name for name, _ in ranked[limit:]]
+
+    series = [
+        {
+            "label": name,
+            "values": [
+                float(per_category[name].get(b, Decimal("0"))) for b in bucket_starts
+            ],
+        }
+        for name in top_names
+    ]
+
+    if rest_names:
+        combined = [Decimal("0")] * len(bucket_starts)
+        for name in rest_names:
+            per_bucket = per_category[name]
+            for i, b in enumerate(bucket_starts):
+                combined[i] += per_bucket.get(b, Decimal("0"))
+        series.append({"label": "Everything else", "values": [float(v) for v in combined]})
+
+    return {
+        "labels": [_bucket_label(b, grain) for b in bucket_starts],
+        "series": series,
+        "has_data": bool(rows),
+    }
+
+
+def net_cash_flow_over_time(start, end, *, grain="monthly", account_ids=None):
+    """Net income minus spend, per period — positive is cash accumulating,
+    negative is cash draining. Both sides share one x-axis (_bucket_starts),
+    since a period with income but no spend (or vice versa) still needs a
+    real entry rather than throwing the subtraction off by comparing two
+    differently-shaped series.
+    """
+    bucket_starts = _bucket_starts(start, end, grain)
+    trunc, _ = GRAINS.get(grain, GRAINS["monthly"])
+
+    spend_by_bucket = dict(
+        spend_transactions(start, end, account_ids)
+        .annotate(bucket=trunc("posted_on"))
+        .values("bucket")
+        .annotate(total=Sum("amount"))
+        .values_list("bucket", "total")
+    )
+
+    income_queryset = Transaction.objects.filter(
+        income_filter(), posted_on__gte=start, posted_on__lte=end
+    )
+    if account_ids:
+        income_queryset = income_queryset.filter(account_id__in=account_ids)
+
+    income_by_bucket = dict(
+        income_queryset.annotate(bucket=trunc("posted_on"))
+        .values("bucket")
+        .annotate(total=Sum("amount"))
+        .values_list("bucket", "total")
+    )
+
+    values = []
+    for bucket in bucket_starts:
+        spend = -(spend_by_bucket.get(bucket) or Decimal("0"))
+        income = income_by_bucket.get(bucket) or Decimal("0")
+        values.append(float(income - spend))
+
+    return {
+        "labels": [_bucket_label(b, grain) for b in bucket_starts],
+        "values": values,
+        "has_data": bool(spend_by_bucket or income_by_bucket),
     }
 
 
