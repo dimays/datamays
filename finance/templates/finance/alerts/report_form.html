@@ -1,0 +1,47 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+<h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">{{ page_title }}</h1>
+
+{% include "finance/partials/messages.html" %}
+
+<form method="post" class="mt-8 max-w-lg space-y-5">
+  {% csrf_token %}
+
+  {% for field in form %}
+    {% if field.name != 'sections_selected' %}
+      <div>
+        {% if field.field.widget.input_type == 'checkbox' %}
+          <label class="flex items-center gap-3 text-sm font-medium">{{ field }} <span>{{ field.label }}</span></label>
+        {% else %}
+          <label for="{{ field.id_for_label }}" class="mb-1.5 block text-sm font-medium">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<p class="mt-1.5 text-xs text-text-muted">{{ field.help_text }}</p>{% endif %}
+        {% endif %}
+        {% if field.errors %}<p class="mt-1.5 text-sm text-error">{{ field.errors.0 }}</p>{% endif %}
+      </div>
+    {% endif %}
+  {% endfor %}
+
+  <fieldset class="rounded-card border border-border bg-surface p-4">
+    <legend class="px-1 text-sm font-medium">{{ form.sections_selected.label }}</legend>
+    <div class="mt-2 space-y-2.5">
+      {% for choice in form.sections_selected %}
+        <label class="flex items-center gap-3 text-sm text-text-secondary">{{ choice.tag }} <span>{{ choice.choice_label }}</span></label>
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  <div class="flex flex-col gap-3 sm:flex-row">
+    <button type="submit" class="rounded-button bg-primary px-6 py-3 font-medium text-white transition hover:bg-primary-600">Save report</button>
+    {% if form.instance.pk %}
+      <button type="submit" name="action" value="send_test"
+              class="rounded-button border border-border px-6 py-3 font-medium text-text-secondary transition hover:bg-muted">
+        Send me one now
+      </button>
+    {% endif %}
+    <a href="{% url 'finance:alerts' %}"
+       class="rounded-button px-6 py-3 text-center font-medium text-text-muted transition hover:bg-muted">Cancel</a>
+  </div>
+</form>
+{% endblock %}

@@ -2,6 +2,7 @@ from django.urls import path
 
 from . import (
     views,
+    views_alerts,
     views_auth,
     views_budgets,
     views_dashboards,
@@ -24,6 +25,13 @@ urlpatterns = [
     path("settings/accounts/<int:pk>/", views_settings.AccountUpdateView.as_view(), name="account_edit"),
     path("settings/rules/", views_settings.RuleListView.as_view(), name="rules"),
     path("preferences/", views_settings.PreferencesView.as_view(), name="preferences"),
+    # Alerts and reports
+    path("alerts/", views_alerts.AlertListView.as_view(), name="alerts"),
+    path("alerts/new/", views_alerts.AlertCreateView.as_view(), name="alert_create"),
+    path("alerts/<int:pk>/", views_alerts.AlertUpdateView.as_view(), name="alert_edit"),
+    path("alerts/<int:pk>/delete/", views_alerts.AlertDeleteView.as_view(), name="alert_delete"),
+    path("reports/new/", views_alerts.ReportCreateView.as_view(), name="report_create"),
+    path("reports/<int:pk>/", views_alerts.ReportUpdateView.as_view(), name="report_edit"),
     # Budgets
     path("budgets/", views_budgets.BudgetListView.as_view(), name="budgets"),
     path("budgets/new/", views_budgets.BudgetCreateView.as_view(), name="budget_create"),

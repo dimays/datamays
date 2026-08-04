@@ -76,6 +76,12 @@ uv run python manage.py test --settings=datamays.settings_test
 > database. The test settings pin the suite to in-memory SQLite and disable
 > Sentry.
 
+### Household Finance
+
+The private finance app lives at `/finance` and is documented in
+[`finance/RUNBOOK.md`](finance/RUNBOOK.md) — setup, Heroku Scheduler jobs, key
+rotation, and what to do when a sync goes wrong.
+
 ### Tailwind / Frontend Dev Server
 
 ```bash
