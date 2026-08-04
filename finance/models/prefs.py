@@ -54,6 +54,25 @@ class AlertKind(models.TextChoices):
     ACCOUNT_BALANCE = "account_balance", "Account balance crosses a threshold"
     BUDGET_PERCENT = "budget_percent", "Budget reaches a percentage"
     BUDGET_AMOUNT = "budget_amount", "Budget spend reaches an amount"
+    SOURCE_STALE = "source_stale", "Account hasn't synced or been updated"
+
+
+class ThresholdUnit(models.TextChoices):
+    HOURS = "hours", "Hours"
+    DAYS = "days", "Days"
+    WEEKS = "weeks", "Weeks"
+    MONTHS = "months", "Months"
+
+
+# Used only to compare a SOURCE_STALE alert's threshold_unit against its
+# threshold on a common footing. Months are a 30-day approximation — fine for
+# "when do I need to look at this again", not meant for exact bookkeeping.
+UNIT_HOURS = {
+    ThresholdUnit.HOURS: 1,
+    ThresholdUnit.DAYS: 24,
+    ThresholdUnit.WEEKS: 24 * 7,
+    ThresholdUnit.MONTHS: 24 * 30,
+}
 
 
 class Comparison(models.TextChoices):
@@ -89,7 +108,20 @@ class Alert(TimestampedModel):
         max_length=10, choices=Comparison.choices, default=Comparison.ABOVE
     )
     threshold = money_field(
-        help_text="A currency amount, or a percentage for budget-percent alerts."
+        help_text=(
+            "A currency amount, a percentage for budget-percent alerts, or a "
+            "count of threshold_unit for source-staleness alerts."
+        ),
+    )
+    threshold_unit = models.CharField(
+        max_length=10,
+        choices=ThresholdUnit.choices,
+        blank=True,
+        help_text=(
+            "Only meaningful for source-staleness alerts: the unit threshold "
+            "is counted in — 'hasn't synced in more than 3 days' stores "
+            "threshold=3, threshold_unit=days."
+        ),
     )
 
     only_after_period_fraction = models.FloatField(
@@ -114,11 +146,21 @@ class Alert(TimestampedModel):
         return self.name
 
     def clean(self):
-        if self.kind == AlertKind.ACCOUNT_BALANCE and self.account_id is None:
+        if self.kind in {AlertKind.ACCOUNT_BALANCE, AlertKind.SOURCE_STALE} and self.account_id is None:
             raise ValidationError({"account": "Pick the account to watch."})
 
         if self.kind in {AlertKind.BUDGET_PERCENT, AlertKind.BUDGET_AMOUNT} and self.budget_id is None:
             raise ValidationError({"budget": "Pick the budget to watch."})
+
+        if self.kind == AlertKind.SOURCE_STALE:
+            if not self.threshold_unit:
+                raise ValidationError(
+                    {"threshold_unit": "Pick a unit — hours, days, weeks, or months."}
+                )
+            # Staleness is inherently "more time has passed than this" — a
+            # BELOW comparison has no sensible reading, so it is not offered
+            # as a choice here; this just guards a value set outside the form.
+            self.comparison = Comparison.ABOVE
 
         if self.only_after_period_fraction is not None and not (
             0 <= self.only_after_period_fraction <= 1

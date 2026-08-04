@@ -27,6 +27,12 @@
             <span class="text-success">${{ row.period.remaining|money:0 }} left</span>
           {% endif %}
           <span class="text-text-muted">· to {{ row.period.period_end|date:"j M" }}</span>
+          ·
+          <a href="{% url 'finance:transactions' %}?budget={{ row.budget.pk }}&start={{ row.period.period_start|date:'Y-m-d' }}&end={{ row.period.period_end|date:'Y-m-d' }}"
+             target="_blank" rel="noopener"
+             class="text-primary hover:underline">
+            View transactions
+          </a>
         </p>
       </div>
     {% empty %}

@@ -16,18 +16,93 @@
 
 {% include "finance/partials/messages.html" %}
 
-<form method="get" class="mt-6 grid gap-3 sm:grid-cols-3">
+{% if has_active_filters %}
+  <div class="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-card border border-primary/40 bg-primary/10 px-4 py-3 text-sm">
+    <p class="text-text-secondary">
+      Showing
+      {% if selected_budget_names %}
+        what counts toward <span class="font-medium text-text-primary">{{ selected_budget_names|join:", " }}</span>{% if selected_category_names or selected_account_names %},{% endif %}
+      {% endif %}
+      {% if selected_category_names %}
+        <span class="font-medium text-text-primary">{{ selected_category_names|join:", " }}</span>{% if selected_account_names %},{% endif %}
+      {% endif %}
+      {% if selected_account_names %}
+        on <span class="font-medium text-text-primary">{{ selected_account_names|join:", " }}</span>
+      {% endif %}
+      {% if filters.start or filters.end %}
+        <span class="font-medium text-text-primary">{{ filters.start|default:"the start" }} – {{ filters.end|default:"now" }}</span>
+      {% endif %}
+      — combining more than one filter narrows further, it doesn't widen.
+    </p>
+    <a href="{% url 'finance:transactions' %}" class="text-xs text-primary hover:underline">Clear all filters</a>
+  </div>
+{% endif %}
+
+<form method="get" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
   {% if review_only %}<input type="hidden" name="review" value="1" />{% endif %}
 
   <input name="q" value="{{ filters.q }}" placeholder="Search descriptions"
          class="rounded-button border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
 
-  <select name="account" class="rounded-button border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-    <option value="">All accounts</option>
-    {% for account in accounts %}
-      <option value="{{ account.pk }}" {% if filters.account == account.pk|stringformat:"s" %}selected{% endif %}>{{ account.name }}</option>
-    {% endfor %}
-  </select>
+  <details class="rounded-button border border-border bg-background text-sm">
+    <summary class="cursor-pointer select-none px-3 py-2">
+      Accounts{% if selected_account_names %} ({{ selected_account_names|length }}){% endif %}
+    </summary>
+    <div class="max-h-56 space-y-1 overflow-y-auto border-t border-border p-2">
+      {% for account in accounts %}
+        <label class="flex items-center gap-2 rounded px-1 py-1 text-xs hover:bg-muted/50">
+          <input type="checkbox" name="account" value="{{ account.pk }}"
+                 {% if account.pk|stringformat:"s" in filters.accounts %}checked{% endif %}
+                 class="h-3.5 w-3.5 rounded border-border bg-background text-primary focus:ring-primary" />
+          {{ account.name }} <span class="text-text-muted">· {{ account.get_owner_display }}</span>
+        </label>
+      {% endfor %}
+    </div>
+  </details>
+
+  <details class="rounded-button border border-border bg-background text-sm">
+    <summary class="cursor-pointer select-none px-3 py-2">
+      Categories{% if selected_category_names %} ({{ selected_category_names|length }}){% endif %}
+    </summary>
+    <div class="max-h-56 space-y-1 overflow-y-auto border-t border-border p-2">
+      {% for category in categories %}
+        <label class="flex items-center gap-2 rounded px-1 py-1 text-xs hover:bg-muted/50">
+          <input type="checkbox" name="category" value="{{ category.pk }}"
+                 {% if category.pk|stringformat:"s" in filters.categories %}checked{% endif %}
+                 class="h-3.5 w-3.5 rounded border-border bg-background text-primary focus:ring-primary" />
+          {{ category.full_path }}
+        </label>
+      {% endfor %}
+    </div>
+  </details>
+
+  <details class="rounded-button border border-border bg-background text-sm">
+    <summary class="cursor-pointer select-none px-3 py-2">
+      Budgets{% if filtered_budgets %} ({{ filtered_budgets|length }}){% endif %}
+    </summary>
+    <div class="max-h-56 space-y-1 overflow-y-auto border-t border-border p-2">
+      {% for budget in budgets %}
+        <label class="flex items-center gap-2 rounded px-1 py-1 text-xs hover:bg-muted/50">
+          <input type="checkbox" name="budget" value="{{ budget.pk }}"
+                 {% if budget.pk|stringformat:"s" in filters.budgets %}checked{% endif %}
+                 class="h-3.5 w-3.5 rounded border-border bg-background text-primary focus:ring-primary" />
+          {{ budget.name }}
+        </label>
+      {% endfor %}
+    </div>
+  </details>
+
+  <label class="flex items-center gap-2 text-xs text-text-muted">
+    From
+    <input type="date" name="start" value="{{ filters.start }}"
+           class="w-full rounded-button border border-border bg-background px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary" />
+  </label>
+
+  <label class="flex items-center gap-2 text-xs text-text-muted">
+    To
+    <input type="date" name="end" value="{{ filters.end }}"
+           class="w-full rounded-button border border-border bg-background px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary" />
+  </label>
 
   <button type="submit" class="rounded-button border border-border bg-surface px-4 py-2 text-sm font-medium transition hover:bg-muted">
     Filter
@@ -81,8 +156,17 @@
   {% empty %}
     <div class="rounded-card border border-dashed border-border bg-surface/50 p-8 text-center">
       <p class="text-text-secondary">
-        {% if review_only %}Nothing left to review.{% else %}No transactions yet.{% endif %}
+        {% if review_only %}
+          Nothing left to review.
+        {% elif has_active_filters %}
+          No transactions match these filters — try widening the date range or clearing a filter.
+        {% else %}
+          No transactions yet.
+        {% endif %}
       </p>
+      {% if has_active_filters and not review_only %}
+        <a href="{% url 'finance:transactions' %}" class="mt-2 inline-block text-primary hover:underline">Clear all filters</a>
+      {% endif %}
     </div>
   {% endfor %}
 </div>

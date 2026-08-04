@@ -1,0 +1,55 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+<div class="flex flex-wrap items-center justify-between gap-3">
+  <h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Import schemas</h1>
+  <a href="{% url 'finance:imports' %}" class="text-sm text-primary hover:underline">← Imports</a>
+</div>
+
+<p class="mt-2 max-w-2xl text-text-secondary">
+  What each record type needs before a file can be mapped and committed. This
+  is reference only, not a form — the shape of each record type is fixed in
+  the importer itself, so it can't be edited here. Column <em>names</em> in
+  your file don't need to match anything below; the mapping step on upload
+  lets you point any source column at any target field here.
+</p>
+
+{% include "finance/partials/messages.html" %}
+
+<div class="mt-8 space-y-6">
+  {% for record_type in record_types %}
+    <section class="rounded-card border border-border bg-surface p-5">
+      <h2 class="text-lg font-semibold">{{ record_type.label }}</h2>
+      <p class="mt-1.5 text-sm text-text-secondary">{{ record_type.grain }}</p>
+
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <div>
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted">Required</h3>
+          <ul class="mt-2 space-y-1 text-sm">
+            {% for slug, label in record_type.required %}
+              <li class="flex items-center gap-2">
+                <span class="h-1.5 w-1.5 rounded-full bg-primary"></span>
+                {{ label }}
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted">Optional</h3>
+          <ul class="mt-2 space-y-1 text-sm text-text-secondary">
+            {% for slug, label in record_type.optional %}
+              <li class="flex items-center gap-2">
+                <span class="h-1.5 w-1.5 rounded-full bg-border"></span>
+                {{ label }}
+              </li>
+            {% empty %}
+              <li class="text-text-muted">None.</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </section>
+  {% endfor %}
+</div>
+{% endblock %}

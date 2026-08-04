@@ -1,0 +1,49 @@
+{% extends "finance/base_finance.html" %}
+{% load finance_extras static %}
+
+{% block finance_content %}
+<h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Income</h1>
+
+{% include "finance/dashboards/_filters.html" %}
+
+{% if unmatched_count %}
+  <div class="mt-6 rounded-card border border-warning/40 bg-warning/5 p-4">
+    <p class="text-sm text-warning">
+      {{ unmatched_count }} income deposit{{ unmatched_count|pluralize }} with no payslip imported.
+    </p>
+    <p class="mt-1 text-xs text-text-muted">
+      Gross pay, tax, and retirement contributions can only be shown for pay periods
+      with an imported payslip — banks only ever report the deposit.
+      <a href="{% url 'finance:import_upload' %}" class="text-primary hover:underline">Import payslips</a>.
+    </p>
+  </div>
+{% endif %}
+
+{% if not has_data %}
+  <div class="mt-8 rounded-card border border-dashed border-border bg-surface/50 p-8 text-center">
+    <p class="text-text-secondary">No payslips imported for this window.</p>
+    <a href="{% url 'finance:import_upload' %}" class="mt-2 inline-block text-primary hover:underline">Import some →</a>
+  </div>
+{% else %}
+  <section class="mt-8 rounded-card border border-border bg-surface p-5">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Gross vs net</h2>
+    <div class="mt-4 h-64">
+      <canvas data-chart="lines" data-source="income-series"></canvas>
+    </div>
+    {{ income_series_json|json_script:"income-series" }}
+  </section>
+
+  <section class="mt-4 rounded-card border border-border bg-surface p-5">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Where gross pay goes</h2>
+    <p class="mt-1 text-xs text-text-muted">
+      Retirement and HSA are shown apart from tax — that money is still yours.
+    </p>
+    <div class="mt-4 h-64">
+      <canvas data-chart="lines" data-source="income-breakdown"></canvas>
+    </div>
+    {{ income_breakdown_json|json_script:"income-breakdown" }}
+  </section>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}<script src="{% static 'js/chart.min.js' %}"></script><script src="{% static 'js/finance-charts.js' %}"></script>{% endblock %}
