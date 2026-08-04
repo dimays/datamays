@@ -10,20 +10,20 @@ one person sees that ledger, so they never touch shared data.
 from django import forms
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse, reverse_lazy
+from django.urls import reverse_lazy
 from django.views.generic import FormView, ListView, TemplateView, UpdateView
 
 from .access import FinanceAccessMixin
 from .models import (
     Account,
     AccountConnection,
-    AccountType,
     Budget,
     CategoryRule,
     ConnectionStatus,
     Institution,
     Provider,
     SyncRun,
+    SyncStatus,
     SyncTrigger,
     UserPreference,
 )
@@ -141,7 +141,7 @@ class ConnectionCreateView(FinanceAccessMixin, FormView):
         # dashboard is silently empty.
         run = sync_connection(connection, trigger=SyncTrigger.MANUAL)
 
-        if run.status == "success":
+        if run.status == SyncStatus.SUCCESS:
             messages.success(
                 self.request,
                 f"Connected {institution.name}: {run.accounts_synced} accounts, "
