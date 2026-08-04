@@ -76,7 +76,11 @@
           {{ run.transactions_updated }} updated
           {% if run.duration_seconds %}· {{ run.duration_seconds|floatformat:1 }}s{% endif %}
         </p>
-        {% if run.error_message %}<p class="mt-1 text-xs text-error">{{ run.error_message }}</p>{% endif %}
+        {% if run.error_message %}
+          <p class="mt-1 text-xs {% if run.status == 'success' %}text-text-muted{% else %}text-error{% endif %}">
+            {{ run.error_message }}
+          </p>
+        {% endif %}
       </li>
     {% empty %}
       <li class="p-4 text-text-muted">No runs yet.</li>

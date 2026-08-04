@@ -1,6 +1,6 @@
 """The sync service: idempotency, sign normalisation, and failure isolation."""
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from datetime import timezone as dt_timezone
 from decimal import Decimal
 from unittest.mock import patch
@@ -395,6 +395,54 @@ class InstitutionResolutionTests(SyncTestCase):
         self.assertEqual(Account.objects.count(), 0)
 
 
+class ProviderNoticeTests(SyncTestCase):
+    """SimpleFIN's top-level `errors` are usually a request-level remark (a
+    date-range recommendation from a specific institution, say) rather than
+    anything actually failing — the accounts and transactions still come
+    back complete. Treating one as a hard failure would block
+    last_synced_at from ever advancing, so the next sync re-requests the
+    same window and re-triggers the same notice forever. A notice is
+    recorded on the run, but the sync is still a success."""
+
+    def test_a_provider_notice_alone_still_produces_a_successful_run(self):
+        run = self.run_sync(fetch_result(errors=["Byline: recommended range is 45 days."]))
+
+        self.assertEqual(run.status, SyncStatus.SUCCESS)
+        self.assertIn("Byline", run.error_message)
+        self.assertEqual(Transaction.objects.count(), 1)
+
+    def test_a_provider_notice_still_advances_last_synced_at(self):
+        self.run_sync(fetch_result(errors=["recommended range is 45 days."]))
+
+        self.connection.refresh_from_db()
+        self.assertIsNotNone(self.connection.last_synced_at)
+        self.assertEqual(self.connection.status, ConnectionStatus.ACTIVE)
+
+    def test_a_second_sync_after_a_notice_uses_the_narrow_overlap_window(self):
+        # The self-perpetuating-loop regression: if the first sync's notice
+        # had blocked last_synced_at, this second call would still ask for
+        # the full INITIAL_HISTORY_DAYS window instead of the 7-day overlap.
+        self.run_sync(fetch_result(errors=["recommended range is 45 days."]))
+        self.connection.refresh_from_db()
+
+        since = default_since(self.connection)
+
+        self.assertGreater(since, timezone.now().date() - timedelta(days=30))
+
+    def test_a_real_account_failure_alongside_a_notice_still_reports_partial(self):
+        result = fetch_result(
+            accounts=[account_payload(provider_account_id="ACT-1")],
+            transactions={"ACT-1": [transaction_payload(posted_on=None)]},
+            errors=["recommended range is 45 days."],
+        )
+
+        run = self.run_sync(result)
+
+        self.assertEqual(run.status, SyncStatus.PARTIAL)
+        self.connection.refresh_from_db()
+        self.assertIsNone(self.connection.last_synced_at)
+
+
 class FailureHandlingTests(SyncTestCase):
     def test_rejected_credentials_flag_the_connection_for_reauth(self):
         run = self.run_sync(side_effect=ProviderAuthError("access url rejected"))
@@ -409,14 +457,6 @@ class FailureHandlingTests(SyncTestCase):
         self.connection.refresh_from_db()
         self.assertEqual(run.status, SyncStatus.FAILED)
         self.assertEqual(self.connection.status, ConnectionStatus.ERROR)
-
-    def test_provider_reported_errors_produce_a_partial_run(self):
-        run = self.run_sync(fetch_result(errors=["Chase refresh failed."]))
-
-        self.assertEqual(run.status, SyncStatus.PARTIAL)
-        self.assertIn("Chase", run.error_message)
-        # The healthy account still landed.
-        self.assertEqual(Transaction.objects.count(), 1)
 
     def test_one_bad_account_does_not_discard_the_good_ones(self):
         result = fetch_result(
