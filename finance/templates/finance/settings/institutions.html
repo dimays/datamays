@@ -27,7 +27,7 @@
             {% if not institution.is_active %}<span class="text-xs text-text-muted">· inactive</span>{% endif %}
           </p>
           <p class="mt-0.5 text-xs text-text-muted">
-            {{ institution.get_provider_display }}
+            {{ institution.get_provider_display }} · {{ institution.get_owner_display }}
             · {{ institution.accounts.count }} account{{ institution.accounts.count|pluralize }}
             {% if institution.connections.count %}· {{ institution.connections.count }} connection{{ institution.connections.count|pluralize }}{% endif %}
           </p>

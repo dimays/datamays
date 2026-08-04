@@ -77,10 +77,11 @@ class InstitutionForm(forms.ModelForm):
 
     class Meta:
         model = Institution
-        fields = ["name", "provider", "website", "notes", "is_active"]
+        fields = ["name", "provider", "owner", "website", "notes", "is_active"]
         widgets = {
             "name": forms.TextInput(attrs={"class": FIELD_CLASSES, "placeholder": "Northwestern Mutual"}),
             "provider": forms.Select(attrs={"class": FIELD_CLASSES}),
+            "owner": forms.Select(attrs={"class": FIELD_CLASSES}),
             "website": forms.URLInput(attrs={"class": FIELD_CLASSES}),
             "notes": forms.Textarea(attrs={"class": FIELD_CLASSES, "rows": 3}),
             "is_active": forms.CheckboxInput(attrs={"class": CHECKBOX_CLASSES}),
@@ -303,13 +304,14 @@ class AccountForm(forms.ModelForm):
     class Meta:
         model = Account
         fields = [
-            "name", "account_type", "mask", "debt_reported_positive",
+            "name", "account_type", "owner", "mask", "debt_reported_positive",
             "is_active", "include_in_net_worth", "include_in_spending",
             "sort_order", "notes",
         ]
         widgets = {
             "name": forms.TextInput(attrs={"class": FIELD_CLASSES}),
             "account_type": forms.Select(attrs={"class": FIELD_CLASSES}),
+            "owner": forms.Select(attrs={"class": FIELD_CLASSES}),
             "mask": forms.TextInput(attrs={"class": FIELD_CLASSES}),
             "sort_order": forms.NumberInput(attrs={"class": FIELD_CLASSES}),
             "notes": forms.Textarea(attrs={"class": FIELD_CLASSES, "rows": 2}),
@@ -330,7 +332,7 @@ class ManualAccountForm(forms.ModelForm):
     class Meta:
         model = Account
         fields = [
-            "institution", "name", "account_type", "mask",
+            "institution", "name", "account_type", "owner", "mask",
             "current_balance", "balance_as_of",
             "debt_reported_positive", "include_in_net_worth", "include_in_spending",
             "notes",
@@ -339,6 +341,7 @@ class ManualAccountForm(forms.ModelForm):
             "institution": forms.Select(attrs={"class": FIELD_CLASSES}),
             "name": forms.TextInput(attrs={"class": FIELD_CLASSES, "placeholder": "401(k)"}),
             "account_type": forms.Select(attrs={"class": FIELD_CLASSES}),
+            "owner": forms.Select(attrs={"class": FIELD_CLASSES}),
             "mask": forms.TextInput(attrs={"class": FIELD_CLASSES}),
             "current_balance": forms.NumberInput(attrs={"class": FIELD_CLASSES, "step": "0.01"}),
             "balance_as_of": forms.DateTimeInput(attrs={"class": FIELD_CLASSES, "type": "datetime-local"}),

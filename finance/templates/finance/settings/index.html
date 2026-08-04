@@ -78,6 +78,7 @@
             <p class="truncate text-sm font-medium">{{ account.name }}</p>
             <p class="text-xs text-text-muted">
               {{ account.institution.name }} · {{ account.get_account_type_display }}
+              · {{ account.get_owner_display }}
               {% if account.is_manual %}· manual{% endif %}
               {% if not account.is_active %}· inactive{% endif %}
             </p>

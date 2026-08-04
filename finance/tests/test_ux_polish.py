@@ -19,6 +19,7 @@ from finance.models import (
     BudgetPeriod,
     Category,
     Institution,
+    Owner,
     Provider,
     UserPreference,
 )
@@ -95,6 +96,7 @@ class InstitutionManagementTests(TestCase):
             {
                 "name": "Northwestern Mutual",
                 "provider": Provider.MANUAL,
+                "owner": "joint",
                 "website": "",
                 "notes": "",
                 "is_active": "on",
@@ -127,6 +129,7 @@ class ManualAccountCreationTests(TestCase):
                 "institution": self.institution.pk,
                 "name": "Mortgage",
                 "account_type": "mortgage",
+                "owner": "joint",
                 "mask": "",
                 "current_balance": "-287400.00",
                 "balance_as_of": "2026-07-01T00:00",
@@ -150,6 +153,7 @@ class ManualAccountCreationTests(TestCase):
                 "institution": self.institution.pk,
                 "name": "401(k)",
                 "account_type": "retirement",
+                "owner": "david",
                 "mask": "",
                 "current_balance": "",
                 "balance_as_of": "",
@@ -229,3 +233,74 @@ class ImportSchemaReferenceTests(TestCase):
     def test_it_is_linked_from_the_imports_list(self):
         response = self.client.get(reverse("finance:imports"))
         self.assertContains(response, reverse("finance:import_schemas"))
+
+
+class OwnerFieldTests(TestCase):
+    """Institutions and accounts can be tagged whose they are — bookkeeping
+    only, never access control, since both of you can see and edit
+    everything regardless of the value."""
+
+    def setUp(self):
+        call_command("seed_finance_categories", verbosity=0)
+        login(self.client)
+
+    def test_an_institution_defaults_to_joint_when_not_specified_elsewhere(self):
+        institution = make_institution(name="Byline")
+        self.assertEqual(institution.owner, Owner.JOINT)
+
+    def test_setting_an_institutions_owner_to_an_individual(self):
+        institution = make_institution(name="Fidelity")
+
+        response = self.client.post(
+            reverse("finance:institution_edit", args=[institution.pk]),
+            {
+                "name": "Fidelity",
+                "provider": Provider.MANUAL,
+                "owner": "maddie",
+                "website": "",
+                "notes": "",
+                "is_active": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("finance:institutions"))
+        institution.refresh_from_db()
+        self.assertEqual(institution.owner, Owner.MADDIE)
+
+    def test_the_institutions_list_shows_the_owner(self):
+        make_institution(name="David's Brokerage", owner=Owner.DAVID)
+
+        response = self.client.get(reverse("finance:institutions"))
+        self.assertContains(response, "David")
+
+    def test_an_accounts_owner_is_editable(self):
+        institution = make_institution()
+        account = make_account(institution, name="Checking", owner=Owner.JOINT)
+
+        response = self.client.post(
+            reverse("finance:account_edit", args=[account.pk]),
+            {
+                "name": "Checking",
+                "account_type": "checking",
+                "owner": "maddie",
+                "mask": "",
+                "sort_order": 100,
+                "notes": "",
+                "is_active": "on",
+                "include_in_net_worth": "on",
+                "include_in_spending": "on",
+                "debt_reported_positive": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("finance:settings"))
+        account.refresh_from_db()
+        self.assertEqual(account.owner, Owner.MADDIE)
+
+    def test_the_settings_accounts_list_shows_the_owner(self):
+        institution = make_institution()
+        make_account(institution, name="Retirement 401k", owner=Owner.DAVID)
+
+        response = self.client.get(reverse("finance:settings"))
+        self.assertContains(response, "Retirement 401k")
+        self.assertContains(response, "David")

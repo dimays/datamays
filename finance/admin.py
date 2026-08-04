@@ -34,8 +34,8 @@ from .models import (
 
 @admin.register(Institution)
 class InstitutionAdmin(admin.ModelAdmin):
-    list_display = ["name", "provider", "is_active"]
-    list_filter = ["provider", "is_active"]
+    list_display = ["name", "provider", "owner", "is_active"]
+    list_filter = ["provider", "owner", "is_active"]
     search_fields = ["name"]
     prepopulated_fields = {"slug": ["name"]}
 
@@ -82,11 +82,12 @@ class AccountAdmin(admin.ModelAdmin):
         "name",
         "institution",
         "account_type",
+        "owner",
         "mask",
         "current_balance",
         "is_active",
     ]
-    list_filter = ["account_type", "institution", "is_active", "include_in_net_worth"]
+    list_filter = ["account_type", "owner", "institution", "is_active", "include_in_net_worth"]
     search_fields = ["name", "official_name", "mask"]
     readonly_fields = ["balance_as_of", "created_at", "updated_at"]
     inlines = [BalanceSnapshotInline]

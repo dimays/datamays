@@ -9,7 +9,17 @@ number" click elsewhere in the app: a budget row on the homepage, a bar in a
 Spend chart. Those pass `budget=`, `start=`/`end=`, or `spend=1` rather than
 duplicating filter logic at the call site, so the definition of "what counts"
 stays in one place (services.rollups.expand_categories,
-services.analytics.spend_transactions).
+services.analytics.spend_filter).
+
+Accounts, categories, and budgets are all multi-select, and combine the way
+faceted filters normally do: choices *within* one filter are OR'd together
+("Checking or Savings"), and the different filters are AND'd against each
+other ("(Checking or Savings) and (Groceries)"). Selecting a budget and a
+category that budget doesn't include is a legitimate thing to ask for — it
+just means "transactions in that category, restricted to what this budget
+would count" — and if that combination matches nothing, the empty state below
+says so explicitly rather than looking indistinguishable from "no
+transactions at all".
 """
 
 from datetime import date
@@ -39,35 +49,21 @@ class TransactionListView(FinanceAccessMixin, ListView):
         if self.request.GET.get("review") == "1":
             queryset = queryset.filter(needs_review=True)
 
-        # Multi-value: a chart click carries forward whatever accounts were
-        # already selected on the dashboard it came from, which may be more
-        # than one. A single `?account=` still works the same as before.
-        # The filter <select> always submits an "All accounts" option with
-        # value="" — drop blanks so re-submitting the form with nothing
-        # chosen doesn't try to filter account_id__in=[''].
-        accounts = [value for value in self.request.GET.getlist("account") if value]
-        if accounts:
-            queryset = queryset.filter(account_id__in=accounts)
+        if self.selected_accounts:
+            queryset = queryset.filter(account_id__in=self.selected_accounts)
 
-        category = self.request.GET.get("category")
-        if category:
-            queryset = queryset.filter(category_id=category)
+        if self.selected_categories:
+            queryset = queryset.filter(category_id__in=self.selected_categories)
 
-        budget = self.filtered_budget()
-        if budget is not None:
-            # The exact definition budgets use for "actual" (services.rollups
-            # .spend_for) — so a budget click-through shows precisely the rows
-            # behind its number, not a looser approximation.
-            queryset = queryset.filter(
-                category_id__in=expand_categories(budget.categories.all()),
-                is_transfer=False,
-                amount__lt=0,
-            )
-            account_ids = list(budget.accounts.values_list("pk", flat=True))
-            if account_ids:
-                queryset = queryset.filter(account_id__in=account_ids)
-        elif self.request.GET.get("spend") == "1":
-            # Same idea for a Spend-chart bar: only what that chart counted.
+        budgets = self.filtered_budgets()
+        if budgets:
+            queryset = queryset.filter(self._budgets_q(budgets), is_transfer=False, amount__lt=0)
+
+        if self.request.GET.get("spend") == "1":
+            # Independent of budget — a chart click and a budget click-through
+            # can both land here (e.g. a stale link), and both narrowing the
+            # result is the correct, unsurprising behaviour rather than one
+            # silently overriding the other.
             queryset = queryset.filter(spend_filter())
 
         start = self.parse_date(self.request.GET.get("start"))
@@ -86,17 +82,52 @@ class TransactionListView(FinanceAccessMixin, ListView):
 
         return queryset
 
-    def filtered_budget(self):
-        budget_id = self.request.GET.get("budget")
+    @staticmethod
+    def _budgets_q(budgets):
+        """OR across budgets, each with its own category (and, if it has one,
+        account) restriction — "everything that counts toward any of these
+        budgets", which is what picking more than one budget should mean."""
+        combined = Q(pk__in=[])  # false until a budget contributes to it
 
-        if not budget_id or not budget_id.isdigit():
-            return None
+        for budget in budgets:
+            clause = Q(category_id__in=expand_categories(budget.categories.all()))
 
-        # An invalid or stale id degrades to "no budget filter" rather than a
-        # 404 — this is a query param on a list view, not a resource lookup.
-        return Budget.objects.filter(pk=budget_id).prefetch_related(
-            "categories", "accounts"
-        ).first()
+            account_ids = list(budget.accounts.values_list("pk", flat=True))
+            if account_ids:
+                clause &= Q(account_id__in=account_ids)
+
+            combined |= clause
+
+        return combined
+
+    @property
+    def selected_accounts(self):
+        # The "All accounts" option in the filter always submits value="" —
+        # drop blanks so re-submitting with nothing chosen doesn't try to
+        # filter account_id__in=[''].
+        if not hasattr(self, "_selected_accounts"):
+            self._selected_accounts = [v for v in self.request.GET.getlist("account") if v]
+        return self._selected_accounts
+
+    @property
+    def selected_categories(self):
+        if not hasattr(self, "_selected_categories"):
+            self._selected_categories = [v for v in self.request.GET.getlist("category") if v]
+        return self._selected_categories
+
+    def filtered_budgets(self):
+        if not hasattr(self, "_filtered_budgets"):
+            budget_ids = [
+                v for v in self.request.GET.getlist("budget") if v and v.isdigit()
+            ]
+            # Invalid or stale ids just drop out rather than erroring — these
+            # are query params on a list view, not a resource lookup.
+            self._filtered_budgets = list(
+                Budget.objects.filter(pk__in=budget_ids).prefetch_related(
+                    "categories", "accounts"
+                )
+            ) if budget_ids else []
+        return self._filtered_budgets
 
     @staticmethod
     def parse_date(value):
@@ -108,22 +139,47 @@ class TransactionListView(FinanceAccessMixin, ListView):
         except ValueError:
             return None
 
+    def has_active_filters(self):
+        return bool(
+            self.selected_accounts
+            or self.selected_categories
+            or self.filtered_budgets()
+            or self.request.GET.get("start")
+            or self.request.GET.get("end")
+            or self.request.GET.get("q")
+            or self.request.GET.get("spend") == "1"
+        )
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        context["page_title"] = "Activity"
-        context["accounts"] = Account.objects.filter(is_active=True)
-        context["categories"] = Category.objects.filter(
+        all_accounts = Account.objects.filter(is_active=True)
+        all_categories = Category.objects.filter(
             is_active=True, children__isnull=True
         ).select_related("parent").alphabetical()
+        filtered_budgets = self.filtered_budgets()
+
+        context["page_title"] = "Activity"
+        context["accounts"] = all_accounts
+        context["categories"] = all_categories
         context["budgets"] = Budget.objects.filter(is_active=True).order_by("name")
         context["review_only"] = self.request.GET.get("review") == "1"
         context["review_count"] = Transaction.objects.filter(needs_review=True).count()
-        context["filtered_budget"] = self.filtered_budget()
+        context["filtered_budgets"] = filtered_budgets
+        context["has_active_filters"] = self.has_active_filters()
+        # Precomputed for the "showing: ..." banner, so the template doesn't
+        # have to cross-reference id lists against the full dropdown options.
+        context["selected_account_names"] = [
+            a.name for a in all_accounts if str(a.pk) in self.selected_accounts
+        ]
+        context["selected_category_names"] = [
+            c.full_path for c in all_categories if str(c.pk) in self.selected_categories
+        ]
+        context["selected_budget_names"] = [budget.name for budget in filtered_budgets]
         context["filters"] = {
-            "account": self.request.GET.get("account", ""),
-            "category": self.request.GET.get("category", ""),
-            "budget": self.request.GET.get("budget", ""),
+            "accounts": self.selected_accounts,
+            "categories": self.selected_categories,
+            "budgets": [str(budget.pk) for budget in filtered_budgets],
             "q": self.request.GET.get("q", ""),
             "start": self.request.GET.get("start", ""),
             "end": self.request.GET.get("end", ""),
