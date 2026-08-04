@@ -1345,12 +1345,24 @@ video {
   height: 1rem;
 }
 
+.h-48 {
+  height: 12rem;
+}
+
 .h-6 {
   height: 1.5rem;
 }
 
+.h-64 {
+  height: 16rem;
+}
+
 .h-7 {
   height: 1.75rem;
+}
+
+.h-72 {
+  height: 18rem;
 }
 
 .h-8 {
@@ -1755,6 +1767,10 @@ video {
 
 .bg-surface\/50 {
   background-color: rgb(17 24 39 / 0.5);
+}
+
+.bg-surface\/60 {
+  background-color: rgb(17 24 39 / 0.6);
 }
 
 .bg-text-secondary\/70 {

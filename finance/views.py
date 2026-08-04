@@ -38,21 +38,6 @@ class PlaceholderView(FinanceView):
         return context
 
 
-class SpendView(PlaceholderView):
-    page_title = "Spend"
-    delivered_by = "finance/dashboards"
-
-
-class IncomeView(PlaceholderView):
-    page_title = "Income"
-    delivered_by = "finance/dashboards"
-
-
-class SavingsView(PlaceholderView):
-    page_title = "Savings & Debt"
-    delivered_by = "finance/dashboards"
-
-
 class SettingsView(PlaceholderView):
     page_title = "Settings"
     delivered_by = "finance/settings-preferences"
