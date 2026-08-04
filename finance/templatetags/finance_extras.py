@@ -1,6 +1,38 @@
+from decimal import Decimal, InvalidOperation
+
 from django import template
 
 register = template.Library()
+
+
+@register.filter
+def money(value, places=2):
+    """Format an amount with thousands separators: 41260.64 → 41,260.64.
+
+    Money without separators is genuinely hard to read at a glance, which
+    matters on a screen meant to be checked one-handed in a shop.
+    """
+    if value is None or value == "":
+        return "—"
+
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return "—"
+
+    return f"{amount:,.{int(places)}f}"
+
+
+@register.filter
+def abs_money(value, places=2):
+    """Magnitude only — for figures already labelled as a debt or an outflow."""
+    if value is None or value == "":
+        return "—"
+
+    try:
+        return money(abs(Decimal(str(value))), places)
+    except (InvalidOperation, TypeError, ValueError):
+        return "—"
 
 
 @register.filter

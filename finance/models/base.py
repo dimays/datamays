@@ -21,6 +21,19 @@ MONEY_MAX_DIGITS = 14
 MONEY_DECIMAL_PLACES = 2
 
 
+class Owner(models.TextChoices):
+    """Whose an account or institution is, for the household's own bookkeeping.
+
+    Not an access-control concept — both of you can see and edit everything
+    regardless of this value. It exists so "whose 401(k) is this" is a fact
+    on the record instead of something inferred from the account name.
+    """
+
+    DAVID = "david", "David"
+    MADDIE = "maddie", "Maddie"
+    JOINT = "joint", "Joint"
+
+
 def money_field(**kwargs):
     kwargs.setdefault("max_digits", MONEY_MAX_DIGITS)
     kwargs.setdefault("decimal_places", MONEY_DECIMAL_PLACES)

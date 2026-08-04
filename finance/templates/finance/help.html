@@ -1,0 +1,103 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+<h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Help</h1>
+<p class="mt-2 max-w-2xl text-text-secondary">
+  What each screen does, in one place. For anything about how the app is
+  wired up behind the scenes — connecting accounts, scheduling, backups —
+  see the runbook in the repo.
+</p>
+
+<div class="mt-8 space-y-4">
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="font-semibold">Home</h2>
+    <p class="mt-1.5 text-sm text-text-secondary">
+      Your own mix of widgets — net worth, balances, budgets, recent activity,
+      what's waiting for review. Choose which ones show and in what order
+      from <span class="text-text-primary">Preferences</span>; David and
+      Maddie can each set up a different homepage.
+    </p>
+  </section>
+
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="font-semibold">Activity</h2>
+    <p class="mt-1.5 text-sm text-text-secondary">
+      Every transaction, filterable by account, category, date, or search.
+      A category badged "unsure" is the classifier's best guess at a low
+      confidence — confirming it teaches the app for next time, and ticking
+      "always" turns that into a standing rule.
+    </p>
+  </section>
+
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="font-semibold">Spend, Income, Savings &amp; Debt</h2>
+    <p class="mt-1.5 text-sm text-text-secondary">
+      Spend breaks down by category and time; Income only shows gross pay and
+      tax where a payslip has been imported, since banks only ever report the
+      deposit; Savings &amp; Debt tracks every account's balance history,
+      including the ones no bank sync reaches. Click a bar in any chart to see
+      exactly which transactions produced it.
+    </p>
+  </section>
+
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="font-semibold">Budgets</h2>
+    <p class="mt-1.5 text-sm text-text-secondary">
+      A target over a repeating window, across one or more categories and
+      optionally specific accounts. The bar shows pace against an even spend
+      rate, not just percent-used — the number that actually answers "can we
+      afford this today." "View transactions" on any budget opens exactly
+      what counted toward it.
+    </p>
+  </section>
+
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="font-semibold">Settings</h2>
+    <p class="mt-1.5 text-sm text-text-secondary">
+      Connect an institution, manage existing connections, correct an
+      account's type, and see recent sync history. Category rules created
+      from the review queue live here too.
+    </p>
+  </section>
+
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="font-semibold">Imports</h2>
+    <p class="mt-1.5 text-sm text-text-secondary">
+      For anything no bank sync reaches — the mortgage, the life policy,
+      payslips. Upload a CSV, confirm the detected columns, review the
+      preview, then commit. A confirmed mapping is remembered, so the next
+      statement from the same source is one click.
+    </p>
+  </section>
+
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="font-semibold">Alerts &amp; reports</h2>
+    <p class="mt-1.5 text-sm text-text-secondary">
+      Alerts are yours alone — a balance crossing a line, a budget running
+      hot, or a source that's gone quiet (useful for both a broken connector
+      and a manual account overdue for a fresh statement). Reports are a
+      weekly or monthly email summary; "send me one now" previews it before
+      you commit to a schedule.
+    </p>
+  </section>
+
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="font-semibold">QFRs</h2>
+    <p class="mt-1.5 text-sm text-text-secondary">
+      A Quarterly Finance Report: a closed quarter's numbers plus a short
+      written summary, with comparisons to the previous quarter and the same
+      quarter last year. Generated after a quarter ends, not live — see the
+      runbook for how to produce one.
+    </p>
+  </section>
+
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="font-semibold">Preferences</h2>
+    <p class="mt-1.5 text-sm text-text-secondary">
+      Personal, not shared: homepage widgets, which accounts and budgets show
+      by default, how many recent transactions to list. Nothing here changes
+      what the other person sees.
+    </p>
+  </section>
+</div>
+{% endblock %}
