@@ -3,7 +3,7 @@ from django.urls import reverse
 
 register = template.Library()
 
-# The five screens that earn a spot on a phone's thumb bar. Settings and
+# The screens that earn a spot on a phone's thumb bar. Settings and
 # preferences live in the header menu instead — they are not daily-use.
 PRIMARY_NAV = [
     {"url_name": "home", "label": "Home", "icon": "home"},
@@ -11,6 +11,7 @@ PRIMARY_NAV = [
     {"url_name": "spend", "label": "Spend", "icon": "chart"},
     {"url_name": "income", "label": "Income", "icon": "income"},
     {"url_name": "savings", "label": "Savings", "icon": "bank"},
+    {"url_name": "qfrs", "label": "QFRs", "icon": "report", "related": ["qfr_detail"]},
 ]
 
 
@@ -24,7 +25,7 @@ def finance_nav(context):
         {
             **item,
             "href": reverse(f"finance:{item['url_name']}"),
-            "is_active": item["url_name"] == current,
+            "is_active": current == item["url_name"] or current in item.get("related", []),
         }
         for item in PRIMARY_NAV
     ]

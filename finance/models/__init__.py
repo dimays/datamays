@@ -5,14 +5,16 @@ Split across modules by domain, re-exported here so callers can keep using
 """
 
 from .accounts import (
+    DEBT_TYPES,
     HIGH_FREQUENCY_TYPES,
     LIABILITY_TYPES,
+    SAVINGS_TYPES,
     Account,
     AccountBalanceSnapshot,
     AccountType,
     BalanceSource,
 )
-from .base import TimestampedModel, money_field
+from .base import Owner, TimestampedModel, money_field
 from .budgets import Budget, BudgetPeriod, BudgetPeriodType
 from .categories import (
     MAX_CATEGORY_DEPTH,
@@ -48,14 +50,17 @@ from .institutions import (
 )
 from .prefs import (
     DEFAULT_HOMEPAGE_WIDGETS,
+    UNIT_HOURS,
     Alert,
     AlertEvent,
     AlertKind,
     Comparison,
     ReportCadence,
     ScheduledReport,
+    ThresholdUnit,
     UserPreference,
 )
+from .qfr import QuarterlyReport
 from .transactions import (
     CategorySource,
     Transaction,
@@ -82,6 +87,7 @@ __all__ = [
     "CategorySource",
     "Comparison",
     "ConnectionStatus",
+    "DEBT_TYPES",
     "DEFAULT_HOMEPAGE_WIDGETS",
     "DeductionKind",
     "HIGH_FREQUENCY_TYPES",
@@ -94,20 +100,25 @@ __all__ = [
     "MAX_CATEGORY_DEPTH",
     "MatchType",
     "MerchantCategoryMemo",
+    "Owner",
     "Paycheck",
     "PaycheckDeduction",
     "Provider",
+    "QuarterlyReport",
     "RETAINED_KINDS",
     "RecordType",
+    "SAVINGS_TYPES",
     "ReportCadence",
     "RowStatus",
     "ScheduledReport",
     "SyncRun",
     "SyncStatus",
     "SyncTrigger",
+    "ThresholdUnit",
     "TimestampedModel",
     "Transaction",
     "TransactionSource",
+    "UNIT_HOURS",
     "UserPreference",
     "build_fingerprint",
     "money_field",

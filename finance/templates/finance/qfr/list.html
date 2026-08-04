@@ -1,0 +1,47 @@
+{% extends "finance/base_finance.html" %}
+{% load finance_extras %}
+
+{% block finance_content %}
+<h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Quarterly Finance Reports</h1>
+<p class="mt-2 max-w-2xl text-text-secondary">
+  A snapshot of each closed quarter — generated once it ends, not live. Run
+  <code class="rounded bg-muted px-1.5 py-0.5 text-xs">manage.py generate_qfrs</code>
+  to add the next one.
+</p>
+
+{% include "finance/partials/messages.html" %}
+
+<div class="mt-8 space-y-3">
+  {% for report in reports %}
+    <a href="{% url 'finance:qfr_detail' report.pk %}"
+       class="block rounded-card border border-border bg-surface p-5 transition hover:border-primary/50">
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 class="font-semibold">{{ report.label }}</h2>
+        <p class="font-mono text-sm">
+          {% with nw=report.metrics.net_worth_end %}
+            {% if nw is not None %}{% if nw < 0 %}-{% endif %}${{ nw|abs_money:0 }}{% else %}—{% endif %}
+          {% endwith %}
+        </p>
+      </div>
+
+      {% if report.summary %}
+        <p class="mt-2 text-sm text-text-secondary line-clamp-2">{{ report.summary }}</p>
+      {% else %}
+        <p class="mt-2 text-sm text-text-muted">Metrics only — no narrative was generated for this quarter.</p>
+      {% endif %}
+
+      <p class="mt-3 text-xs text-text-muted">
+        {{ report.period_start|date:"j M Y" }} – {{ report.period_end|date:"j M Y" }}
+      </p>
+    </a>
+  {% empty %}
+    <div class="rounded-card border border-dashed border-border bg-surface/50 p-8 text-center">
+      <p class="text-text-secondary">No reports generated yet.</p>
+      <p class="mt-2 text-xs text-text-muted">
+        Once a quarter has closed:
+        <code class="rounded bg-muted px-1.5 py-0.5">manage.py generate_qfrs --quarter 2026-Q1</code>
+      </p>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

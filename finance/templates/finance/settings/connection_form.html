@@ -1,0 +1,42 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+<h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Connect an institution</h1>
+
+<ol class="mt-6 max-w-2xl space-y-2 text-sm text-text-secondary">
+  <li>1. Go to <span class="font-mono text-xs text-text-primary">bridge.simplefin.org</span> and authorize the institution.</li>
+  <li>2. Copy the setup token it gives you.</li>
+  <li>3. Paste it below. We'll exchange it, store it encrypted, and pull the last 90 days as a test.</li>
+</ol>
+
+<p class="mt-4 max-w-2xl rounded-card border border-border bg-surface/60 p-4 text-xs text-text-muted">
+  The token becomes a read-only access URL. It can list balances and transactions
+  and nothing else — it can never move money — and you can revoke it from
+  SimpleFIN at any time without touching your bank password.
+</p>
+
+{% include "finance/partials/messages.html" %}
+
+<form method="post" class="mt-8 max-w-lg space-y-5">
+  {% csrf_token %}
+
+  {% for field in form %}
+    <div>
+      <label for="{{ field.id_for_label }}" class="mb-1.5 block text-sm font-medium">{{ field.label }}</label>
+      {{ field }}
+      {% if field.help_text %}<p class="mt-1.5 text-xs text-text-muted">{{ field.help_text }}</p>{% endif %}
+      {% if field.errors %}<p class="mt-1.5 text-sm text-error">{{ field.errors.0 }}</p>{% endif %}
+    </div>
+  {% endfor %}
+
+  <div class="flex flex-col gap-3 sm:flex-row">
+    <button type="submit" class="rounded-button bg-primary px-6 py-3 font-medium text-white transition hover:bg-primary-600">
+      Connect and test
+    </button>
+    <a href="{% url 'finance:settings' %}"
+       class="rounded-button border border-border px-6 py-3 text-center font-medium text-text-secondary transition hover:bg-muted">
+      Cancel
+    </a>
+  </div>
+</form>
+{% endblock %}

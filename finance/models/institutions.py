@@ -3,7 +3,7 @@ from django.db import models
 from django.utils import timezone
 
 from ..crypto import EncryptedTextField
-from .base import TimestampedModel
+from .base import Owner, TimestampedModel
 
 
 class Provider(models.TextChoices):
@@ -22,6 +22,12 @@ class Institution(TimestampedModel):
         help_text="How data from this institution normally arrives.",
     )
     website = models.URLField(blank=True)
+    owner = models.CharField(
+        max_length=10,
+        choices=Owner.choices,
+        default=Owner.JOINT,
+        help_text="Whose institution this is — doesn't restrict who can see or edit it.",
+    )
     is_active = models.BooleanField(default=True)
     notes = models.TextField(
         blank=True,
@@ -66,6 +72,15 @@ class AccountConnection(TimestampedModel):
         blank=True,
         help_text="Encrypted at rest. Never rendered in full, never logged.",
     )
+    credential_stored = models.BooleanField(
+        default=False,
+        editable=False,
+        help_text=(
+            "Whether access_secret holds anything. Kept in plaintext so that "
+            "listing connections never has to decrypt — a lost or rotated key "
+            "would otherwise take down the very page used to re-authorize."
+        ),
+    )
 
     status = models.CharField(
         max_length=20, choices=ConnectionStatus.choices, default=ConnectionStatus.ACTIVE
@@ -89,11 +104,29 @@ class AccountConnection(TimestampedModel):
 
     @property
     def is_syncable(self):
+        # ERROR is included deliberately: it usually means a timeout or a
+        # provider blip, and refusing to retry would strand the connection
+        # permanently after one bad night. NEEDS_REAUTH and DISABLED are
+        # excluded because both genuinely require a person.
         return (
-            self.status == ConnectionStatus.ACTIVE
+            self.status in {ConnectionStatus.ACTIVE, ConnectionStatus.ERROR}
             and self.provider == Provider.SIMPLEFIN
-            and bool(self.access_secret)
+            and self.credential_stored
         )
+
+    def save(self, *args, **kwargs):
+        # Presence is tracked separately from the ciphertext so it can be read
+        # without a key. update_fields callers that do not touch the secret
+        # leave the flag alone.
+        update_fields = kwargs.get("update_fields")
+
+        if update_fields is None or "access_secret" in update_fields:
+            self.credential_stored = bool(self.access_secret)
+
+            if update_fields is not None:
+                kwargs["update_fields"] = list(update_fields) + ["credential_stored"]
+
+        super().save(*args, **kwargs)
 
     def mark_synced(self):
         self.last_synced_at = timezone.now()
@@ -102,7 +135,11 @@ class AccountConnection(TimestampedModel):
         self.save(update_fields=["last_synced_at", "last_error", "status", "updated_at"])
 
     def mark_failed(self, message, *, needs_reauth=False):
-        self.last_error = str(message)[:2000]
+        from ..providers.base import redact
+
+        # Last line of defence: everything written to last_error is rendered
+        # on the connection page, so nothing carrying a credential gets there.
+        self.last_error = redact(message)[:2000]
         self.status = (
             ConnectionStatus.NEEDS_REAUTH if needs_reauth else ConnectionStatus.ERROR
         )
