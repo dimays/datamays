@@ -10,19 +10,18 @@ only ever report a balance.
 """
 
 from collections import OrderedDict
-from datetime import date, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.db.models.functions import TruncDay, TruncMonth, TruncWeek
-from django.utils import timezone
 
+from ..dates import household_today
 from ..models import (
     LIABILITY_TYPES,
     RETAINED_KINDS,
     Account,
     AccountBalanceSnapshot,
-    Category,
     CategoryKind,
     Paycheck,
     Transaction,
@@ -36,12 +35,18 @@ GRAINS = {
 
 
 def _base_spend_queryset(start, end, account_ids=None):
+    # Excludes income and transfers, but *keeps* transactions with no category
+    # yet. Requiring an expense category silently dropped everything the
+    # categoriser had not reached — and since the hourly chain isolates step
+    # failures, a broken categorise run would have made the dashboards
+    # under-report spend while looking perfectly healthy.
     queryset = Transaction.objects.filter(
         posted_on__gte=start,
         posted_on__lte=end,
         is_transfer=False,
         amount__lt=0,
-        category__kind=CategoryKind.EXPENSE,
+    ).filter(
+        Q(category__kind=CategoryKind.EXPENSE) | Q(category__isnull=True)
     )
 
     if account_ids:
@@ -83,7 +88,13 @@ def spend_by_category(start, end, *, account_ids=None, limit=10):
     grouped = {}
 
     for row in rows:
-        name = row["category__parent__name"] or row["category__name"]
+        # Surfaced as its own slice rather than hidden, so an unclassified
+        # backlog is visible on the chart instead of quietly missing from it.
+        name = (
+            row["category__parent__name"]
+            or row["category__name"]
+            or "Not yet categorised"
+        )
         grouped[name] = grouped.get(name, Decimal("0")) + -row["total"]
 
     ranked = sorted(grouped.items(), key=lambda item: item[1], reverse=True)
@@ -183,7 +194,7 @@ def balance_history(account_ids=None, *, start=None, end=None, account_types=Non
     Snapshots only exist for days an account reported, so a mortgage that
     updates monthly would otherwise draw a chart of disconnected dots.
     """
-    end = end or timezone.localdate()
+    end = end or household_today()
     start = start or (end - timedelta(days=365))
 
     accounts = Account.objects.filter(is_active=True)
@@ -286,6 +297,6 @@ def net_worth_history(*, start=None, end=None):
 
 
 def default_range(months=12):
-    end = timezone.localdate()
+    end = household_today()
     start = (end.replace(day=1) - timedelta(days=30 * months)).replace(day=1)
     return start, end

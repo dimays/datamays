@@ -1,6 +1,5 @@
 from django.core.management.base import BaseCommand
-from django.utils import timezone
-
+from finance.dates import household_today
 from finance.models import Account
 from finance.services.sync import record_balance_snapshot
 
@@ -19,7 +18,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        as_of = timezone.localdate()
+        as_of = household_today()
 
         if options.get("date"):
             from datetime import datetime

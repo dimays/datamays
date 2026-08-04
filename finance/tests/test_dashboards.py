@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
+from finance.dates import household_today
 from finance.models import (
     AccountBalanceSnapshot,
     AccountConnection,
@@ -18,6 +19,7 @@ from finance.models import (
     Category,
     DeductionKind,
     Paycheck,
+    Transaction,
     PaycheckDeduction,
 )
 from finance.services import analytics
@@ -244,7 +246,7 @@ class BalanceHistoryTests(AnalyticsTestCase):
     def test_balances_carry_forward_across_quiet_days(self):
         # A mortgage reports monthly; without carry-forward the chart would be
         # disconnected dots.
-        today = timezone.localdate()
+        today = household_today()
         self.snapshot(self.checking, today - timedelta(days=10), "1000.00")
         self.snapshot(self.checking, today - timedelta(days=2), "1200.00")
 
@@ -259,7 +261,7 @@ class BalanceHistoryTests(AnalyticsTestCase):
 
     def test_a_balance_from_before_the_window_seeds_the_series(self):
         # Otherwise the chart starts at nothing and appears to plunge on day one.
-        today = timezone.localdate()
+        today = household_today()
         self.snapshot(self.checking, today - timedelta(days=60), "900.00")
 
         history = analytics.balance_history(start=today - timedelta(days=5), end=today)
@@ -267,7 +269,7 @@ class BalanceHistoryTests(AnalyticsTestCase):
         self.assertEqual(history["series"][0]["values"][0], 900.0)
 
     def test_net_worth_is_none_before_anything_reports(self):
-        today = timezone.localdate()
+        today = household_today()
         self.snapshot(self.checking, today, "1000.00")
 
         history = analytics.net_worth_history(start=today - timedelta(days=3), end=today)
@@ -277,7 +279,7 @@ class BalanceHistoryTests(AnalyticsTestCase):
         self.assertEqual(history["values"][-1], 1000.0)
 
     def test_accounts_without_history_are_omitted(self):
-        today = timezone.localdate()
+        today = household_today()
         self.snapshot(self.checking, today, "1000.00")
 
         history = analytics.balance_history(start=today - timedelta(days=3), end=today)
@@ -285,7 +287,7 @@ class BalanceHistoryTests(AnalyticsTestCase):
         self.assertEqual(len(history["series"]), 1)
 
     def test_net_worth_sums_the_carried_forward_series(self):
-        today = timezone.localdate()
+        today = household_today()
         self.snapshot(self.checking, today - timedelta(days=1), "1000.00")
         self.snapshot(self.card, today - timedelta(days=1), "-400.00")
 
@@ -296,7 +298,7 @@ class BalanceHistoryTests(AnalyticsTestCase):
         self.assertEqual(history["values"][-1], 600.0)
 
     def test_filtering_by_account_type(self):
-        today = timezone.localdate()
+        today = household_today()
         self.snapshot(self.checking, today, "1000.00")
         self.snapshot(self.card, today, "-400.00")
 
@@ -318,7 +320,7 @@ class SnapshotCommandTests(AnalyticsTestCase):
         call_command("snapshot_balances", verbosity=0)
 
         snapshot = AccountBalanceSnapshot.objects.get(account=self.checking)
-        self.assertEqual(snapshot.as_of, timezone.localdate())
+        self.assertEqual(snapshot.as_of, household_today())
         self.assertEqual(snapshot.current, Decimal("4200.00"))
 
     def test_accounts_without_a_balance_are_skipped(self):
@@ -351,7 +353,7 @@ class DashboardRenderTests(AnalyticsTestCase):
         # outside the range when the test runs early in a month.
         make_transaction(
             self.checking,
-            posted_on=timezone.localdate(),
+            posted_on=household_today(),
             amount=Decimal("-100.00"),
             description_raw="MARIANOS",
             category=self.groceries,
@@ -371,7 +373,7 @@ class DashboardRenderTests(AnalyticsTestCase):
     def test_income_dashboard_warns_when_payslips_are_missing(self):
         make_transaction(
             self.checking,
-            posted_on=timezone.localdate(),
+            posted_on=household_today(),
             amount=Decimal("3400.00"),
             description_raw="ACME PAYROLL",
             category=self.salary,
@@ -385,7 +387,7 @@ class DashboardRenderTests(AnalyticsTestCase):
     def test_savings_dashboard_renders(self):
         AccountBalanceSnapshot.objects.create(
             account=self.checking,
-            as_of=timezone.localdate(),
+            as_of=household_today(),
             current=Decimal("1000.00"),
         )
 
@@ -411,3 +413,59 @@ class DashboardRenderTests(AnalyticsTestCase):
         for name in ["spend", "income", "savings"]:
             with self.subTest(dashboard=name):
                 self.assertEqual(self.client.get(reverse(f"finance:{name}")).status_code, 403)
+
+
+class UncategorisedSpendTests(TestCase):
+    """Requiring an expense category silently dropped spend from every total."""
+
+    def setUp(self):
+        call_command("seed_finance_categories", verbosity=0)
+
+        self.institution = make_institution()
+        self.account = make_account(self.institution, name="Checking")
+        self.groceries = Category.objects.get(slug="food-groceries")
+
+        Transaction.objects.create(
+            account=self.account, posted_on=date(2026, 4, 10),
+            amount=Decimal("-100.00"), description_raw="CATEGORISED",
+            category=self.groceries, fingerprint="a",
+        )
+        Transaction.objects.create(
+            account=self.account, posted_on=date(2026, 4, 11),
+            amount=Decimal("-250.00"), description_raw="NOT YET CATEGORISED",
+            category=None, fingerprint="b",
+        )
+
+    def test_the_total_matches_the_money_that_actually_left(self):
+        self.assertEqual(
+            analytics.spend_over_time(date(2026, 4, 1), date(2026, 4, 30))["values"],
+            [350.0],
+        )
+
+    def test_uncategorised_spend_gets_its_own_visible_slice(self):
+        result = analytics.spend_by_category(date(2026, 4, 1), date(2026, 4, 30))
+        pairs = dict(zip(result["labels"], result["values"]))
+
+        self.assertEqual(pairs["Not yet categorised"], 250.0)
+        self.assertEqual(result["total"], 350.0)
+
+    def test_income_and_transfers_are_still_excluded(self):
+        salary = Category.objects.get(slug="income-salary")
+
+        Transaction.objects.create(
+            account=self.account, posted_on=date(2026, 4, 12),
+            amount=Decimal("3000.00"), description_raw="PAYROLL",
+            category=salary, fingerprint="c",
+        )
+        transfer = Transaction.objects.create(
+            account=self.account, posted_on=date(2026, 4, 13),
+            amount=Decimal("-500.00"), description_raw="TO SAVINGS",
+            category=None, fingerprint="d",
+        )
+        transfer.is_transfer = True
+        transfer.save()
+
+        self.assertEqual(
+            analytics.spend_over_time(date(2026, 4, 1), date(2026, 4, 30))["values"],
+            [350.0],
+        )

@@ -8,9 +8,8 @@ tested without rendering anything.
 
 from datetime import timedelta
 
-from django.utils import timezone
 
-from .access import FinanceAccessMixin
+from .dates import household_today
 from .models import (
     Account,
     AccountType,
@@ -49,7 +48,7 @@ class DashboardView(FinanceView):
         saved = self.saved_filters()
         key = self.request.GET.get("range") or saved.get("range") or "12m"
 
-        end = timezone.localdate()
+        end = household_today()
         start = end - timedelta(days=RANGE_DAYS.get(key, 365))
 
         return key, start, end
