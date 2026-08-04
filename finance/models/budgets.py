@@ -157,7 +157,7 @@ class BudgetPeriod(models.Model):
         """Where an even spend rate would put you today, as a percentage."""
         return round(
             periods.elapsed_fraction(
-                self.period_start, self.period_end, timezone.localdate()
+                self.period_start, self.period_end, household_today()
             )
             * 100
         )

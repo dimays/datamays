@@ -16,8 +16,8 @@ Two rules that shape the arithmetic:
 from decimal import Decimal
 
 from django.db.models import Q, Sum
-from django.utils import timezone
 
+from ..dates import household_today
 from ..models import Budget, BudgetPeriod, Category, Transaction
 from ..periods import previous_period
 
@@ -83,7 +83,7 @@ def rollover_for(budget: Budget, start) -> Decimal:
 
 def roll_up_budget(budget: Budget, on_date=None) -> BudgetPeriod:
     """Recompute one budget's current period."""
-    on_date = on_date or timezone.localdate()
+    on_date = on_date or household_today()
     start, end = budget.period_for(on_date)
 
     rollover = rollover_for(budget, start)
@@ -113,7 +113,7 @@ def roll_up_all(on_date=None, *, include_inactive=False):
 
 def backfill_budget(budget: Budget, periods_back: int = 12, on_date=None):
     """Recompute recent history, so a new budget has a chart from day one."""
-    on_date = on_date or timezone.localdate()
+    on_date = on_date or household_today()
     start, _ = budget.period_for(on_date)
 
     boundaries = [start]

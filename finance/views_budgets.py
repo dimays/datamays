@@ -8,9 +8,9 @@ this?" is the question this screen exists to answer.
 from django import forms
 from django.contrib import messages
 from django.urls import reverse_lazy
-from django.utils import timezone
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
+from .dates import household_today
 from .access import FinanceAccessMixin
 from .models import Account, Budget, Category, CategoryKind
 from .services.rollups import backfill_budget, roll_up_budget
@@ -61,7 +61,7 @@ class BudgetForm(forms.ModelForm):
         self.fields["categories"].required = True
 
         if not self.instance.pk:
-            self.fields["anchor_date"].initial = timezone.localdate().replace(day=1)
+            self.fields["anchor_date"].initial = household_today().replace(day=1)
 
 
 class BudgetListView(FinanceAccessMixin, ListView):
@@ -73,7 +73,7 @@ class BudgetListView(FinanceAccessMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        today = timezone.localdate()
+        today = household_today()
 
         rows = []
 
