@@ -6,43 +6,63 @@
 
 {% include "finance/dashboards/_filters.html" %}
 
-{% if unmatched_count %}
-  <div class="mt-6 rounded-card border border-warning/40 bg-warning/5 p-4">
-    <p class="text-sm text-warning">
-      {{ unmatched_count }} income deposit{{ unmatched_count|pluralize }} with no payslip imported.
-    </p>
-    <p class="mt-1 text-xs text-text-muted">
-      Gross pay, tax, and retirement contributions can only be shown for pay periods
-      with an imported payslip — banks only ever report the deposit.
-      <a href="{% url 'finance:import_upload' %}" class="text-primary hover:underline">Import payslips</a>.
-    </p>
-  </div>
-{% endif %}
-
 {% if not has_data %}
   <div class="mt-8 rounded-card border border-dashed border-border bg-surface/50 p-8 text-center">
-    <p class="text-text-secondary">No payslips imported for this window.</p>
-    <a href="{% url 'finance:import_upload' %}" class="mt-2 inline-block text-primary hover:underline">Import some →</a>
+    <p class="text-text-secondary">No income for this window yet.</p>
+    <p class="mt-1 text-xs text-text-muted">
+      A deposit needs to be categorised as Income before it counts here — check
+      <a href="{% url 'finance:transactions' %}?review=1" class="text-primary hover:underline">Activity → needs review</a>
+      if a paycheck deposit hasn't landed in a category yet.
+    </p>
   </div>
 {% else %}
   <section class="mt-8 rounded-card border border-border bg-surface p-5">
-    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Gross vs net</h2>
-    <div class="mt-4 h-64">
-      <canvas data-chart="lines" data-source="income-series"></canvas>
-    </div>
-    {{ income_series_json|json_script:"income-series" }}
-  </section>
-
-  <section class="mt-4 rounded-card border border-border bg-surface p-5">
-    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Where gross pay goes</h2>
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Net income</h2>
     <p class="mt-1 text-xs text-text-muted">
-      Retirement and HSA are shown apart from tax — that money is still yours.
+      Every deposit categorised as income, whether or not a payslip was imported for it.
     </p>
     <div class="mt-4 h-64">
-      <canvas data-chart="lines" data-source="income-breakdown"></canvas>
+      <canvas data-chart="bar" data-source="net-income" data-label="Net income"></canvas>
     </div>
-    {{ income_breakdown_json|json_script:"income-breakdown" }}
+    {{ net_income_json|json_script:"net-income" }}
   </section>
+
+  {% if unmatched_count %}
+    <div class="mt-4 rounded-card border border-border bg-surface/60 p-4">
+      <p class="text-sm text-text-secondary">
+        {{ unmatched_count }} deposit{{ unmatched_count|pluralize }} above with no payslip imported.
+      </p>
+      <p class="mt-1 text-xs text-text-muted">
+        Net income already counts these — importing a payslip only adds gross
+        pay and a tax/retirement breakdown for them, below.
+        <a href="{% url 'finance:import_upload' %}" class="text-primary hover:underline">Import a payslip</a>.
+      </p>
+    </div>
+  {% endif %}
+
+  {% if has_payslip_detail %}
+    <section class="mt-4 rounded-card border border-border bg-surface p-5">
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Gross vs net</h2>
+      <p class="mt-1 text-xs text-text-muted">
+        Optional detail, only for pay periods with an imported payslip.
+      </p>
+      <div class="mt-4 h-64">
+        <canvas data-chart="lines" data-source="payslip-gross"></canvas>
+      </div>
+      {{ payslip_gross_json|json_script:"payslip-gross" }}
+    </section>
+
+    <section class="mt-4 rounded-card border border-border bg-surface p-5">
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Where gross pay goes</h2>
+      <p class="mt-1 text-xs text-text-muted">
+        Retirement and HSA are shown apart from tax — that money is still yours.
+      </p>
+      <div class="mt-4 h-64">
+        <canvas data-chart="lines" data-source="payslip-breakdown"></canvas>
+      </div>
+      {{ payslip_breakdown_json|json_script:"payslip-breakdown" }}
+    </section>
+  {% endif %}
 {% endif %}
 {% endblock %}
 

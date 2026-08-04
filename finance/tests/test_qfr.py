@@ -20,6 +20,7 @@ from finance.models import (
     Budget,
     BudgetPeriod,
     Category,
+    Paycheck,
     QuarterlyReport,
     Transaction,
 )
@@ -250,6 +251,40 @@ class BudgetMetricsTests(ComputeMetricsTestCase):
 
         self.assertEqual(row["actual"], 840.0)
         self.assertEqual(row["target"], 900.0)
+
+
+class IncomeMetricsTests(ComputeMetricsTestCase):
+    """total_income_net is the primary figure and reads straight from
+    deposits — a household member with no imported payslip still shows up
+    correctly. total_income_gross is optional, payslip-only detail."""
+
+    def deposit(self, day, amount="3400.00"):
+        salary = Category.objects.get(slug="income-salary")
+        return make_transaction(
+            self.checking, posted_on=date(2026, 4, day), amount=Decimal(amount),
+            category=salary, description_raw=f"PAYROLL {day}",
+        )
+
+    def test_net_income_counts_a_deposit_with_no_payslip(self):
+        self.deposit(15)
+
+        metrics = compute_metrics(self.start, self.end)
+
+        self.assertEqual(metrics["total_income_net"], 3400.0)
+        self.assertEqual(metrics["total_income_gross"], 0.0)
+
+    def test_gross_only_reflects_pay_periods_with_an_imported_payslip(self):
+        deposit = self.deposit(15)
+        Paycheck.objects.create(
+            user=make_user("david"), employer="Acme", pay_date=date(2026, 4, 15),
+            gross=Decimal("5000.00"), net=Decimal("3400.00"),
+            deposit_transaction=deposit,
+        )
+
+        metrics = compute_metrics(self.start, self.end)
+
+        self.assertEqual(metrics["total_income_net"], 3400.0)
+        self.assertEqual(metrics["total_income_gross"], 5000.0)
 
 
 class HistoricalComparisonTests(ComputeMetricsTestCase):

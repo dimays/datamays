@@ -166,33 +166,45 @@ class IncomeView(DashboardView):
         context = super().get_context_data(**kwargs)
         start, end = context["start"], context["end"]
 
-        income = analytics.income_over_time(start, end)
+        # The primary figure: every income-categorised deposit, whether or
+        # not a payslip was ever imported for it. Works for a household
+        # member whose pay never gets a detailed payslip.
+        net_income = analytics.net_income_over_time(start, end)
+
+        # Optional supplementary detail, layered on top for whichever pay
+        # periods do have an imported payslip.
+        payslip_detail = analytics.income_over_time(start, end)
         unmatched = analytics.deposits_without_paychecks(start, end)
 
         context.update(
             {
-                "income_series_json": {
-                    "labels": income["labels"],
-                    "series": [
-                        {"label": "Gross", "values": income["gross"]},
-                        {"label": "Net", "values": income["net"]},
-                    ],
+                "net_income_json": {
+                    "labels": net_income["labels"],
+                    "values": net_income["values"],
                 },
+                "has_data": net_income["has_data"],
+                "has_payslip_detail": payslip_detail["has_data"],
                 # Retirement and HSA are their own line rather than being
                 # lumped in with tax: that money is still the household's, and
                 # showing it as lost would understate what they actually earn.
-                "income_breakdown_json": {
-                    "labels": income["labels"],
+                "payslip_breakdown_json": {
+                    "labels": payslip_detail["labels"],
                     "series": [
-                        {"label": "Take-home", "values": income["net"]},
-                        {"label": "Tax", "values": income["tax"]},
-                        {"label": "Retirement & HSA", "values": income["retained"]},
-                        {"label": "Other deductions", "values": income["other"]},
+                        {"label": "Take-home", "values": payslip_detail["net"]},
+                        {"label": "Tax", "values": payslip_detail["tax"]},
+                        {"label": "Retirement & HSA", "values": payslip_detail["retained"]},
+                        {"label": "Other deductions", "values": payslip_detail["other"]},
                     ],
                 },
-                "has_data": income["has_data"],
-                # Surfaced rather than silently under-reporting: gross and tax
-                # only exist where a payslip has been imported.
+                "payslip_gross_json": {
+                    "labels": payslip_detail["labels"],
+                    "series": [
+                        {"label": "Gross", "values": payslip_detail["gross"]},
+                        {"label": "Net", "values": payslip_detail["net"]},
+                    ],
+                },
+                # A pointer toward optional payslip import, not a warning that
+                # anything is broken — net income above already counts these.
                 "unmatched_deposits": unmatched[:10],
                 "unmatched_count": unmatched.count(),
             }
