@@ -8,9 +8,7 @@ looked at the proposed columns and the resulting preview.
 
 from django import forms
 from django.contrib import messages
-from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse
-from django.utils import timezone
+from django.shortcuts import redirect
 from django.views.generic import DetailView, FormView, ListView
 
 from .access import FinanceAccessMixin
@@ -187,13 +185,16 @@ class ImportMapView(FinanceAccessMixin, DetailView):
     def post(self, request, *args, **kwargs):
         batch = self.get_object()
 
+        # An explicit allowlist, not a prefix match: "amount_convention"
+        # starts with "amount" and was being stored as though it were a column.
+        allowed = set(
+            REQUIRED_FIELDS[batch.record_type] + OPTIONAL_FIELDS[batch.record_type]
+        )
+
         column_map = {
             key: value
             for key, value in request.POST.items()
-            if key.startswith(("posted_on", "description", "amount", "debit", "credit",
-                               "merchant", "as_of", "current", "available", "pay_date",
-                               "employer", "gross", "net", "deduction:"))
-            and value
+            if key in allowed and value
         }
 
         missing = [

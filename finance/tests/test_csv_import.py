@@ -387,3 +387,31 @@ class BalanceAndPaycheckImportTests(ImportBatchTestCase):
             commit_batch(batch)
 
         self.assertEqual(Paycheck.objects.count(), 1)
+
+
+class ColumnMapTests(TestCase):
+    """"amount_convention" starts with "amount" and was stored as a column."""
+
+    def test_only_real_field_names_are_kept(self):
+        from finance.views_imports import OPTIONAL_FIELDS, REQUIRED_FIELDS
+
+        allowed = set(
+            REQUIRED_FIELDS[RecordType.TRANSACTIONS]
+            + OPTIONAL_FIELDS[RecordType.TRANSACTIONS]
+        )
+
+        post = {
+            "csrfmiddlewaretoken": "abc",
+            "posted_on": "Transaction Date",
+            "description": "Payee",
+            "amount_convention": "debit_credit",
+            "date_format": "%m/%d/%Y",
+            "mapping_name": "Byline default",
+        }
+
+        column_map = {k: v for k, v in post.items() if k in allowed and v}
+
+        self.assertEqual(
+            column_map, {"posted_on": "Transaction Date", "description": "Payee"}
+        )
+        self.assertNotIn("amount_convention", column_map)
