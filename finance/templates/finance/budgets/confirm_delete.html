@@ -1,0 +1,23 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+<h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Delete budget</h1>
+
+<div class="mt-6 max-w-lg rounded-card border border-error/40 bg-error/5 p-6">
+  <p class="text-text-secondary">
+    Delete <span class="font-semibold text-text-primary">{{ budget.name }}</span>
+    and its recorded periods? Transactions are not affected.
+  </p>
+
+  <form method="post" class="mt-6 flex flex-col gap-3 sm:flex-row">
+    {% csrf_token %}
+    <button type="submit" class="rounded-button bg-error px-6 py-3 font-medium text-white transition hover:opacity-90">
+      Delete it
+    </button>
+    <a href="{% url 'finance:budgets' %}"
+       class="rounded-button border border-border px-6 py-3 text-center font-medium text-text-secondary transition hover:bg-muted">
+      Keep it
+    </a>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,165 @@
+{% extends "finance/base_finance.html" %}
+{% load finance_extras %}
+
+{% block finance_content %}
+<div class="flex flex-wrap items-baseline justify-between gap-3">
+  <h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">{{ report.label }}</h1>
+  <p class="text-sm text-text-muted">{{ report.period_start|date:"j M Y" }} – {{ report.period_end|date:"j M Y" }}</p>
+</div>
+
+{% include "finance/partials/messages.html" %}
+
+{% if not report.has_narrative %}
+  <div class="mt-6 rounded-card border border-border bg-surface/60 p-4 text-xs text-text-muted">
+    No narrative was generated for this quarter — either no OpenAI API key was
+    configured at the time, or generation couldn't reach it. The numbers below
+    are unaffected either way.
+  </div>
+{% endif %}
+
+{% if report.summary %}
+<section class="mt-8 rounded-card border border-border bg-surface p-5">
+  <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Summary</h2>
+  <p class="mt-2 text-text-secondary">{{ report.summary }}</p>
+</section>
+{% endif %}
+
+<section class="mt-4 grid gap-3 sm:grid-cols-3">
+  <div class="rounded-card border border-border bg-surface p-4">
+    <p class="text-xs uppercase tracking-wide text-text-muted">Net worth</p>
+    <p class="mt-1 font-mono text-xl font-bold">
+      {% with nw=report.metrics.net_worth_end %}{% if nw is not None %}{% if nw < 0 %}-{% endif %}${{ nw|abs_money:0 }}{% else %}—{% endif %}{% endwith %}
+    </p>
+    {% with change=report.metrics.net_worth_change %}
+      {% if change is not None %}
+        <p class="mt-1 text-xs {% if change >= 0 %}text-success{% else %}text-error{% endif %}">
+          {% if change >= 0 %}+{% else %}-{% endif %}${{ change|abs_money:0 }} this quarter
+        </p>
+      {% endif %}
+    {% endwith %}
+  </div>
+
+  <div class="rounded-card border border-border bg-surface p-4">
+    <p class="text-xs uppercase tracking-wide text-text-muted">Total spend</p>
+    <p class="mt-1 font-mono text-xl font-bold">${{ report.metrics.total_spend|money:0 }}</p>
+    {% with cmp=comparisons.previous_quarter %}
+      {% if cmp and cmp.total_spend_delta is not None %}
+        <p class="mt-1 text-xs {% if cmp.total_spend_delta <= 0 %}text-success{% else %}text-warning{% endif %}">
+          {% if cmp.total_spend_delta >= 0 %}+{% else %}-{% endif %}${{ cmp.total_spend_delta|abs_money:0 }} vs {{ cmp.label }}
+        </p>
+      {% endif %}
+    {% endwith %}
+  </div>
+
+  <div class="rounded-card border border-border bg-surface p-4">
+    <p class="text-xs uppercase tracking-wide text-text-muted">Net income</p>
+    <p class="mt-1 font-mono text-xl font-bold">${{ report.metrics.total_income_net|money:0 }}</p>
+    <p class="mt-1 text-xs text-text-muted">${{ report.metrics.total_income_gross|money:0 }} gross</p>
+  </div>
+</section>
+
+{% if report.key_trends or report.major_events or report.risk_areas %}
+<section class="mt-4 grid gap-4 sm:grid-cols-3">
+  {% if report.key_trends %}
+    <div class="rounded-card border border-border bg-surface p-5">
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Key trends</h2>
+      <p class="mt-2 text-sm text-text-secondary">{{ report.key_trends }}</p>
+    </div>
+  {% endif %}
+  {% if report.major_events %}
+    <div class="rounded-card border border-border bg-surface p-5">
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Major events</h2>
+      <p class="mt-2 text-sm text-text-secondary">{{ report.major_events }}</p>
+    </div>
+  {% endif %}
+  {% if report.risk_areas %}
+    <div class="rounded-card border border-warning/40 bg-warning/5 p-5">
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-warning">Risk areas</h2>
+      <p class="mt-2 text-sm text-text-secondary">{{ report.risk_areas }}</p>
+    </div>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="mt-4 rounded-card border border-border bg-surface p-5">
+  <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Spend by category</h2>
+  <ul class="mt-3 divide-y divide-border">
+    {% for name, amount in spend_by_category %}
+      <li class="flex items-center justify-between gap-3 py-2">
+        <span class="text-sm text-text-secondary">{{ name }}</span>
+        <span class="font-mono text-sm">${{ amount|money:0 }}</span>
+      </li>
+    {% empty %}
+      <li class="py-2 text-sm text-text-muted">No spend recorded.</li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="mt-4 rounded-card border border-border bg-surface p-5">
+  <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Budgets this quarter</h2>
+  <ul class="mt-3 divide-y divide-border">
+    {% for budget in budgets %}
+      <li class="flex items-center justify-between gap-3 py-2">
+        <span class="text-sm text-text-secondary">{{ budget.name }}</span>
+        <span class="font-mono text-sm {% if budget.actual > budget.target %}text-error{% endif %}">
+          ${{ budget.actual|money:0 }} / ${{ budget.target|money:0 }}
+        </span>
+      </li>
+    {% empty %}
+      <li class="py-2 text-sm text-text-muted">No budgets were active this quarter.</li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="mt-4 rounded-card border border-border bg-surface p-5">
+  <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Savings &amp; debt</h2>
+  <div class="mt-3 grid gap-4 sm:grid-cols-2">
+    <div>
+      <p class="text-xs text-text-muted">Savings &amp; investments</p>
+      <p class="mt-1 font-mono text-lg">${{ report.metrics.savings_balance_end|money:0 }}</p>
+      {% with change=report.metrics.savings_change %}
+        {% if change is not None %}
+          <p class="text-xs {% if change >= 0 %}text-success{% else %}text-warning{% endif %}">
+            {% if change >= 0 %}+{% else %}-{% endif %}${{ change|abs_money:0 }} this quarter
+          </p>
+        {% endif %}
+      {% endwith %}
+    </div>
+    <div>
+      <p class="text-xs text-text-muted">Debt owed</p>
+      <p class="mt-1 font-mono text-lg">${{ report.metrics.debt_balance_end|money:0 }}</p>
+      {% with change=report.metrics.debt_change %}
+        {% if change is not None %}
+          <p class="text-xs {% if change <= 0 %}text-success{% else %}text-warning{% endif %}">
+            {% if change >= 0 %}+{% else %}-{% endif %}${{ change|abs_money:0 }} this quarter
+          </p>
+        {% endif %}
+      {% endwith %}
+    </div>
+  </div>
+</section>
+
+{% if comparison_list %}
+<section class="mt-4 rounded-card border border-border bg-surface p-5">
+  <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Compared to</h2>
+  <div class="mt-3 grid gap-4 sm:grid-cols-2">
+    {% for cmp in comparison_list %}
+      <div>
+        <p class="text-sm font-medium">{{ cmp.label }}</p>
+        <ul class="mt-1.5 space-y-1 text-xs text-text-muted">
+          {% if cmp.net_worth_change_delta is not None %}
+            <li>Net worth movement: {% if cmp.net_worth_change_delta >= 0 %}+{% else %}-{% endif %}${{ cmp.net_worth_change_delta|abs_money:0 }}</li>
+          {% endif %}
+          {% if cmp.total_spend_delta is not None %}
+            <li>Spend: {% if cmp.total_spend_delta >= 0 %}+{% else %}-{% endif %}${{ cmp.total_spend_delta|abs_money:0 }}</li>
+          {% endif %}
+          {% if cmp.total_income_net_delta is not None %}
+            <li>Net income: {% if cmp.total_income_net_delta >= 0 %}+{% else %}-{% endif %}${{ cmp.total_income_net_delta|abs_money:0 }}</li>
+          {% endif %}
+        </ul>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "finance/base_auth.html" %}
+{% block title %}Two-factor — Household Finance{% endblock %}
+
+{% block auth_content %}
+<div class="text-center">
+  <h1 class="text-2xl font-extrabold tracking-tight">Enter your code</h1>
+  <p class="mt-2 text-sm text-text-secondary">
+    Open your authenticator app and type the six digits for Household Finance.
+  </p>
+</div>
+
+<form method="post" class="mt-8 space-y-4">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="rounded-button border border-error/40 bg-error/10 px-4 py-3 text-sm text-error" role="alert">
+      {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  <div>
+    <label for="{{ form.token.id_for_label }}" class="sr-only">Authentication code</label>
+    {{ form.token }}
+    {% if form.token.errors %}
+      <p class="mt-2 text-sm text-error" role="alert">{{ form.token.errors.0 }}</p>
+    {% endif %}
+  </div>
+
+  <button type="submit"
+          class="w-full rounded-button bg-primary px-6 py-3 font-medium text-white transition hover:bg-primary-600">
+    Verify
+  </button>
+</form>
+
+<form method="post" action="{% url 'finance:logout' %}" class="mt-8 text-center">
+  {% csrf_token %}
+  <button type="submit" class="text-xs text-text-muted underline underline-offset-4 transition hover:text-text-secondary">
+    Sign out
+  </button>
+</form>
+{% endblock %}

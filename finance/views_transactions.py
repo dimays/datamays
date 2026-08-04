@@ -1,0 +1,223 @@
+"""The activity list and the review queue.
+
+The review queue is where the classifier's uncertainty gets resolved. Every
+confirmation writes a merchant memo, so the same merchant is never asked about
+twice — the queue should shrink toward empty rather than becoming a chore.
+
+This view doubles as the landing spot for every "show me what's behind this
+number" click elsewhere in the app: a budget row on the homepage, a bar in a
+Spend chart. Those pass `budget=`, `start=`/`end=`, or `spend=1` rather than
+duplicating filter logic at the call site, so the definition of "what counts"
+stays in one place (services.rollups.expand_categories,
+services.analytics.spend_filter).
+
+Accounts, categories, and budgets are all multi-select, and combine the way
+faceted filters normally do: choices *within* one filter are OR'd together
+("Checking or Savings"), and the different filters are AND'd against each
+other ("(Checking or Savings) and (Groceries)"). Selecting a budget and a
+category that budget doesn't include is a legitimate thing to ask for — it
+just means "transactions in that category, restricted to what this budget
+would count" — and if that combination matches nothing, the empty state below
+says so explicitly rather than looking indistinguishable from "no
+transactions at all".
+"""
+
+from datetime import date
+
+from django.contrib import messages
+from django.db.models import Q
+from django.shortcuts import get_object_or_404, redirect
+from django.views.generic import ListView
+
+from .access import FinanceAccessMixin
+from .models import Account, Budget, Category, CategoryRule, MatchType, Transaction
+from .redirects import safe_next
+from .services.analytics import spend_filter
+from .services.categorize import confirm_category
+from .services.merchants import normalise_merchant
+from .services.rollups import expand_categories
+
+
+class TransactionListView(FinanceAccessMixin, ListView):
+    template_name = "finance/transactions/list.html"
+    context_object_name = "transactions"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = Transaction.objects.select_related("account", "category")
+
+        if self.request.GET.get("review") == "1":
+            queryset = queryset.filter(needs_review=True)
+
+        if self.selected_accounts:
+            queryset = queryset.filter(account_id__in=self.selected_accounts)
+
+        if self.selected_categories:
+            queryset = queryset.filter(category_id__in=self.selected_categories)
+
+        budgets = self.filtered_budgets()
+        if budgets:
+            queryset = queryset.filter(self._budgets_q(budgets), is_transfer=False, amount__lt=0)
+
+        if self.request.GET.get("spend") == "1":
+            # Independent of budget — a chart click and a budget click-through
+            # can both land here (e.g. a stale link), and both narrowing the
+            # result is the correct, unsurprising behaviour rather than one
+            # silently overriding the other.
+            queryset = queryset.filter(spend_filter())
+
+        start = self.parse_date(self.request.GET.get("start"))
+        if start:
+            queryset = queryset.filter(posted_on__gte=start)
+
+        end = self.parse_date(self.request.GET.get("end"))
+        if end:
+            queryset = queryset.filter(posted_on__lte=end)
+
+        search = self.request.GET.get("q", "").strip()
+        if search:
+            queryset = queryset.filter(
+                Q(description_raw__icontains=search) | Q(merchant__icontains=search)
+            )
+
+        return queryset
+
+    @staticmethod
+    def _budgets_q(budgets):
+        """OR across budgets, each with its own category (and, if it has one,
+        account) restriction — "everything that counts toward any of these
+        budgets", which is what picking more than one budget should mean."""
+        combined = Q(pk__in=[])  # false until a budget contributes to it
+
+        for budget in budgets:
+            clause = Q(category_id__in=expand_categories(budget.categories.all()))
+
+            account_ids = list(budget.accounts.values_list("pk", flat=True))
+            if account_ids:
+                clause &= Q(account_id__in=account_ids)
+
+            combined |= clause
+
+        return combined
+
+    @property
+    def selected_accounts(self):
+        # The "All accounts" option in the filter always submits value="" —
+        # drop blanks so re-submitting with nothing chosen doesn't try to
+        # filter account_id__in=[''].
+        if not hasattr(self, "_selected_accounts"):
+            self._selected_accounts = [v for v in self.request.GET.getlist("account") if v]
+        return self._selected_accounts
+
+    @property
+    def selected_categories(self):
+        if not hasattr(self, "_selected_categories"):
+            self._selected_categories = [v for v in self.request.GET.getlist("category") if v]
+        return self._selected_categories
+
+    def filtered_budgets(self):
+        if not hasattr(self, "_filtered_budgets"):
+            budget_ids = [
+                v for v in self.request.GET.getlist("budget") if v and v.isdigit()
+            ]
+            # Invalid or stale ids just drop out rather than erroring — these
+            # are query params on a list view, not a resource lookup.
+            self._filtered_budgets = list(
+                Budget.objects.filter(pk__in=budget_ids).prefetch_related(
+                    "categories", "accounts"
+                )
+            ) if budget_ids else []
+        return self._filtered_budgets
+
+    @staticmethod
+    def parse_date(value):
+        if not value:
+            return None
+
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            return None
+
+    def has_active_filters(self):
+        return bool(
+            self.selected_accounts
+            or self.selected_categories
+            or self.filtered_budgets()
+            or self.request.GET.get("start")
+            or self.request.GET.get("end")
+            or self.request.GET.get("q")
+            or self.request.GET.get("spend") == "1"
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        all_accounts = Account.objects.filter(is_active=True)
+        all_categories = Category.objects.filter(
+            is_active=True, children__isnull=True
+        ).select_related("parent").alphabetical()
+        filtered_budgets = self.filtered_budgets()
+
+        context["page_title"] = "Activity"
+        context["accounts"] = all_accounts
+        context["categories"] = all_categories
+        context["budgets"] = Budget.objects.filter(is_active=True).order_by("name")
+        context["review_only"] = self.request.GET.get("review") == "1"
+        context["review_count"] = Transaction.objects.filter(needs_review=True).count()
+        context["filtered_budgets"] = filtered_budgets
+        context["has_active_filters"] = self.has_active_filters()
+        # Precomputed for the "showing: ..." banner, so the template doesn't
+        # have to cross-reference id lists against the full dropdown options.
+        context["selected_account_names"] = [
+            a.name for a in all_accounts if str(a.pk) in self.selected_accounts
+        ]
+        context["selected_category_names"] = [
+            c.full_path for c in all_categories if str(c.pk) in self.selected_categories
+        ]
+        context["selected_budget_names"] = [budget.name for budget in filtered_budgets]
+        context["filters"] = {
+            "accounts": self.selected_accounts,
+            "categories": self.selected_categories,
+            "budgets": [str(budget.pk) for budget in filtered_budgets],
+            "q": self.request.GET.get("q", ""),
+            "start": self.request.GET.get("start", ""),
+            "end": self.request.GET.get("end", ""),
+        }
+
+        return context
+
+    def post(self, request, *args, **kwargs):
+        """Confirm a category from the list, optionally as a standing rule."""
+        transaction = get_object_or_404(Transaction, pk=request.POST.get("transaction"))
+        category = get_object_or_404(Category, pk=request.POST.get("category"))
+
+        confirm_category(transaction, category, request.user)
+
+        if request.POST.get("create_rule"):
+            self._create_rule(request, transaction, category)
+
+        return redirect(safe_next(request, default=request.get_full_path()))
+
+    def _create_rule(self, request, transaction, category):
+        pattern = normalise_merchant(transaction.description_raw)
+
+        if not pattern:
+            messages.warning(
+                request,
+                "That description was too noisy to turn into a rule, but the "
+                "merchant has been remembered.",
+            )
+            return
+
+        rule, created = CategoryRule.objects.get_or_create(
+            pattern=pattern,
+            match_type=MatchType.CONTAINS,
+            defaults={"category": category, "notes": "Created from the review queue."},
+        )
+
+        if not created:
+            rule.category = category
+            rule.save(update_fields=["category", "updated_at"])
+
+        messages.success(request, f"Anything matching “{pattern}” now goes to {category}.")
