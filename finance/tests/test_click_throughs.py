@@ -181,6 +181,26 @@ class TransactionListFilterTests(TestCase):
         response = self.client.get(reverse("finance:transactions"), {"budget": "abc"})
         self.assertEqual(response.status_code, 200)
 
+    def test_resubmitting_the_filter_form_with_no_account_chosen_does_not_error(self):
+        # The "All accounts" option in the filter <select> always submits
+        # account="" — re-filtering (e.g. after a click-through set other
+        # filters) must not try account_id__in=[''].
+        response = self.client.get(reverse("finance:transactions"), {"account": ""})
+        self.assertEqual(response.status_code, 200)
+
+    def test_filters_combine_with_a_budget_click_through(self):
+        in_budget = self.spend(self.groceries, day=5)
+        out_of_budget = self.spend(self.fuel, day=6)
+
+        results = self.get_transactions(
+            budget=self.budget.pk, start="2026-04-01", end="2026-04-30",
+            account="", category="",
+        )
+
+        ids = {t.pk for t in results}
+        self.assertIn(in_budget.pk, ids)
+        self.assertNotIn(out_of_budget.pk, ids)
+
     def test_spend_flag_matches_the_dashboards_own_definition(self):
         outflow = self.spend(self.groceries, day=5)
         income_cat = Category.objects.get(slug="income-salary")

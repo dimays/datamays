@@ -42,7 +42,10 @@ class TransactionListView(FinanceAccessMixin, ListView):
         # Multi-value: a chart click carries forward whatever accounts were
         # already selected on the dashboard it came from, which may be more
         # than one. A single `?account=` still works the same as before.
-        accounts = self.request.GET.getlist("account")
+        # The filter <select> always submits an "All accounts" option with
+        # value="" — drop blanks so re-submitting the form with nothing
+        # chosen doesn't try to filter account_id__in=[''].
+        accounts = [value for value in self.request.GET.getlist("account") if value]
         if accounts:
             queryset = queryset.filter(account_id__in=accounts)
 
@@ -113,12 +116,14 @@ class TransactionListView(FinanceAccessMixin, ListView):
         context["categories"] = Category.objects.filter(
             is_active=True, children__isnull=True
         ).select_related("parent").alphabetical()
+        context["budgets"] = Budget.objects.filter(is_active=True).order_by("name")
         context["review_only"] = self.request.GET.get("review") == "1"
         context["review_count"] = Transaction.objects.filter(needs_review=True).count()
         context["filtered_budget"] = self.filtered_budget()
         context["filters"] = {
             "account": self.request.GET.get("account", ""),
             "category": self.request.GET.get("category", ""),
+            "budget": self.request.GET.get("budget", ""),
             "q": self.request.GET.get("q", ""),
             "start": self.request.GET.get("start", ""),
             "end": self.request.GET.get("end", ""),

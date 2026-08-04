@@ -32,11 +32,8 @@
   </div>
 {% endif %}
 
-<form method="get" class="mt-6 grid gap-3 sm:grid-cols-3">
+<form method="get" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
   {% if review_only %}<input type="hidden" name="review" value="1" />{% endif %}
-  {% if filtered_budget %}<input type="hidden" name="budget" value="{{ filtered_budget.pk }}" />{% endif %}
-  {% if filters.start %}<input type="hidden" name="start" value="{{ filters.start }}" />{% endif %}
-  {% if filters.end %}<input type="hidden" name="end" value="{{ filters.end }}" />{% endif %}
 
   <input name="q" value="{{ filters.q }}" placeholder="Search descriptions"
          class="rounded-button border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
@@ -47,6 +44,32 @@
       <option value="{{ account.pk }}" {% if filters.account == account.pk|stringformat:"s" %}selected{% endif %}>{{ account.name }}</option>
     {% endfor %}
   </select>
+
+  <select name="category" class="rounded-button border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+    <option value="">All categories</option>
+    {% for category in categories %}
+      <option value="{{ category.pk }}" {% if filters.category == category.pk|stringformat:"s" %}selected{% endif %}>{{ category.full_path }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="budget" class="rounded-button border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+    <option value="">All budgets</option>
+    {% for budget in budgets %}
+      <option value="{{ budget.pk }}" {% if filters.budget == budget.pk|stringformat:"s" %}selected{% endif %}>{{ budget.name }}</option>
+    {% endfor %}
+  </select>
+
+  <label class="flex items-center gap-2 text-xs text-text-muted">
+    From
+    <input type="date" name="start" value="{{ filters.start }}"
+           class="w-full rounded-button border border-border bg-background px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary" />
+  </label>
+
+  <label class="flex items-center gap-2 text-xs text-text-muted">
+    To
+    <input type="date" name="end" value="{{ filters.end }}"
+           class="w-full rounded-button border border-border bg-background px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary" />
+  </label>
 
   <button type="submit" class="rounded-button border border-border bg-surface px-4 py-2 text-sm font-medium transition hover:bg-muted">
     Filter

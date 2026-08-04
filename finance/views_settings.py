@@ -11,7 +11,8 @@ from django import forms
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
-from django.views.generic import FormView, ListView, TemplateView, UpdateView
+from django.utils.text import slugify
+from django.views.generic import CreateView, FormView, ListView, TemplateView, UpdateView
 
 from .access import FinanceAccessMixin
 from .models import (
@@ -54,6 +55,7 @@ class SettingsHomeView(FinanceView):
             {
                 "connections": AccountConnection.objects.select_related("institution").defer("access_secret"),
                 "accounts": Account.objects.select_related("institution"),
+                "institution_count": Institution.objects.count(),
                 "budget_count": Budget.objects.count(),
                 "rule_count": CategoryRule.objects.count(),
                 "needs_attention": AccountConnection.objects.filter(
@@ -64,6 +66,86 @@ class SettingsHomeView(FinanceView):
         )
 
         return context
+
+
+class InstitutionForm(forms.ModelForm):
+    """Every institution goes through here, whether it ends up connected via
+    SimpleFIN or only ever fed by hand-uploaded statements — CSV import and
+    manual accounts both need an Institution to attach to, and until now the
+    only way to create one was the side effect of connecting a SimpleFIN
+    integration."""
+
+    class Meta:
+        model = Institution
+        fields = ["name", "provider", "website", "notes", "is_active"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": FIELD_CLASSES, "placeholder": "Northwestern Mutual"}),
+            "provider": forms.Select(attrs={"class": FIELD_CLASSES}),
+            "website": forms.URLInput(attrs={"class": FIELD_CLASSES}),
+            "notes": forms.Textarea(attrs={"class": FIELD_CLASSES, "rows": 3}),
+            "is_active": forms.CheckboxInput(attrs={"class": CHECKBOX_CLASSES}),
+        }
+        help_texts = {
+            "provider": "How data from here normally arrives — SimpleFIN connects "
+            "automatically; CSV/manual means you'll keep it current by hand.",
+        }
+
+    def save(self, commit=True):
+        institution = super().save(commit=False)
+
+        if not institution.slug:
+            institution.slug = slugify(institution.name)[:140]
+
+        if commit:
+            institution.save()
+
+        return institution
+
+
+class InstitutionListView(FinanceAccessMixin, ListView):
+    template_name = "finance/settings/institutions.html"
+    context_object_name = "institutions"
+
+    def get_queryset(self):
+        return Institution.objects.prefetch_related("accounts", "connections")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Institutions"
+        return context
+
+
+class InstitutionCreateView(FinanceAccessMixin, CreateView):
+    template_name = "finance/settings/institution_form.html"
+    form_class = InstitutionForm
+    success_url = reverse_lazy("finance:institutions")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New institution"
+        return context
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        messages.success(self.request, f"Added {self.object.name}.")
+        return response
+
+
+class InstitutionUpdateView(FinanceAccessMixin, UpdateView):
+    template_name = "finance/settings/institution_form.html"
+    form_class = InstitutionForm
+    model = Institution
+    success_url = reverse_lazy("finance:institutions")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit {self.object.name}"
+        return context
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        messages.success(self.request, f"Updated {self.object.name}.")
+        return response
 
 
 class ConnectionForm(forms.Form):
@@ -113,8 +195,6 @@ class ConnectionCreateView(FinanceAccessMixin, FormView):
         return context
 
     def form_valid(self, form):
-        from django.utils.text import slugify
-
         try:
             access_url = claim_access_url(form.cleaned_data["setup_token"])
         except ProviderError as exc:
@@ -240,6 +320,60 @@ class AccountForm(forms.ModelForm):
         }
 
 
+class ManualAccountForm(forms.ModelForm):
+    """For an account with no connection — the mortgage, the 401(k), anything
+    only ever kept current by a CSV import or by hand. A connected account's
+    institution is set by the sync that discovered it, so this form (and its
+    institution field) is create-only; editing an existing account goes
+    through AccountForm instead."""
+
+    class Meta:
+        model = Account
+        fields = [
+            "institution", "name", "account_type", "mask",
+            "current_balance", "balance_as_of",
+            "debt_reported_positive", "include_in_net_worth", "include_in_spending",
+            "notes",
+        ]
+        widgets = {
+            "institution": forms.Select(attrs={"class": FIELD_CLASSES}),
+            "name": forms.TextInput(attrs={"class": FIELD_CLASSES, "placeholder": "401(k)"}),
+            "account_type": forms.Select(attrs={"class": FIELD_CLASSES}),
+            "mask": forms.TextInput(attrs={"class": FIELD_CLASSES}),
+            "current_balance": forms.NumberInput(attrs={"class": FIELD_CLASSES, "step": "0.01"}),
+            "balance_as_of": forms.DateTimeInput(attrs={"class": FIELD_CLASSES, "type": "datetime-local"}),
+            "notes": forms.Textarea(attrs={"class": FIELD_CLASSES, "rows": 2}),
+            "debt_reported_positive": forms.CheckboxInput(attrs={"class": CHECKBOX_CLASSES}),
+            "include_in_net_worth": forms.CheckboxInput(attrs={"class": CHECKBOX_CLASSES}),
+            "include_in_spending": forms.CheckboxInput(attrs={"class": CHECKBOX_CLASSES}),
+        }
+        help_texts = {
+            "current_balance": "Optional — leave blank and set it later with a CSV "
+            "balance import if you don't have a figure handy right now.",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["institution"].queryset = Institution.objects.filter(is_active=True)
+        self.fields["current_balance"].required = False
+        self.fields["balance_as_of"].required = False
+
+
+class AccountCreateView(FinanceAccessMixin, CreateView):
+    template_name = "finance/settings/account_form.html"
+    form_class = ManualAccountForm
+    success_url = reverse_lazy("finance:settings")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New manual account"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Added {form.instance.name}.")
+        return super().form_valid(form)
+
+
 class AccountUpdateView(FinanceAccessMixin, UpdateView):
     template_name = "finance/settings/account_form.html"
     form_class = AccountForm
@@ -288,6 +422,11 @@ class PreferencesForm(forms.ModelForm):
         required=False,
         widget=forms.CheckboxSelectMultiple(attrs={"class": CHECKBOX_CLASSES}),
     )
+    # Populated by the drag-and-drop reorder script (finance/js/widget-reorder.js)
+    # as a comma-separated slug list reflecting the on-screen row order —
+    # every WIDGET_CHOICES slug, not just the checked ones, so unchecking and
+    # rechecking a widget doesn't lose its place in the list.
+    widget_order = forms.CharField(required=False, widget=forms.HiddenInput())
     accounts_selected = forms.ModelMultipleChoiceField(
         label="Accounts to show",
         queryset=Account.objects.filter(is_active=True),
@@ -315,20 +454,51 @@ class PreferencesForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        all_slugs = [slug for slug, _ in WIDGET_CHOICES]
+
         if self.instance.pk:
             self.fields["widgets_selected"].initial = self.instance.widgets
             self.fields["accounts_selected"].initial = self.instance.homepage_account_ids
             self.fields["budgets_selected"].initial = self.instance.homepage_budget_ids
+            # The chosen widgets first, in the order the person last arranged
+            # them, then anything not yet chosen — so a widget shipped after
+            # they last saved still shows up, at the end rather than nowhere.
+            ordered = list(self.instance.widgets) + [
+                slug for slug in all_slugs if slug not in self.instance.widgets
+            ]
+        else:
+            ordered = all_slugs
+
+        self.fields["widget_order"].initial = ",".join(ordered)
+        self._ordered_slugs = ordered
+
+    def ordered_widget_rows(self):
+        """(slug, label, checked) in the order the reorder UI should render them."""
+        checked = set(self.fields["widgets_selected"].initial or [])
+        labels = dict(WIDGET_CHOICES)
+
+        return [(slug, labels[slug], slug in checked) for slug in self._ordered_slugs]
 
     def save(self, commit=True):
         preference = super().save(commit=False)
 
-        # Stored in the order WIDGET_CHOICES declares, so the homepage reads
-        # the same way every time rather than in checkbox-click order.
+        # The hidden field carries the drag-and-drop order for every known
+        # widget; filtering it down to what's checked (rather than reading
+        # WIDGET_CHOICES' fixed order) is what lets a person actually control
+        # placement instead of always getting it reset to the declared order.
         chosen = set(self.cleaned_data["widgets_selected"])
-        preference.homepage_widgets = [
-            slug for slug, _ in WIDGET_CHOICES if slug in chosen
+        known_slugs = {slug for slug, _ in WIDGET_CHOICES}
+        ordered_slugs = [
+            slug
+            for slug in self.cleaned_data["widget_order"].split(",")
+            if slug in known_slugs
         ]
+        # A missing or corrupted order (JS disabled, stale form) falls back
+        # to the declared order rather than dropping every widget.
+        if not ordered_slugs:
+            ordered_slugs = [slug for slug, _ in WIDGET_CHOICES]
+
+        preference.homepage_widgets = [slug for slug in ordered_slugs if slug in chosen]
 
         preference.homepage_account_ids = [
             account.pk for account in self.cleaned_data["accounts_selected"]
