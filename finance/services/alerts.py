@@ -18,6 +18,7 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
 
+from ..dates import household_today
 from ..models import Alert, AlertEvent, AlertKind, BudgetPeriod, Comparison
 from ..periods import elapsed_fraction
 
@@ -56,7 +57,7 @@ def current_period_for(budget):
     if budget is None:
         return None
 
-    today = timezone.localdate()
+    today = household_today()
 
     return BudgetPeriod.objects.filter(
         budget=budget, period_start__lte=today, period_end__gte=today
@@ -99,7 +100,7 @@ def period_gate_passed(alert):
         return False
 
     elapsed = elapsed_fraction(
-        period.period_start, period.period_end, timezone.localdate()
+        period.period_start, period.period_end, household_today()
     )
 
     return elapsed >= alert.only_after_period_fraction
@@ -177,7 +178,8 @@ def evaluate_alerts(*, send=True, now=None):
 
         event = AlertEvent.objects.create(
             alert=alert,
-            observed_value=Decimal(str(round(float(value), 2))),
+            # Quantised, never routed through float — see models.base.
+            observed_value=Decimal(value).quantize(Decimal("0.01")),
             message=build_message(alert, value),
         )
 

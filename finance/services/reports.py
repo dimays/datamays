@@ -14,6 +14,7 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
 
+from ..dates import household_today, to_household_date
 from ..models import (
     Account,
     BudgetPeriod,
@@ -37,7 +38,7 @@ DEFAULT_SECTIONS = ["balances", "budgets", "spend"]
 
 
 def window_for(report, on_date=None):
-    on_date = on_date or timezone.localdate()
+    on_date = on_date or household_today()
 
     if report.cadence == ReportCadence.WEEKLY:
         return on_date - timedelta(days=7), on_date
@@ -54,7 +55,7 @@ def is_due(report, on_date=None, now=None):
     if not report.is_active:
         return False
 
-    on_date = on_date or timezone.localdate()
+    on_date = on_date or household_today()
     now = now or timezone.now()
 
     if report.cadence == ReportCadence.WEEKLY:
@@ -67,7 +68,7 @@ def is_due(report, on_date=None, now=None):
     if report.last_sent_at is None:
         return True
 
-    return timezone.localtime(report.last_sent_at).date() < on_date
+    return to_household_date(report.last_sent_at) < on_date
 
 
 def _accounts_for(report):

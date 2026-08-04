@@ -12,6 +12,7 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 
+from finance.dates import household_today
 from finance.models import (
     Account,
     AccountConnection,
@@ -65,7 +66,7 @@ class AlertTestCase(TestCase):
         self.groceries = Category.objects.get(slug="food-groceries")
 
     def make_budget_period(self, actual="600.00", target="800.00", name="Groceries"):
-        today = timezone.localdate()
+        today = household_today()
         budget = Budget.objects.create(name=name, amount=Decimal(target))
         budget.categories.set([self.groceries])
 
@@ -232,8 +233,8 @@ class BudgetAlertTests(AlertTestCase):
             only_after_period_fraction=0.0,
         )
 
-        period.period_start = timezone.localdate() - timedelta(days=1)
-        period.period_end = timezone.localdate() + timedelta(days=200)
+        period.period_start = household_today() - timedelta(days=1)
+        period.period_end = household_today() + timedelta(days=200)
         period.save()
 
         # Barely into a long period, so the gate at 0.0 still passes.
@@ -252,8 +253,8 @@ class BudgetAlertTests(AlertTestCase):
             only_after_period_fraction=0.9,
         )
 
-        period.period_start = timezone.localdate()
-        period.period_end = timezone.localdate() + timedelta(days=60)
+        period.period_start = household_today()
+        period.period_end = household_today() + timedelta(days=60)
         period.save()
 
         self.assertEqual(evaluate_alerts(), [])
@@ -310,7 +311,7 @@ class ReportTests(AlertTestCase):
         kwargs.setdefault("name", "Weekly summary")
         kwargs.setdefault("cadence", ReportCadence.WEEKLY)
         kwargs.setdefault("sections", ["balances", "budgets", "spend"])
-        kwargs.setdefault("send_day", timezone.localdate().isoweekday())
+        kwargs.setdefault("send_day", household_today().isoweekday())
 
         return ScheduledReport.objects.create(user=self.user, **kwargs)
 
@@ -329,7 +330,7 @@ class ReportTests(AlertTestCase):
         self.assertIsNotNone(report.last_sent_at)
 
     def test_a_report_due_another_day_is_not_sent(self):
-        other_day = (timezone.localdate().isoweekday() % 7) + 1
+        other_day = (household_today().isoweekday() % 7) + 1
         self.make_report(send_day=other_day)
 
         self.assertEqual(report_service.send_due_reports(), [])
@@ -368,7 +369,7 @@ class ReportTests(AlertTestCase):
         self.assertEqual(report_service.send_due_reports(), [])
 
     def test_a_monthly_report_is_due_on_its_day_of_month(self):
-        today = timezone.localdate()
+        today = household_today()
         report = self.make_report(
             cadence=ReportCadence.MONTHLY, send_day=min(today.day, 28)
         )
@@ -524,3 +525,25 @@ class AlertUIScopingTests(AlertTestCase):
         fired = evaluate_alerts()
 
         self.assertEqual({event.alert.name for event in fired}, {"Mine"})
+
+
+class AlertPrecisionTests(AlertTestCase):
+    """Money must never round-trip through float."""
+
+    def test_the_observed_value_keeps_decimal_precision(self):
+        self.checking.current_balance = Decimal("1234.56")
+        self.checking.save()
+
+        Alert.objects.create(
+            user=self.user,
+            name="Balance",
+            kind=AlertKind.ACCOUNT_BALANCE,
+            account=self.checking,
+            comparison=Comparison.ABOVE,
+            threshold=Decimal("1000.00"),
+        )
+
+        fired = evaluate_alerts(send=False)
+
+        self.assertEqual(fired[0].observed_value, Decimal("1234.56"))
+        self.assertIsInstance(fired[0].observed_value, Decimal)
