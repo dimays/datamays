@@ -28,6 +28,23 @@
   </fieldset>
 
   <fieldset class="rounded-card border border-border bg-surface p-4">
+    <legend class="px-1 text-sm font-medium">{{ form.chart_sections_selected.label }}</legend>
+    <p class="mb-3 text-xs text-text-muted">Drag to reorder — this is the order they'll appear on the Charts tab.</p>
+    {{ form.chart_section_order_input }}
+    <div data-widget-reorder data-order-input="#{{ form.chart_section_order_input.id_for_label }}" class="space-y-2">
+      {% for slug, label, checked in form.ordered_chart_section_rows %}
+        <label data-widget-row="{{ slug }}"
+               class="flex cursor-grab items-center gap-3 rounded-button border border-border bg-background px-3 py-2 text-sm text-text-secondary active:cursor-grabbing">
+          <span class="select-none text-text-muted" aria-hidden="true">⠿</span>
+          <input type="checkbox" name="chart_sections_selected" value="{{ slug }}" {% if checked %}checked{% endif %}
+                 class="h-4 w-4 rounded border-border bg-background text-primary focus:ring-primary" />
+          <span>{{ label }}</span>
+        </label>
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  <fieldset class="rounded-card border border-border bg-surface p-4">
     <legend class="px-1 text-sm font-medium">{{ form.accounts_selected.label }}</legend>
     <p class="mb-3 text-xs text-text-muted">{{ form.accounts_selected.help_text }}</p>
     <div class="space-y-2.5">

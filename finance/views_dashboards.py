@@ -67,6 +67,19 @@ GRAIN_MIN_RANGE_DAYS = {
     "annually": 365,
 }
 
+# Charts tab sections a person can choose to show and reorder, in Preferences
+# — the same arrange-your-own pattern as the homepage widgets. Each slug maps
+# to a template partial at finance/dashboards/sections/<slug>.html.
+CHART_SECTION_CHOICES = [
+    ("spend_over_time", "Spend over time"),
+    ("spend_by_category_trend", "Spend by category, over time"),
+    ("spend_by_category", "Spend by category"),
+    ("budget_attainment", "Budget attainment"),
+    ("net_income", "Net income"),
+    ("net_cash_flow", "Net cash flow"),
+    ("savings_debt", "Savings & debt"),
+]
+
 
 class ChartsView(FinanceView):
     """Shared filter handling: range, resolution, and account selection."""
@@ -138,6 +151,13 @@ class ChartsView(FinanceView):
         grain = self.resolve_grain(range_key)
         account_ids = self.resolve_accounts()
 
+        known_sections = {slug for slug, _ in CHART_SECTION_CHOICES}
+        chart_sections = [
+            slug
+            for slug in self.get_preference().chart_section_order
+            if slug in known_sections
+        ]
+
         context.update(
             {
                 "range_choices": RANGE_CHOICES,
@@ -148,6 +168,7 @@ class ChartsView(FinanceView):
                 "all_accounts": Account.objects.filter(is_active=True),
                 "start": start,
                 "end": end,
+                "chart_sections": chart_sections,
             }
         )
 

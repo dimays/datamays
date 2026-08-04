@@ -1,0 +1,13 @@
+{% load finance_extras %}
+{% if spend_has_data %}
+  <p class="mt-2 font-mono text-3xl font-bold">${{ spend_total|money:0 }}</p>
+  <p class="text-xs text-text-muted">total spend this window</p>
+
+  <section class="mt-6 rounded-card border border-border bg-surface p-5">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Spend over time</h2>
+    <div class="mt-4 h-64">
+      <canvas data-chart="bar" data-source="spend-over-time" data-label="Spend"></canvas>
+    </div>
+    {{ spend_over_time_json|json_script:"spend-over-time" }}
+  </section>
+{% endif %}

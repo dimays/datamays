@@ -82,6 +82,10 @@
               {% if account.is_manual %}· manual{% endif %}
               {% if not account.is_active %}· inactive{% endif %}
             </p>
+            <p class="mt-0.5 text-xs text-text-muted">
+              {% if account.balance_as_of %}Last updated on {{ account.balance_as_of|date:"j M Y" }}
+              {% else %}Never updated{% endif %}
+            </p>
           </div>
           <p class="shrink-0 font-mono text-sm">{{ account.display_balance|money_sign }}${{ account.display_balance|abs_money }}</p>
         </a>

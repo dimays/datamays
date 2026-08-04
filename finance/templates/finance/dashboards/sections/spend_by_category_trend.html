@@ -1,0 +1,10 @@
+{% if spend_has_data %}
+  <section class="mt-4 rounded-card border border-border bg-surface p-5">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Spend by category, over time</h2>
+    <p class="mt-1 text-xs text-text-muted">Each line is a category, so a trend jumps out.</p>
+    <div class="mt-4 h-72">
+      <canvas data-chart="lines" data-source="spend-by-category-over-time"></canvas>
+    </div>
+    {{ spend_by_category_over_time_json|json_script:"spend-by-category-over-time" }}
+  </section>
+{% endif %}

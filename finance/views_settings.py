@@ -33,6 +33,7 @@ from .providers.simplefin import claim_access_url
 from .services.sync import sync_connection
 from .services.widgets import WIDGET_CHOICES
 from .views import FinanceView
+from .views_dashboards import CHART_SECTION_CHOICES
 
 FIELD_CLASSES = (
     "w-full rounded-button border border-border bg-background px-3 py-2 text-sm "
@@ -448,6 +449,14 @@ class PreferencesForm(forms.ModelForm):
     # every WIDGET_CHOICES slug, not just the checked ones, so unchecking and
     # rechecking a widget doesn't lose its place in the list.
     widget_order = forms.CharField(required=False, widget=forms.HiddenInput())
+    chart_sections_selected = forms.MultipleChoiceField(
+        label="Charts tab sections",
+        choices=CHART_SECTION_CHOICES,
+        required=False,
+        widget=forms.CheckboxSelectMultiple(attrs={"class": CHECKBOX_CLASSES}),
+    )
+    # Same reorder pattern as widget_order, one section down.
+    chart_section_order_input = forms.CharField(required=False, widget=forms.HiddenInput())
     accounts_selected = forms.ModelMultipleChoiceField(
         label="Accounts to show",
         queryset=Account.objects.filter(is_active=True),
@@ -476,6 +485,7 @@ class PreferencesForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         all_slugs = [slug for slug, _ in WIDGET_CHOICES]
+        all_section_slugs = [slug for slug, _ in CHART_SECTION_CHOICES]
 
         if self.instance.pk:
             self.fields["widgets_selected"].initial = self.instance.widgets
@@ -487,11 +497,19 @@ class PreferencesForm(forms.ModelForm):
             ordered = list(self.instance.widgets) + [
                 slug for slug in all_slugs if slug not in self.instance.widgets
             ]
+            self.fields["chart_sections_selected"].initial = self.instance.chart_section_order
+            ordered_sections = list(self.instance.chart_section_order) + [
+                slug for slug in all_section_slugs if slug not in self.instance.chart_section_order
+            ]
         else:
             ordered = all_slugs
+            ordered_sections = all_section_slugs
 
         self.fields["widget_order"].initial = ",".join(ordered)
         self._ordered_slugs = ordered
+
+        self.fields["chart_section_order_input"].initial = ",".join(ordered_sections)
+        self._ordered_section_slugs = ordered_sections
 
     def ordered_widget_rows(self):
         """(slug, label, checked) in the order the reorder UI should render them."""
@@ -499,6 +517,15 @@ class PreferencesForm(forms.ModelForm):
         labels = dict(WIDGET_CHOICES)
 
         return [(slug, labels[slug], slug in checked) for slug in self._ordered_slugs]
+
+    def ordered_chart_section_rows(self):
+        """(slug, label, checked) for the Charts tab section reorder UI."""
+        checked = set(self.fields["chart_sections_selected"].initial or [])
+        labels = dict(CHART_SECTION_CHOICES)
+
+        return [
+            (slug, labels[slug], slug in checked) for slug in self._ordered_section_slugs
+        ]
 
     def save(self, commit=True):
         preference = super().save(commit=False)
@@ -520,6 +547,20 @@ class PreferencesForm(forms.ModelForm):
             ordered_slugs = [slug for slug, _ in WIDGET_CHOICES]
 
         preference.homepage_widgets = [slug for slug in ordered_slugs if slug in chosen]
+
+        chosen_sections = set(self.cleaned_data["chart_sections_selected"])
+        known_section_slugs = {slug for slug, _ in CHART_SECTION_CHOICES}
+        ordered_section_slugs = [
+            slug
+            for slug in self.cleaned_data["chart_section_order_input"].split(",")
+            if slug in known_section_slugs
+        ]
+        if not ordered_section_slugs:
+            ordered_section_slugs = [slug for slug, _ in CHART_SECTION_CHOICES]
+
+        preference.chart_sections = [
+            slug for slug in ordered_section_slugs if slug in chosen_sections
+        ]
 
         preference.homepage_account_ids = [
             account.pk for account in self.cleaned_data["accounts_selected"]

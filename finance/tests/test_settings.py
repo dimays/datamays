@@ -168,6 +168,26 @@ class ConnectionManagementTests(SettingsTestCase):
         sync.assert_called_once()
 
 
+class AccountCardRenderTests(SettingsTestCase):
+    def test_an_account_with_a_balance_shows_when_it_was_last_updated(self):
+        from django.utils import timezone
+
+        self.account.balance_as_of = timezone.now()
+        self.account.save()
+
+        response = self.client.get(reverse("finance:settings"))
+
+        self.assertContains(response, "Last updated on")
+
+    def test_an_account_never_updated_says_so_rather_than_a_blank(self):
+        self.account.balance_as_of = None
+        self.account.save()
+
+        response = self.client.get(reverse("finance:settings"))
+
+        self.assertContains(response, "Never updated")
+
+
 class AccountSettingsTests(SettingsTestCase):
     def test_an_account_type_can_be_corrected(self):
         self.client.post(
@@ -407,6 +427,30 @@ class PreferenceTests(SettingsTestCase):
         self.assertEqual(maddie_preference.homepage_widgets, ["net_worth"])
         self.assertEqual(
             UserPreference.for_user(self.user).homepage_widgets, ["balances"]
+        )
+
+    def test_chart_section_selection_is_saved_in_declaration_order(self):
+        self.client.post(
+            reverse("finance:preferences"),
+            {
+                "widgets_selected": ["balances"],
+                # Submitted out of order; stored order should be canonical.
+                "chart_sections_selected": ["net_cash_flow", "spend_over_time"],
+                "recent_transaction_count": 8,
+            },
+        )
+
+        preference = UserPreference.for_user(self.user)
+        self.assertEqual(
+            preference.chart_sections, ["spend_over_time", "net_cash_flow"]
+        )
+
+    def test_a_new_preference_defaults_to_every_chart_section(self):
+        response = self.client.get(reverse("finance:preferences"))
+
+        self.assertEqual(
+            response.context["form"].fields["chart_sections_selected"].initial,
+            UserPreference.for_user(self.user).chart_section_order,
         )
 
 

@@ -1,0 +1,10 @@
+{% if cash_flow_has_data %}
+  <section class="mt-8 rounded-card border border-border bg-surface p-5">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Net cash flow</h2>
+    <p class="mt-1 text-xs text-text-muted">Income minus spend, per period — above zero is cash building up.</p>
+    <div class="mt-4 h-64">
+      <canvas data-chart="bar" data-source="cash-flow" data-label="Net cash flow"></canvas>
+    </div>
+    {{ cash_flow_json|json_script:"cash-flow" }}
+  </section>
+{% endif %}
