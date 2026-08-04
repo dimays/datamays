@@ -87,11 +87,24 @@ class SyncSummary:
     accounts_synced: int = 0
     transactions_created: int = 0
     transactions_updated: int = 0
+    # Genuine per-account failures — something didn't save. These are what
+    # actually make a run PARTIAL and block the connection from being marked
+    # synced.
     errors: list[str] = None
+    # Provider-level notices attached to the request as a whole (SimpleFIN's
+    # top-level `errors`), most often a date-range recommendation from a
+    # specific institution rather than anything actually failing. Recorded
+    # for visibility, but must not block last_synced_at from advancing —
+    # institutions vary in what range they'll tolerate, so treating every
+    # notice as a failure means some connection is always stuck re-requesting
+    # the same window and re-triggering the same notice forever.
+    provider_notices: list[str] = None
 
     def __post_init__(self):
         if self.errors is None:
             self.errors = []
+        if self.provider_notices is None:
+            self.provider_notices = []
 
 
 def guess_account_type(name: str) -> str:
@@ -314,7 +327,7 @@ def sync_connection(
         run.finish(SyncStatus.FAILED, error=str(exc))
         return run
 
-    summary = SyncSummary(errors=list(result.errors))
+    summary = SyncSummary(provider_notices=list(result.errors))
 
     for account_payload in result.accounts:
         try:
@@ -345,6 +358,13 @@ def sync_connection(
     if summary.errors:
         connection.mark_failed("; ".join(summary.errors)[:2000])
         run.finish(SyncStatus.PARTIAL, error="; ".join(summary.errors))
+    elif summary.provider_notices:
+        # The fetch still returned complete data for every account — this is
+        # SimpleFIN remarking on the request, not reporting that anything
+        # failed — so the connection is genuinely synced. The notice is kept
+        # on this run for visibility without blocking last_synced_at.
+        connection.mark_synced()
+        run.finish(SyncStatus.SUCCESS, error="; ".join(summary.provider_notices)[:2000])
     else:
         connection.mark_synced()
         run.finish(SyncStatus.SUCCESS)
