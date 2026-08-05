@@ -49,6 +49,11 @@ BRITISH_STEMS = {
 
 PATTERN = re.compile("|".join(BRITISH_STEMS), re.IGNORECASE)
 
+# A line carrying this marker is skipped. For the rare legitimate case: a
+# style guide showing the wrong spelling as a counter-example, or a quotation
+# from an external source. Opting a line out beats deleting the check.
+OPT_OUT = "spelling-check: ignore"
+
 
 def _checked_files():
     for path in REPO_ROOT.rglob("*"):
@@ -75,6 +80,9 @@ class SpellingTests(SimpleTestCase):
                 continue
 
             for number, line in enumerate(lines, start=1):
+                if OPT_OUT in line:
+                    continue
+
                 for match in PATTERN.finditer(line):
                     british = match.group(0)
                     american = BRITISH_STEMS[british.lower()]

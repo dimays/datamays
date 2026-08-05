@@ -8,6 +8,23 @@ Feel free to fork and use as a foundation for your own personal portfolio!
 
 ---
 
+## Documentation
+
+Full documentation lives in [`docs/`](docs/):
+
+| | |
+|---|---|
+| [`docs/onboarding.md`](docs/onboarding.md) | Setup, and the one trap that will bite you |
+| [`docs/conventions.md`](docs/conventions.md) | What the code expects of you |
+| [`docs/architecture/overview.md`](docs/architecture/overview.md) | How the three apps fit together |
+| [`docs/architecture/decisions/`](docs/architecture/decisions/) | Why it is the way it is |
+| [`docs/runbooks/`](docs/runbooks/) | Deploying, and what to do when something breaks |
+
+Per-app: [`finance/docs/`](finance/docs/) · [`core/docs/`](core/docs/) ·
+[`contact/docs/`](contact/docs/)
+
+---
+
 ## Table of Contents
 
 - [Requirements](#requirements)
@@ -78,17 +95,12 @@ uv run python manage.py test --settings=datamays.settings_test
 
 ### Household Finance
 
-The private finance app lives at `/finance`, documented for two different
-readers:
+The private finance app lives at `/finance` and has its own documentation set
+at [`finance/docs/`](finance/docs/) — start with its
+[README](finance/docs/README.md).
 
-- [`finance/RUNBOOK.md`](finance/RUNBOOK.md) — operating it: setup, Heroku
-  Scheduler jobs, key rotation, generating QFRs, and what to do when a sync
-  goes wrong.
-- [`finance/ARCHITECTURE.md`](finance/ARCHITECTURE.md) — working on it: app
-  layout, the sign and money conventions, the sync → categorize → rollup →
-  alerts pipeline, and testing conventions.
-
-What each screen does is covered in-app, under the header menu's Help link.
+What each screen does *for a user* is covered in-app, under the header menu's
+Help link.
 
 ### Tailwind / Frontend Dev Server
 
