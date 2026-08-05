@@ -667,18 +667,12 @@ class ChartsDashboardRenderTests(AnalyticsTestCase):
             response.context["chart_sections"], ["net_cash_flow", "spend_over_time"]
         )
 
-    def test_large_transactions_and_recurring_expenses_sections_render(self):
+    def test_large_transactions_section_renders(self):
         self.spend("-900.00", self.groceries, 5)
-        for month in (2, 3, 4):
-            make_transaction(
-                self.checking, posted_on=date(2026, month, 6), amount=Decimal("-15.99"),
-                description_raw="NETFLIX", merchant="Netflix", category=self.groceries,
-            )
 
         response = self.client.get(reverse("finance:charts"), {"range": "6m"})
 
         self.assertContains(response, "Largest transactions")
-        self.assertContains(response, "recurring-expenses")
 
     def test_balances_over_time_replaces_the_old_savings_and_debt_charts(self):
         AccountBalanceSnapshot.objects.create(
@@ -866,71 +860,6 @@ class LargestTransactionsAnalyticsTests(AnalyticsTestCase):
 
         self.assertFalse(result["has_data"])
         self.assertEqual(result["transactions"], [])
-
-
-class RecurringExpensesAnalyticsTests(AnalyticsTestCase):
-    def merchant_txn(self, merchant, amount, day, month=4):
-        return make_transaction(
-            self.checking,
-            posted_on=date(2026, month, day),
-            amount=Decimal(amount),
-            description_raw=f"{merchant} PURCHASE",
-            merchant=merchant,
-            category=self.groceries,
-        )
-
-    def test_a_merchant_recurring_across_periods_gets_its_own_line(self):
-        self.merchant_txn("Netflix", "-15.99", 5, month=2)
-        self.merchant_txn("Netflix", "-15.99", 5, month=3)
-        self.merchant_txn("Netflix", "-17.99", 5, month=4)
-
-        result = analytics.recurring_expenses_over_time(
-            date(2026, 2, 1), date(2026, 4, 30), grain="monthly", min_occurrences=3
-        )
-
-        by_label = {series["label"]: series["values"] for series in result["series"]}
-        self.assertEqual(by_label["Netflix"], [15.99, 15.99, 17.99])
-
-    def test_a_merchant_seen_only_once_is_not_recurring(self):
-        self.merchant_txn("One-off Store", "-40.00", 5, month=4)
-
-        result = analytics.recurring_expenses_over_time(
-            date(2026, 2, 1), date(2026, 4, 30), grain="monthly", min_occurrences=3
-        )
-
-        self.assertEqual(result["series"], [])
-        self.assertFalse(result["has_data"])
-
-    def test_falls_back_to_description_when_no_merchant_is_set(self):
-        for month in (2, 3, 4):
-            make_transaction(
-                self.checking, posted_on=date(2026, month, 5), amount=Decimal("-9.99"),
-                description_raw="ACME WIDGET CO", merchant="", category=self.groceries,
-            )
-
-        result = analytics.recurring_expenses_over_time(
-            date(2026, 2, 1), date(2026, 4, 30), grain="monthly", min_occurrences=3
-        )
-
-        labels = [series["label"] for series in result["series"]]
-        self.assertEqual(labels, ["ACME WIDGET CO"])
-
-    def test_ranked_by_total_spend_and_capped_to_the_limit(self):
-        for month in (2, 3, 4):
-            self.merchant_txn("Big Spender", "-200.00", 5, month=month)
-            self.merchant_txn("Small Spender", "-5.00", 6, month=month)
-
-        result = analytics.recurring_expenses_over_time(
-            date(2026, 2, 1), date(2026, 4, 30), grain="monthly", min_occurrences=3, limit=1
-        )
-
-        labels = [series["label"] for series in result["series"]]
-        self.assertEqual(labels, ["Big Spender"])
-
-    def test_an_empty_window_reports_no_data(self):
-        result = analytics.recurring_expenses_over_time(date(2020, 1, 1), date(2020, 3, 31))
-
-        self.assertFalse(result["has_data"])
 
 
 class NetCashFlowAnalyticsTests(AnalyticsTestCase):

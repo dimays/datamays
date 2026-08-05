@@ -888,9 +888,17 @@ class PreferencesForm(forms.ModelForm):
             ordered = list(self.instance.widgets) + [
                 slug for slug in all_slugs if slug not in self.instance.widgets
             ]
-            self.fields["chart_sections_selected"].initial = self.instance.chart_section_order
-            ordered_sections = list(self.instance.chart_section_order) + [
-                slug for slug in all_section_slugs if slug not in self.instance.chart_section_order
+            # Filtered to slugs that still exist: a section retired from
+            # CHART_SECTION_CHOICES must not linger in an already-saved
+            # preference forever, or this KeyErrors below on the label
+            # lookup the moment someone opens Preferences.
+            saved_sections = [
+                slug for slug in self.instance.chart_section_order
+                if slug in all_section_slugs
+            ]
+            self.fields["chart_sections_selected"].initial = saved_sections
+            ordered_sections = saved_sections + [
+                slug for slug in all_section_slugs if slug not in saved_sections
             ]
         else:
             ordered = all_slugs

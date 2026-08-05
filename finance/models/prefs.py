@@ -17,13 +17,11 @@ DEFAULT_CHART_SECTIONS = [
     "spend_by_category_trend",
     "spend_by_category",
     "large_transactions",
-    "recurring_expenses",
     "budget_attainment",
     "net_income",
     "net_cash_flow",
     "net_worth",
     "balances_over_time",
-    "accounts_list",
 ]
 
 
