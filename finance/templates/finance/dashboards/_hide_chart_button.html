@@ -1,13 +1,13 @@
 {% comment %}
-  A "Hide chart" button for one section's card. Relies on `slug` and
+  A "Hide chart" button for one section's card. Relies on `section` and
   `current_path` already being in context — both flow down for free from
-  charts.html's `{% for slug in chart_sections %}` loop, since none of the
-  includes between here and there use `only`.
+  charts.html's `{% for section in visible_sections %}` loop, since none of
+  the includes between here and there use `only`.
 {% endcomment %}
 <form method="post" action="{{ current_path }}">
   {% csrf_token %}
   <input type="hidden" name="action" value="hide_section" />
-  <input type="hidden" name="section" value="{{ slug }}" />
+  <input type="hidden" name="section" value="{{ section.slug }}" />
   <button type="submit"
           class="shrink-0 rounded-button border border-border px-2.5 py-1 text-xs font-medium text-text-secondary transition hover:bg-muted hover:text-text-primary">
     Hide chart

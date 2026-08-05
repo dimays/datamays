@@ -23,7 +23,7 @@ from finance.models import (
     PaycheckDeduction,
 )
 from finance.services import analytics
-from finance.views_dashboards import RANGE_CHOICES
+from finance.views.dashboards import RANGE_CHOICES
 
 from .factories import make_account, make_institution, make_transaction
 from .test_access import make_user
@@ -911,7 +911,8 @@ class ChartHideShowTests(AnalyticsTestCase):
         response = self.client.get(reverse("finance:charts"))
 
         self.assertIn(
-            "spend_over_time", dict(response.context["hidden_sections"])
+            "spend_over_time",
+            [section.slug for section in response.context["hidden_sections"]],
         )
         self.assertContains(response, "Hidden charts")
 
@@ -959,6 +960,76 @@ class ChartHideShowTests(AnalyticsTestCase):
         )
 
         self.assertRedirects(response, f"{reverse('finance:charts')}?range=3m")
+
+
+class ChartSectionLayoutTests(AnalyticsTestCase):
+    """The card scaffold every section shares, and who owns the spacing."""
+
+    def setUp(self):
+        super().setUp()
+        self.sign_in()
+        make_transaction(
+            self.checking, posted_on=household_today(), amount=Decimal("-100.00"),
+            description_raw="MARIANOS", category=self.groceries,
+        )
+
+    def test_sections_declare_no_margin_of_their_own(self):
+        """Sections are reorderable, so a margin declared on a section makes
+        the gap above a card depend on which card it happens to be. The
+        container owns the rhythm instead."""
+        from pathlib import Path
+
+        sections = Path("finance/templates/finance/dashboards/sections")
+
+        for path in sorted(sections.glob("*.html")):
+            body = path.read_text()
+            first_line = body.split("\n", 1)[0]
+            self.assertIn(
+                "_section.html", first_line,
+                f"{path.name} should extend the shared section card",
+            )
+            self.assertNotIn(
+                '<section class="mt-', body,
+                f"{path.name} declares its own top margin",
+            )
+
+    def test_the_container_owns_the_spacing_between_sections(self):
+        response = self.client.get(reverse("finance:charts"))
+
+        self.assertContains(response, 'class="mt-8 space-y-8"')
+
+    def test_visible_sections_carries_the_label_and_blurb(self):
+        response = self.client.get(reverse("finance:charts"))
+        sections = response.context["visible_sections"]
+
+        self.assertTrue(sections)
+        spend = next(s for s in sections if s.slug == "spend_over_time")
+        self.assertEqual(spend.label, "Spend over time")
+        self.assertTrue(spend.blurb)
+        self.assertContains(response, spend.blurb[:40])
+
+    def test_a_section_without_data_is_not_in_visible_sections(self):
+        response = self.client.get(reverse("finance:charts"))
+        slugs = [s.slug for s in response.context["visible_sections"]]
+
+        # No balance snapshots exist in this fixture, so the balances chart
+        # has nothing to draw and must not reach the template at all.
+        self.assertNotIn("balances_over_time", slugs)
+
+    def test_the_spend_total_lives_inside_its_own_section(self):
+        """It used to sit above the card as page-level text, which read as a
+        total for the whole page — wrong once sections can be reordered."""
+        from pathlib import Path
+
+        body = Path(
+            "finance/templates/finance/dashboards/sections/spend_over_time.html"
+        ).read_text()
+
+        self.assertIn("total spend this window", body)
+        self.assertIn("{% block body %}", body)
+        self.assertLess(
+            body.index("{% block body %}"), body.index("total spend this window")
+        )
 
 
 class BalancesOverTimeFilterTests(AnalyticsTestCase):

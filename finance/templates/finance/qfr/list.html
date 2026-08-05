@@ -4,8 +4,8 @@
 {% block finance_content %}
 <div class="flex flex-wrap items-start justify-between gap-4">
   <div>
-    <h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Quarterly Finance Reports</h1>
-    <p class="mt-2 max-w-2xl text-text-secondary">
+    <h1 class="page-title">Quarterly Finance Reports</h1>
+    <p class="page-subtitle">
       A snapshot of each closed quarter — generated once it ends, not live.
     </p>
   </div>
@@ -52,7 +52,7 @@
       </p>
     </a>
   {% empty %}
-    <div class="rounded-card border border-dashed border-border bg-surface/50 p-8 text-center">
+    <div class="empty-state">
       <p class="text-text-secondary">No reports generated yet.</p>
       {% if not available_quarters %}
         <p class="mt-2 text-xs text-text-muted">

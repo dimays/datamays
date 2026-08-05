@@ -25,7 +25,7 @@ from finance.models import (
 )
 from finance.services import analytics
 from finance.services.rollups import backfill_budget, roll_up_all
-from finance.views_transactions import TransactionListView
+from finance.views.transactions import TransactionListView
 
 from .factories import make_account, make_institution, make_transaction
 from .test_access import make_user
@@ -689,7 +689,7 @@ class SpendChartLinkTests(TestCase):
         from unittest.mock import patch
 
         with patch(
-            "finance.views_dashboards.household_today",
+            "finance.views.dashboards.household_today",
             return_value=self.transaction_date + timedelta(days=1),
         ):
             response = self.client.get(

@@ -392,3 +392,33 @@ class OwnerFieldTests(TestCase):
         response = self.client.get(reverse("finance:settings"))
         self.assertContains(response, "Retirement 401k")
         self.assertContains(response, "David")
+
+
+class PreferenceDefaultsTests(TestCase):
+    """The default lists must name slugs that actually exist.
+
+    Chart sections derive from the registry so they cannot drift. Homepage
+    widgets are a deliberate curated subset — a new widget should not switch
+    itself on for everyone — so that list stays hand-written, and this is
+    what stops a typo in it from silently showing nobody a widget.
+    """
+
+    def test_default_widgets_are_all_real(self):
+        from finance.models.prefs import DEFAULT_HOMEPAGE_WIDGETS
+
+        known = {slug for slug, _ in WIDGET_CHOICES}
+        self.assertTrue(set(DEFAULT_HOMEPAGE_WIDGETS) <= known)
+
+    def test_default_widgets_are_a_subset_not_everything(self):
+        from finance.models.prefs import DEFAULT_HOMEPAGE_WIDGETS
+
+        known = {slug for slug, _ in WIDGET_CHOICES}
+        self.assertLess(set(DEFAULT_HOMEPAGE_WIDGETS), known)
+
+    def test_default_chart_sections_track_the_registry(self):
+        from finance.chart_sections import CHART_SECTIONS
+        from finance.models.prefs import DEFAULT_CHART_SECTIONS
+
+        self.assertEqual(
+            DEFAULT_CHART_SECTIONS, [section.slug for section in CHART_SECTIONS]
+        )

@@ -2,24 +2,32 @@
 {% load finance_extras static %}
 
 {% block finance_content %}
-<h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Charts</h1>
+<h1 class="page-title">Charts</h1>
 
 {% include "finance/dashboards/_filters.html" with show_grain=1 %}
 
 {% if not has_any_data %}
-  <div class="mt-8 rounded-card border border-dashed border-border bg-surface/50 p-8 text-center">
+  <div class="mt-8 empty-state">
     <p class="text-text-secondary">Nothing to chart in this window yet.</p>
   </div>
 {% else %}
   <p class="mt-6 text-sm text-text-muted">{{ start|date:"j M Y" }} — {{ end|date:"j M Y" }}</p>
 
-  {% for slug in chart_sections %}
-    {% if section_has_data|get_item:slug %}
-      <div class="mt-8">
-        {% include "finance/dashboards/sections/"|add:slug|add:".html" %}
-      </div>
-    {% endif %}
-  {% endfor %}
+  {% comment %}
+    The container owns the spacing between sections, not the sections
+    themselves. These are user-reorderable, and per-section margins meant
+    the gap above a card depended on which card it happened to be — four
+    different values stacked on top of this wrapper's own.
+
+    `visible_sections` is already filtered to sections with data, so there
+    is no `{% if %}` here either: each section template used to re-test the
+    same flag the view had just tested to build this list.
+  {% endcomment %}
+  <div class="mt-8 space-y-8">
+    {% for section in visible_sections %}
+      {% include "finance/dashboards/sections/"|add:section.slug|add:".html" %}
+    {% endfor %}
+  </div>
 {% endif %}
 
 {% if hidden_sections %}
@@ -28,13 +36,13 @@
       Hidden charts ({{ hidden_sections|length }})
     </summary>
     <ul class="mt-4 divide-y divide-border">
-      {% for slug, label in hidden_sections %}
+      {% for hidden in hidden_sections %}
         <li class="flex items-center justify-between gap-3 py-2.5">
-          <span class="text-sm">{{ label }}</span>
+          <span class="text-sm">{{ hidden.label }}</span>
           <form method="post" action="{{ current_path }}">
             {% csrf_token %}
             <input type="hidden" name="action" value="show_section" />
-            <input type="hidden" name="section" value="{{ slug }}" />
+            <input type="hidden" name="section" value="{{ hidden.slug }}" />
             <button type="submit" class="rounded-button border border-border px-3 py-1.5 text-xs font-medium transition hover:bg-muted">
               Show chart
             </button>

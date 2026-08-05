@@ -1,4 +1,4 @@
-from .views import FinanceView
+from .base import FinanceView
 
 
 class HelpView(FinanceView):

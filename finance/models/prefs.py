@@ -2,27 +2,27 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from ..chart_sections import CHART_SECTIONS
 from .base import TimestampedModel, money_field
 
 # Homepage widgets, in the order they render by default. Stored as slugs in
 # UserPreference so each person arranges their own homepage.
+#
+# Deliberately a curated subset rather than every widget — unlike the chart
+# sections below, a new homepage widget should not switch itself on for
+# everyone. Keep it hand-written; the test suite checks the slugs are real.
 DEFAULT_HOMEPAGE_WIDGETS = ["balances", "budgets", "recent_transactions"]
 
 # Charts tab sections, in the order they render by default — the same
 # arrange-your-own pattern as the homepage widgets above, one level down.
 # The order here is just a starting point: fully up to each person to
 # rearrange (or hide) from there, in Preferences or on the Charts tab itself.
-DEFAULT_CHART_SECTIONS = [
-    "spend_over_time",
-    "spend_by_category_trend",
-    "spend_by_category",
-    "large_transactions",
-    "budget_attainment",
-    "net_income",
-    "net_cash_flow",
-    "net_worth",
-    "balances_over_time",
-]
+#
+# Derived, not restated. This was a hand-maintained second copy of the same
+# nine slugs in the same order, which meant adding a chart required editing
+# two lists and retiring one required remembering both. Every section is on
+# by default, so the declared order *is* the default.
+DEFAULT_CHART_SECTIONS = [section.slug for section in CHART_SECTIONS]
 
 
 class UserPreference(TimestampedModel):

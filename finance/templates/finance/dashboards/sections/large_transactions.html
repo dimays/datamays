@@ -1,69 +1,63 @@
+{% extends "finance/dashboards/_section.html" %}
 {% load finance_extras %}
-{% if large_transactions_available %}
-  <section class="rounded-card border border-border bg-surface p-5">
-    <div class="flex items-start justify-between gap-3">
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Largest transactions</h2>
-      {% include "finance/dashboards/_hide_chart_button.html" %}
-    </div>
-    <p class="mt-1 text-xs text-text-muted">The biggest one-off outflows in this window — worth a second look.</p>
 
-    <form method="get" class="mt-3 flex flex-wrap items-center gap-2">
-      <input type="hidden" name="range" value="{{ selected_range }}" />
-      <input type="hidden" name="grain" value="{{ selected_grain }}" />
-      {% for account_id in selected_accounts %}<input type="hidden" name="account" value="{{ account_id }}" />{% endfor %}
+{% block body %}
+  <form method="get" class="mt-3 flex flex-wrap items-center gap-2">
+    <input type="hidden" name="range" value="{{ selected_range }}" />
+    <input type="hidden" name="grain" value="{{ selected_grain }}" />
+    {% for account_id in selected_accounts %}<input type="hidden" name="account" value="{{ account_id }}" />{% endfor %}
 
-      <select name="lt_account"
-              class="rounded-button border border-border bg-background px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-primary">
-        <option value="">All accounts</option>
-        {% for account in large_transactions_accounts %}
-          <option value="{{ account.pk }}" {% if account.pk|stringformat:"s" in large_transactions_selected_accounts %}selected{% endif %}>{{ account.name }}</option>
-        {% endfor %}
-      </select>
+    <select name="lt_account"
+            class="rounded-button border border-border bg-background px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-primary">
+      <option value="">All accounts</option>
+      {% for account in large_transactions_accounts %}
+        <option value="{{ account.pk }}" {% if account.pk|stringformat:"s" in large_transactions_selected_accounts %}selected{% endif %}>{{ account.name }}</option>
+      {% endfor %}
+    </select>
 
-      <select name="lt_category"
-              class="rounded-button border border-border bg-background px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-primary">
-        <option value="">All categories</option>
-        {% for category in large_transactions_categories %}
-          <option value="{{ category.pk }}" {% if category.pk|stringformat:"s" in large_transactions_selected_categories %}selected{% endif %}>{{ category.full_path }}</option>
-        {% endfor %}
-      </select>
+    <select name="lt_category"
+            class="rounded-button border border-border bg-background px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-primary">
+      <option value="">All categories</option>
+      {% for category in large_transactions_categories %}
+        <option value="{{ category.pk }}" {% if category.pk|stringformat:"s" in large_transactions_selected_categories %}selected{% endif %}>{{ category.full_path }}</option>
+      {% endfor %}
+    </select>
 
-      <button type="submit" class="rounded-button border border-border bg-surface px-3 py-1.5 text-xs font-medium transition hover:bg-muted">
-        Filter
-      </button>
-    </form>
+    <button type="submit" class="rounded-button border border-border bg-surface px-3 py-1.5 text-xs font-medium transition hover:bg-muted">
+      Filter
+    </button>
+  </form>
 
-    {% if large_transactions_has_data %}
-      <ul class="mt-2 divide-y divide-border">
-        {% for txn in large_transactions %}
-          <li class="flex items-center justify-between gap-3 py-2.5">
-            <div class="min-w-0">
-              <p class="truncate text-sm">{{ txn.description_raw }}</p>
-              <p class="text-xs text-text-muted">
-                {{ txn.posted_on|date:"j M Y" }} · {{ txn.account.name }}
-                {% if txn.category %}· {{ txn.category.name }}{% endif %}
-              </p>
-            </div>
-            <p class="shrink-0 font-mono text-sm">-${{ txn.amount|abs_money }}</p>
-          </li>
-        {% endfor %}
-      </ul>
+  {% if large_transactions_has_data %}
+    <ul class="mt-2 divide-y divide-border">
+      {% for txn in large_transactions %}
+        <li class="flex items-center justify-between gap-3 py-2.5">
+          <div class="min-w-0">
+            <p class="truncate text-sm">{{ txn.description_raw }}</p>
+            <p class="text-xs text-text-muted">
+              {{ txn.posted_on|date:"j M Y" }} · {{ txn.account.name }}
+              {% if txn.category %}· {{ txn.category.name }}{% endif %}
+            </p>
+          </div>
+          <p class="shrink-0 font-mono text-sm">-${{ txn.amount|abs_money }}</p>
+        </li>
+      {% endfor %}
+    </ul>
 
-      {% if large_transactions_total_pages > 1 %}
-        <div class="mt-3 flex items-center justify-between text-sm">
-          {% if large_transactions_previous_url %}
-            <a href="{{ large_transactions_previous_url }}" class="text-primary hover:underline">← Newer</a>
-          {% else %}<span></span>{% endif %}
+    {% if large_transactions_total_pages > 1 %}
+      <div class="mt-3 flex items-center justify-between text-sm">
+        {% if large_transactions_previous_url %}
+          <a href="{{ large_transactions_previous_url }}" class="text-primary hover:underline">← Newer</a>
+        {% else %}<span></span>{% endif %}
 
-          <span class="text-xs text-text-muted">Page {{ large_transactions_page }} of {{ large_transactions_total_pages }}</span>
+        <span class="text-xs text-text-muted">Page {{ large_transactions_page }} of {{ large_transactions_total_pages }}</span>
 
-          {% if large_transactions_next_url %}
-            <a href="{{ large_transactions_next_url }}" class="text-primary hover:underline">Older →</a>
-          {% else %}<span></span>{% endif %}
-        </div>
-      {% endif %}
-    {% else %}
-      <p class="mt-4 text-sm text-text-muted">No transactions match this filter.</p>
+        {% if large_transactions_next_url %}
+          <a href="{{ large_transactions_next_url }}" class="text-primary hover:underline">Older →</a>
+        {% else %}<span></span>{% endif %}
+      </div>
     {% endif %}
-  </section>
-{% endif %}
+  {% else %}
+    <p class="mt-4 text-sm text-text-muted">No transactions match this filter.</p>
+  {% endif %}
+{% endblock %}

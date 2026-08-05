@@ -84,8 +84,8 @@ class CredentialExposureTests(SettingsTestCase):
 
 
 class ConnectionManagementTests(SettingsTestCase):
-    @patch("finance.views_settings.sync_connection")
-    @patch("finance.views_settings.claim_access_url")
+    @patch("finance.views.settings.sync_connection")
+    @patch("finance.views.settings.claim_access_url")
     def test_connecting_exchanges_the_token_and_tests_it(self, claim, sync):
         claim.return_value = ACCESS_URL
         sync.return_value.status = "success"
@@ -111,7 +111,7 @@ class ConnectionManagementTests(SettingsTestCase):
         # Test-on-save: a connection that cannot pull is not really connected.
         sync.assert_called_once()
 
-    @patch("finance.views_settings.claim_access_url")
+    @patch("finance.views.settings.claim_access_url")
     def test_a_rejected_token_reports_the_error_and_saves_nothing(self, claim):
         claim.side_effect = ProviderError("Tokens can only be claimed once.")
 
@@ -124,12 +124,12 @@ class ConnectionManagementTests(SettingsTestCase):
         self.assertContains(response, "claimed once")
         self.assertFalse(AccountConnection.objects.filter(label="Chase (personal)").exists())
 
-    @patch("finance.views_settings.sync_connection")
+    @patch("finance.views.settings.sync_connection")
     def test_a_failing_first_sync_still_saves_the_connection_with_a_warning(self, sync):
         sync.return_value.status = "failed"
         sync.return_value.error_message = "could not reach institution"
 
-        with patch("finance.views_settings.claim_access_url", return_value=ACCESS_URL):
+        with patch("finance.views.settings.claim_access_url", return_value=ACCESS_URL):
             response = self.client.post(
                 reverse("finance:connection_create"),
                 {"label": "Nelnet", "setup_token": "token"},
@@ -161,7 +161,7 @@ class ConnectionManagementTests(SettingsTestCase):
         self.assertEqual(self.connection.status, ConnectionStatus.DISABLED)
         self.assertFalse(self.connection.is_syncable)
 
-    @patch("finance.views_settings.sync_connection")
+    @patch("finance.views.settings.sync_connection")
     def test_sync_now_runs_a_manual_sync(self, sync):
         sync.return_value.status = "success"
         sync.return_value.accounts_synced = 1
@@ -180,7 +180,7 @@ class CategorizeNowTests(SettingsTestCase):
     """The button that runs the same pipeline the hourly job does, on
     demand, instead of it being CLI/Heroku-Scheduler only."""
 
-    @patch("finance.views_settings.categorize_transactions")
+    @patch("finance.views.settings.categorize_transactions")
     def test_it_runs_the_pipeline_and_reports_a_summary(self, run):
         from finance.services.categorize import CategorizationSummary
 

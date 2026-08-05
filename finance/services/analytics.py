@@ -647,15 +647,28 @@ def balance_history(account_ids=None, *, start=None, end=None, account_types=Non
     # An account almost certainly had a balance before the window opened, so
     # seed each series from its most recent earlier snapshot. Without this the
     # chart starts at nothing and appears to plunge on day one.
-    for account in accounts:
-        opening = (
-            AccountBalanceSnapshot.objects.filter(account=account, as_of__lt=start)
-            .order_by("-as_of")
-            .first()
-        )
+    #
+    # One query for every account, not one per account. This used to be a
+    # per-account `.first()` inside the loop, and because the Charts page
+    # calls balance_history three times (net worth, the filtered series, and
+    # the baseline availability check) the page's query count grew by three
+    # for every account the household added.
+    openings = (
+        AccountBalanceSnapshot.objects.filter(account__in=accounts, as_of__lt=start)
+        .order_by("account_id", "-as_of")
+        .values_list("account_id", "current")
+    )
 
-        if opening is not None:
-            by_account.setdefault(account.pk, {}).setdefault(start, opening.current)
+    seen = set()
+
+    for account_id, current in openings:
+        # Ordered newest-first within each account, so the first row per
+        # account is the one to carry forward.
+        if account_id in seen:
+            continue
+
+        seen.add(account_id)
+        by_account.setdefault(account_id, {}).setdefault(start, current)
 
     labels = []
     cursor = start
@@ -694,6 +707,22 @@ def balance_history(account_ids=None, *, start=None, end=None, account_types=Non
         "labels": [day.strftime("%-d %b %Y") for day in labels],
         "series": series,
     }
+
+
+def has_balance_history(end=None) -> bool:
+    """Whether any active account has ever reported a balance by `end`.
+
+    The cheap companion to balance_history(), for callers that only need to
+    know whether a chart is worth offering at all. Answering that by building
+    the full carried-forward series and checking it was empty meant the
+    Charts page paid for the most expensive query on the page twice.
+
+    No `start`: a snapshot from before the window still counts, because
+    balance_history carries it forward into one.
+    """
+    return AccountBalanceSnapshot.objects.filter(
+        account__is_active=True, as_of__lte=end or household_today()
+    ).exists()
 
 
 def net_worth_history(*, start=None, end=None):

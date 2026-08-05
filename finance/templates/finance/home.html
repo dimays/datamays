@@ -2,7 +2,7 @@
 
 {% block finance_content %}
 <div class="flex flex-wrap items-center justify-between gap-3">
-  <h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">
+  <h1 class="page-title">
     {% if request.user.first_name %}Hi, {{ request.user.first_name }}{% else %}Home{% endif %}
   </h1>
   <a href="{% url 'finance:preferences' %}" class="text-sm text-text-muted transition hover:text-text-secondary">
@@ -16,7 +16,7 @@
   {% for widget in widgets %}
     {% include "finance/widgets/"|add:widget.slug|add:".html" with data=widget.data label=widget.label %}
   {% empty %}
-    <div class="rounded-card border border-dashed border-border bg-surface/50 p-8 text-center">
+    <div class="empty-state">
       <p class="text-text-secondary">No widgets selected.</p>
       <a href="{% url 'finance:preferences' %}" class="mt-2 inline-block text-primary hover:underline">
         Choose what to show →

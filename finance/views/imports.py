@@ -6,28 +6,21 @@ enough to be dangerous when it isn't, so nothing is written until a person has
 looked at the proposed columns and the resulting preview.
 """
 
-from django import forms
 from django.contrib import messages
 from django.shortcuts import redirect
 from django.views.generic import DetailView, FormView, ListView, TemplateView
 
-from .access import FinanceAccessMixin
-from .models import (
-    Account,
+from .base import FinancePageMixin
+from ..forms import UploadForm
+from ..models import (
     AmountConvention,
     ImportBatch,
     ImportMapping,
     ImportStatus,
-    Institution,
     RecordType,
     RowStatus,
 )
-from .services.importer import ImportError_, commit_batch, parse_batch, stage_upload
-
-FIELD_CLASSES = (
-    "w-full rounded-button border border-border bg-background px-3 py-2 text-sm "
-    "text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
-)
+from ..services.importer import ImportError_, commit_batch, parse_batch, stage_upload
 
 # Target fields per record type, and whether the import can proceed without them.
 REQUIRED_FIELDS = {
@@ -94,40 +87,7 @@ RECORD_TYPE_GRAIN = {
         "map whichever ones this employer actually itemizes on the stub."
     ),
 }
-
-
-class UploadForm(forms.Form):
-    institution = forms.ModelChoiceField(
-        queryset=Institution.objects.filter(is_active=True),
-        widget=forms.Select(attrs={"class": FIELD_CLASSES}),
-    )
-    account = forms.ModelChoiceField(
-        queryset=Account.objects.filter(is_active=True),
-        required=False,
-        help_text="Required for transactions and balances.",
-        widget=forms.Select(attrs={"class": FIELD_CLASSES}),
-    )
-    record_type = forms.ChoiceField(
-        choices=RecordType.choices,
-        widget=forms.Select(attrs={"class": FIELD_CLASSES}),
-    )
-    csv_file = forms.FileField(
-        widget=forms.ClearableFileInput(attrs={"class": FIELD_CLASSES, "accept": ".csv,text/csv"})
-    )
-
-    def clean(self):
-        cleaned = super().clean()
-
-        if cleaned.get("record_type") in {RecordType.TRANSACTIONS, RecordType.BALANCES} and not cleaned.get("account"):
-            raise forms.ValidationError(
-                "Pick the account these rows belong to — transactions and "
-                "balances cannot be filed without one."
-            )
-
-        return cleaned
-
-
-class ImportListView(FinanceAccessMixin, ListView):
+class ImportListView(FinancePageMixin, ListView):
     template_name = "finance/imports/list.html"
     context_object_name = "batches"
     paginate_by = 20
@@ -135,13 +95,10 @@ class ImportListView(FinanceAccessMixin, ListView):
     def get_queryset(self):
         return ImportBatch.objects.select_related("institution", "account")
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Imports"
-        return context
+    page_title = "Imports"
 
 
-class ImportSchemaView(FinanceAccessMixin, TemplateView):
+class ImportSchemaView(FinancePageMixin, TemplateView):
     """Read-only reference: what a file needs to look like per record type.
 
     Not an editable schema — the three record types are parsed by fixed logic
@@ -153,11 +110,10 @@ class ImportSchemaView(FinanceAccessMixin, TemplateView):
     """
 
     template_name = "finance/imports/schemas.html"
+    page_title = "Import schemas"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = "Import schemas"
-
         context["record_types"] = [
             {
                 "slug": record_type,
@@ -178,14 +134,11 @@ class ImportSchemaView(FinanceAccessMixin, TemplateView):
         return context
 
 
-class ImportUploadView(FinanceAccessMixin, FormView):
+class ImportUploadView(FinancePageMixin, FormView):
     template_name = "finance/imports/upload.html"
     form_class = UploadForm
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Import a file"
-        return context
+    page_title = "Import a file"
 
     def form_valid(self, form):
         upload = form.cleaned_data["csv_file"]
@@ -208,19 +161,19 @@ class ImportUploadView(FinanceAccessMixin, FormView):
         return redirect("finance:import_map", pk=batch.pk)
 
 
-class ImportMapView(FinanceAccessMixin, DetailView):
+class ImportMapView(FinancePageMixin, DetailView):
     """Confirm which column means what, pre-filled with the detected guess."""
 
     template_name = "finance/imports/map.html"
     model = ImportBatch
     context_object_name = "batch"
+    page_title = "Confirm columns"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         batch = self.object
         suggested = (batch.suggested_map or {}).get("columns", {})
 
-        context["page_title"] = "Confirm columns"
         context["fields"] = [
             {
                 "key": key,
@@ -309,7 +262,7 @@ class ImportMapView(FinanceAccessMixin, DetailView):
         messages.success(request, f"Saved '{mapping.name}' for next time.")
 
 
-class ImportPreviewView(FinanceAccessMixin, DetailView):
+class ImportPreviewView(FinancePageMixin, DetailView):
     """Show what would be written, before anything is."""
 
     template_name = "finance/imports/preview.html"
@@ -318,7 +271,6 @@ class ImportPreviewView(FinanceAccessMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = "Review import"
         context["rows"] = self.object.rows.all()[:100]
         context["problem_rows"] = self.object.rows.filter(status=RowStatus.ERROR)[:25]
         return context
