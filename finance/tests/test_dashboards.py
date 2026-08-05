@@ -23,6 +23,7 @@ from finance.models import (
     PaycheckDeduction,
 )
 from finance.services import analytics
+from finance.views_dashboards import RANGE_CHOICES
 
 from .factories import make_account, make_institution, make_transaction
 from .test_access import make_user
@@ -546,6 +547,36 @@ class ChartsDashboardRenderTests(AnalyticsTestCase):
         self.assertEqual(response.context["selected_range"], "3m")
         span = (response.context["end"] - response.context["start"]).days
         self.assertEqual(span, 90)
+
+    def test_the_range_buttons_form_does_not_duplicate_the_range_param(self):
+        # Regression: the hidden input carrying the current range for the
+        # grain form used to live in the *same* form as the range buttons,
+        # so clicking any range button also submitted the old range via
+        # that hidden input -- two values for one name, and Django's
+        # QueryDict silently keeps the last one, pinning the range to
+        # whatever it already was no matter which button was clicked.
+        response = self.client.get(
+            reverse("finance:charts"), {"range": "12m", "grain": "monthly"}
+        )
+        body = response.content.decode()
+
+        # Anchored on a range button rather than "the first <form>" -- the
+        # header's own sign-out form appears earlier in the page.
+        range_button_index = body.index('value="3m"')
+        range_form_start = body.rindex("<form", 0, range_button_index)
+        range_form_end = body.index("</form>", range_button_index)
+        range_form = body[range_form_start:range_form_end]
+
+        self.assertEqual(range_form.count('name="range"'), len(RANGE_CHOICES))
+        self.assertNotIn('type="hidden" name="range"', range_form)
+
+    def test_switching_the_range_actually_changes_it(self):
+        self.client.get(reverse("finance:charts"), {"range": "12m", "grain": "monthly"})
+        response = self.client.get(
+            reverse("finance:charts"), {"range": "3m", "grain": "monthly"}
+        )
+
+        self.assertEqual(response.context["selected_range"], "3m")
 
     def test_an_unknown_grain_falls_back_to_monthly(self):
         response = self.client.get(reverse("finance:charts"), {"grain": "hourly"})

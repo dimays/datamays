@@ -2236,6 +2236,10 @@ video {
   dropdown_start: dropdown end;
 }
 
+.\[range_form_start\:range_form_end\] {
+  range_form_start: range form end;
+}
+
 /* Keeps Alpine-controlled elements hidden until Alpine initialises them,
    so dropdowns don't flash open on first paint. */
 
