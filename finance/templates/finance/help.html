@@ -24,8 +24,11 @@
     <p class="mt-1.5 text-sm text-text-secondary">
       Every transaction, filterable by account, category, date, or search.
       A category badged "unsure" is the classifier's best guess at a low
-      confidence — confirming it teaches the app for next time, and ticking
-      "always" turns that into a standing rule.
+      confidence — confirming it teaches the app for next time, so the same
+      merchant is never asked about twice. For a standing rule (matching
+      more than one merchant, or beyond an exact match), add it directly
+      from
+      <a href="{% url 'finance:rules' %}" class="text-primary hover:underline">Settings &rarr; Category rules</a>.
     </p>
   </section>
 
@@ -36,7 +39,7 @@
       quarterly, or annually — whichever the selected range actually
       covers), except Balances over time and budget attainment, which follow
       their own daily or budget-anchored timelines. Net income counts every
-      deposit categorised as income, whether or not a payslip was ever
+      deposit categorized as income, whether or not a payslip was ever
       imported for it; gross pay and tax only show up as optional extra
       detail where a payslip has been imported. Recurring expenses tracks
       merchants with spend in at least three periods in the window — a
@@ -67,8 +70,8 @@
     <h2 class="font-semibold">Settings</h2>
     <p class="mt-1.5 text-sm text-text-secondary">
       Connect an institution, manage existing connections, correct an
-      account's type, and see recent sync history. Category rules created
-      from the review queue live here too.
+      account's type, and see recent sync history. Category rules — contains,
+      starts-with, exact, or regex matching — live here too.
     </p>
   </section>
 

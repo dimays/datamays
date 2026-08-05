@@ -1,12 +1,12 @@
 from django.core.management.base import BaseCommand
 
 from finance.models import Transaction
-from finance.services.categorize import categorise_transactions
+from finance.services.categorize import categorize_transactions
 
 
 class Command(BaseCommand):
     help = (
-        "Categorise transactions that have no category yet. Rules and "
+        "Categorize transactions that have no category yet. Rules and "
         "remembered merchants run first; only genuinely new merchants reach "
         "the classifier."
     )
@@ -15,7 +15,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--recategorize",
             action="store_true",
-            help="Also revisit transactions already categorised by the classifier.",
+            help="Also revisit transactions already categorized by the classifier.",
         )
         parser.add_argument(
             "--no-transfers",
@@ -38,7 +38,7 @@ class Command(BaseCommand):
             )
             queryset = base[: options["limit"]]
 
-        summary = categorise_transactions(
+        summary = categorize_transactions(
             queryset=queryset, detect_transfers=not options["no_transfers"]
         )
 

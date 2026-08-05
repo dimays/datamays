@@ -24,17 +24,15 @@ transactions at all".
 
 from datetime import date
 
-from django.contrib import messages
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import ListView
 
 from .access import FinanceAccessMixin
-from .models import Account, Budget, Category, CategoryRule, MatchType, Transaction
+from .models import Account, Budget, Category, Transaction
 from .redirects import safe_next
 from .services.analytics import spend_filter
 from .services.categorize import confirm_category
-from .services.merchants import normalise_merchant
 from .services.rollups import expand_categories
 
 
@@ -191,36 +189,15 @@ class TransactionListView(FinanceAccessMixin, ListView):
         return context
 
     def post(self, request, *args, **kwargs):
-        """Confirm a category from the list, optionally as a standing rule."""
+        """Confirm a category from the list.
+
+        Standing rules are created from Settings > Category rules instead,
+        with the full pattern-matching system available there — not folded
+        into this save.
+        """
         transaction = get_object_or_404(Transaction, pk=request.POST.get("transaction"))
         category = get_object_or_404(Category, pk=request.POST.get("category"))
 
         confirm_category(transaction, category, request.user)
 
-        if request.POST.get("create_rule"):
-            self._create_rule(request, transaction, category)
-
         return redirect(safe_next(request, default=request.get_full_path()))
-
-    def _create_rule(self, request, transaction, category):
-        pattern = normalise_merchant(transaction.description_raw)
-
-        if not pattern:
-            messages.warning(
-                request,
-                "That description was too noisy to turn into a rule, but the "
-                "merchant has been remembered.",
-            )
-            return
-
-        rule, created = CategoryRule.objects.get_or_create(
-            pattern=pattern,
-            match_type=MatchType.CONTAINS,
-            defaults={"category": category, "notes": "Created from the review queue."},
-        )
-
-        if not created:
-            rule.category = category
-            rule.save(update_fields=["category", "updated_at"])
-
-        messages.success(request, f"Anything matching “{pattern}” now goes to {category}.")

@@ -24,6 +24,7 @@ from finance.models import (
     Category,
     CategoryRule,
     ConnectionStatus,
+    MatchType,
     UserPreference,
 )
 from finance.providers.base import ProviderError
@@ -473,6 +474,108 @@ class RuleManagementTests(SettingsTestCase):
         self.client.post(reverse("finance:rules"), {"rule": self.rule.pk, "action": "delete"})
 
         self.assertFalse(CategoryRule.objects.filter(pk=self.rule.pk).exists())
+
+
+class RuleCreationTests(SettingsTestCase):
+    """The pattern-matching system the "always" checkbox only ever exposes a
+    sliver of — contains/starts-with/exact/regex, optionally scoped to one
+    account or an amount range, all creatable directly."""
+
+    def setUp(self):
+        super().setUp()
+        self.groceries = Category.objects.get(slug="food-groceries")
+
+    def rule_payload(self, **overrides):
+        payload = {
+            "pattern": "netflix",
+            "match_type": MatchType.CONTAINS,
+            "category": self.groceries.pk,
+            "account": "",
+            "min_amount": "",
+            "max_amount": "",
+            "priority": 100,
+            "notes": "",
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_creating_a_contains_rule(self):
+        response = self.client.post(reverse("finance:rule_create"), self.rule_payload())
+
+        self.assertRedirects(response, reverse("finance:rules"))
+        rule = CategoryRule.objects.get(pattern="netflix")
+        self.assertEqual(rule.match_type, MatchType.CONTAINS)
+        self.assertEqual(rule.category, self.groceries)
+
+    def test_an_exact_match_rule_only_matches_exactly(self):
+        self.client.post(
+            reverse("finance:rule_create"),
+            self.rule_payload(pattern="acme corp", match_type=MatchType.EXACT),
+        )
+
+        rule = CategoryRule.objects.get(pattern="acme corp")
+        self.assertTrue(rule.matches(description="Acme Corp", amount=Decimal("-10")))
+        self.assertFalse(
+            rule.matches(description="Acme Corp #1234 Chicago IL", amount=Decimal("-10"))
+        )
+
+    def test_a_starts_with_rule(self):
+        self.client.post(
+            reverse("finance:rule_create"),
+            self.rule_payload(pattern="sq *", match_type=MatchType.STARTS_WITH),
+        )
+
+        rule = CategoryRule.objects.get(pattern="sq *")
+        self.assertTrue(
+            rule.matches(description="SQ *BLUE BOTTLE COFFEE", amount=Decimal("-5"))
+        )
+        self.assertFalse(rule.matches(description="BLUE BOTTLE SQ *", amount=Decimal("-5")))
+
+    def test_an_invalid_regex_is_rejected_without_saving(self):
+        response = self.client.post(
+            reverse("finance:rule_create"),
+            self.rule_payload(pattern="[unclosed", match_type=MatchType.REGEX),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(CategoryRule.objects.filter(pattern="[unclosed").exists())
+
+    def test_a_rule_can_be_scoped_to_one_account_and_an_amount_range(self):
+        card = make_account(
+            self.institution, name="Card", account_type=AccountType.CREDIT_CARD
+        )
+
+        self.client.post(
+            reverse("finance:rule_create"),
+            self.rule_payload(
+                pattern="amazon", account=card.pk, min_amount="-100", max_amount="-1"
+            ),
+        )
+
+        rule = CategoryRule.objects.get(pattern="amazon")
+        self.assertEqual(rule.account, card)
+        self.assertTrue(
+            rule.matches(description="AMAZON", amount=Decimal("-50"), account_id=card.pk)
+        )
+        self.assertFalse(
+            rule.matches(description="AMAZON", amount=Decimal("-50"), account_id=self.account.pk)
+        )
+
+    def test_a_lower_bound_above_the_upper_bound_is_rejected(self):
+        response = self.client.post(
+            reverse("finance:rule_create"),
+            self.rule_payload(min_amount="10", max_amount="1"),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(CategoryRule.objects.filter(pattern="netflix").exists())
+
+    def test_rule_creation_is_gated_like_everything_else(self):
+        self.client.logout()
+
+        response = self.client.get(reverse("finance:rule_create"))
+
+        self.assertEqual(response.status_code, 403)
 
 
 class PreferenceTests(SettingsTestCase):

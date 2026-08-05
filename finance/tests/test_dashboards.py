@@ -115,15 +115,15 @@ class SpendAnalyticsTests(AnalyticsTestCase):
 
         self.assertEqual(result["values"], [70.0])
 
-    def test_a_positive_uncategorised_transaction_is_not_treated_as_a_refund(self):
-        # Uncategorised is far more likely to be income the classifier
+    def test_a_positive_uncategorized_transaction_is_not_treated_as_a_refund(self):
+        # Uncategorized is far more likely to be income the classifier
         # hasn't reached yet than a refund -- it must not net against spend.
         self.spend("-100.00", self.groceries, 5)
         make_transaction(
             self.checking,
             posted_on=date(2026, 4, 6),
             amount=Decimal("3000.00"),
-            description_raw="UNCATEGORISED DEPOSIT",
+            description_raw="UNCATEGORIZED DEPOSIT",
             category=None,
         )
 
@@ -283,7 +283,7 @@ class IncomeAnalyticsTests(AnalyticsTestCase):
 
 
 class NetIncomeAnalyticsTests(AnalyticsTestCase):
-    """The primary income figure — every income-categorised deposit, no
+    """The primary income figure — every income-categorized deposit, no
     payslip required. This is what makes the Income dashboard work for a
     household member whose pay never gets a detailed payslip import."""
 
@@ -335,15 +335,15 @@ class NetIncomeAnalyticsTests(AnalyticsTestCase):
 
         self.assertEqual(result["values"], [])
 
-    def test_an_uncategorised_deposit_is_not_assumed_to_be_income(self):
+    def test_an_uncategorized_deposit_is_not_assumed_to_be_income(self):
         # Symmetric with spend_filter()'s caution in the other direction: an
-        # uncategorised positive amount could just as easily be an
-        # uncategorised refund.
+        # uncategorized positive amount could just as easily be an
+        # uncategorized refund.
         make_transaction(
             self.checking,
             posted_on=date(2026, 4, 15),
             amount=Decimal("3400.00"),
-            description_raw="UNCATEGORISED DEPOSIT",
+            description_raw="UNCATEGORIZED DEPOSIT",
             category=None,
         )
 
@@ -989,7 +989,7 @@ class QuarterlyAndAnnualGrainAnalyticsTests(AnalyticsTestCase):
         )
 
 
-class UncategorisedSpendTests(TestCase):
+class UncategorizedSpendTests(TestCase):
     """Requiring an expense category silently dropped spend from every total."""
 
     def setUp(self):
@@ -1001,12 +1001,12 @@ class UncategorisedSpendTests(TestCase):
 
         Transaction.objects.create(
             account=self.account, posted_on=date(2026, 4, 10),
-            amount=Decimal("-100.00"), description_raw="CATEGORISED",
+            amount=Decimal("-100.00"), description_raw="CATEGORIZED",
             category=self.groceries, fingerprint="a",
         )
         Transaction.objects.create(
             account=self.account, posted_on=date(2026, 4, 11),
-            amount=Decimal("-250.00"), description_raw="NOT YET CATEGORISED",
+            amount=Decimal("-250.00"), description_raw="NOT YET CATEGORIZED",
             category=None, fingerprint="b",
         )
 
@@ -1016,11 +1016,11 @@ class UncategorisedSpendTests(TestCase):
             [350.0],
         )
 
-    def test_uncategorised_spend_gets_its_own_visible_slice(self):
+    def test_uncategorized_spend_gets_its_own_visible_slice(self):
         result = analytics.spend_by_category(date(2026, 4, 1), date(2026, 4, 30))
         pairs = dict(zip(result["labels"], result["values"]))
 
-        self.assertEqual(pairs["Not yet categorised"], 250.0)
+        self.assertEqual(pairs["Not yet categorized"], 250.0)
         self.assertEqual(result["total"], 350.0)
 
     def test_income_and_transfers_are_still_excluded(self):

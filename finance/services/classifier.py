@@ -1,4 +1,4 @@
-"""The LLM step of categorisation, kept behind a small interface.
+"""The LLM step of categorization, kept behind a small interface.
 
 Only reached for merchants that no rule and no remembered decision covers, so
 in steady state this runs on a handful of genuinely new merchants a week
@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 40
 
-# Without this the client waits indefinitely. The categoriser runs from the
+# Without this the client waits indefinitely. The categorizer runs from the
 # hourly chain, so a hung request would stall every later step behind it.
 REQUEST_TIMEOUT_SECONDS = 45
 
-SYSTEM_PROMPT = """You categorise personal bank transactions for a two-person household.
+SYSTEM_PROMPT = """You categorize personal bank transactions for a two-person household.
 
 You will get a list of merchant descriptions and a list of allowed categories.
 Assign each merchant exactly one category slug from the list.
@@ -66,7 +66,7 @@ class NullClassifier(Classifier):
 class OpenAIClassifier(Classifier):
     def __init__(self, api_key=None, model=None):
         self.api_key = api_key or getattr(settings, "OPENAI_API_KEY", "")
-        self.model = model or getattr(settings, "FINANCE_CATEGORISER_MODEL", "gpt-4o-mini")
+        self.model = model or getattr(settings, "FINANCE_CATEGORIZER_MODEL", "gpt-4o-mini")
 
     def classify(self, merchant_keys, categories):
         if not merchant_keys or not self.api_key:
@@ -81,7 +81,7 @@ class OpenAIClassifier(Classifier):
                 results.extend(self._classify_batch(batch, categories))
             except Exception:  # noqa: BLE001
                 # A classifier outage must not fail the sync. The affected
-                # transactions stay uncategorised and land in the review queue.
+                # transactions stay uncategorized and land in the review queue.
                 logger.exception("Classifier batch failed; leaving %d for review", len(batch))
 
         return results
