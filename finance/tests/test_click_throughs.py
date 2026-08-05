@@ -470,6 +470,19 @@ class SelectAllTests(TestCase):
         # "All N matching this filter" status text, which lacks "Select all".
         self.assertNotContains(response, "Select all 1 matching this filter")
 
+    def test_row_checkboxes_visually_reflect_select_all_filtered(self):
+        # Previously bound with x-model, which only ever reflected the
+        # per-id `selected` array — checking "select all N matching this
+        # filter" left every row checkbox looking unchecked even though the
+        # bulk-apply itself correctly targeted the whole filtered set.
+        make_transaction(self.checking, category=self.groceries, description_raw="A")
+
+        response = self.client.get(reverse("finance:transactions"))
+        body = response.content.decode()
+
+        self.assertIn(':checked="selectAllFiltered || selected.includes(', body)
+        self.assertIn(':disabled="selectAllFiltered"', body)
+
 
 class MultiSelectFilterTests(TestCase):
     """Accounts, categories, and budgets are all multi-select: OR within one
