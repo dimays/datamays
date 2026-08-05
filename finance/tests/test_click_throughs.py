@@ -261,6 +261,113 @@ class TransactionListFilterTests(TestCase):
         self.assertContains(response, "Clear all filters")
 
 
+class BulkCategorizeTests(TestCase):
+    """Selecting several transactions at once and setting their category in
+    one action, either by explicit id or by reapplying the page's current
+    filters to the full matching set."""
+
+    def setUp(self):
+        call_command("seed_finance_categories", verbosity=0)
+
+        self.institution = make_institution()
+        self.checking = make_account(self.institution, name="Checking")
+        self.groceries = Category.objects.get(slug="food-groceries")
+        self.restaurants = Category.objects.get(slug="food-restaurants")
+        self.uncategorized = Category.objects.get(slug="uncategorized")
+
+        self.user = make_user("david", with_device=True)
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["otp_device_id"] = TOTPDevice.objects.get(user=self.user).persistent_id
+        session.save()
+
+    def bulk_post(self, **data):
+        data.setdefault("action", "bulk_categorize")
+        return self.client.post(reverse("finance:transactions"), data)
+
+    def test_an_explicit_id_list_only_recategorizes_those_transactions(self):
+        a = make_transaction(self.checking, category=self.groceries, description_raw="A")
+        b = make_transaction(self.checking, category=self.groceries, description_raw="B")
+        untouched = make_transaction(self.checking, category=self.groceries, description_raw="C")
+
+        response = self.bulk_post(
+            category=self.restaurants.pk, transaction_ids=[a.pk, b.pk]
+        )
+
+        self.assertRedirects(response, reverse("finance:transactions"))
+        a.refresh_from_db()
+        b.refresh_from_db()
+        untouched.refresh_from_db()
+        self.assertEqual(a.category, self.restaurants)
+        self.assertEqual(b.category, self.restaurants)
+        self.assertEqual(untouched.category, self.groceries)
+
+    def test_a_bulk_assignment_is_treated_as_a_confirmed_manual_decision(self):
+        txn = make_transaction(
+            self.checking, category=self.groceries, needs_review=True, description_raw="A"
+        )
+
+        self.bulk_post(category=self.restaurants.pk, transaction_ids=[txn.pk])
+
+        txn.refresh_from_db()
+        self.assertEqual(txn.category_source, "manual")
+        self.assertEqual(txn.category_confidence, 1.0)
+        self.assertFalse(txn.needs_review)
+
+    def test_bulk_assigning_to_uncategorized_flags_it_for_review(self):
+        txn = make_transaction(
+            self.checking, category=self.groceries, needs_review=False, description_raw="A"
+        )
+
+        self.bulk_post(category=self.uncategorized.pk, transaction_ids=[txn.pk])
+
+        txn.refresh_from_db()
+        self.assertEqual(txn.category, self.uncategorized)
+        self.assertTrue(txn.needs_review)
+
+    def test_apply_to_all_filtered_reapplies_the_pages_own_filters(self):
+        matching_1 = make_transaction(self.checking, category=self.groceries, description_raw="A")
+        matching_2 = make_transaction(self.checking, category=self.groceries, description_raw="B")
+        other_account = make_account(self.institution, name="Savings")
+        different_account = make_transaction(
+            other_account, category=self.groceries, description_raw="C"
+        )
+
+        filtered_url = f"{reverse('finance:transactions')}?account={self.checking.pk}"
+        response = self.client.post(
+            filtered_url,
+            {
+                "action": "bulk_categorize",
+                "category": self.restaurants.pk,
+                "apply_to_all_filtered": "1",
+            },
+        )
+
+        self.assertRedirects(response, filtered_url)
+        matching_1.refresh_from_db()
+        matching_2.refresh_from_db()
+        different_account.refresh_from_db()
+        self.assertEqual(matching_1.category, self.restaurants)
+        self.assertEqual(matching_2.category, self.restaurants)
+        self.assertEqual(different_account.category, self.groceries)
+
+    def test_an_empty_id_list_recategorizes_nothing(self):
+        txn = make_transaction(self.checking, category=self.groceries, description_raw="A")
+
+        response = self.bulk_post(category=self.restaurants.pk, transaction_ids=[])
+
+        self.assertRedirects(response, reverse("finance:transactions"))
+        txn.refresh_from_db()
+        self.assertEqual(txn.category, self.groceries)
+
+    def test_bulk_categorize_is_gated_like_everything_else(self):
+        self.client.logout()
+
+        response = self.bulk_post(category=self.restaurants.pk, transaction_ids=[])
+
+        self.assertEqual(response.status_code, 403)
+
+
 class MultiSelectFilterTests(TestCase):
     """Accounts, categories, and budgets are all multi-select: OR within one
     filter, AND across different filters — the standard faceted-search
