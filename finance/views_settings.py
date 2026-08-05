@@ -22,6 +22,7 @@ from .models import (
     AccountConnection,
     BalanceSource,
     Budget,
+    Category,
     CategoryRule,
     ConnectionStatus,
     Institution,
@@ -510,6 +511,71 @@ class RuleListView(FinanceAccessMixin, ListView):
             rule.save(update_fields=["is_active", "updated_at"])
 
         return redirect("finance:rules")
+
+
+class RuleForm(forms.ModelForm):
+    """A CategoryRule, editable from Settings rather than only ever created
+    sight-unseen via the review queue's "always" checkbox (which only ever
+    writes a CONTAINS match on the merchant name). The model already
+    supports contains/starts-with/exact/regex matching, optionally scoped
+    to one account or an amount range — this just exposes it."""
+
+    class Meta:
+        model = CategoryRule
+        fields = [
+            "pattern", "match_type", "category", "account",
+            "min_amount", "max_amount", "priority", "notes",
+        ]
+        widgets = {
+            "pattern": forms.TextInput(attrs={"class": FIELD_CLASSES, "placeholder": "netflix"}),
+            "match_type": forms.Select(attrs={"class": FIELD_CLASSES}),
+            "category": forms.Select(attrs={"class": FIELD_CLASSES}),
+            "account": forms.Select(attrs={"class": FIELD_CLASSES}),
+            "min_amount": forms.NumberInput(attrs={"class": FIELD_CLASSES, "step": "0.01"}),
+            "max_amount": forms.NumberInput(attrs={"class": FIELD_CLASSES, "step": "0.01"}),
+            "priority": forms.NumberInput(attrs={"class": FIELD_CLASSES}),
+            "notes": forms.TextInput(attrs={"class": FIELD_CLASSES}),
+        }
+        help_texts = {
+            "pattern": "Matched against the transaction's raw description, case-insensitively.",
+            "match_type": "“Contains” is the most forgiving choice when an exact match is unlikely.",
+            "account": "Leave unset to apply everywhere.",
+            "min_amount": "Signed, inclusive lower bound. Leave blank for no lower bound.",
+            "max_amount": "Signed, inclusive upper bound. Leave blank for no upper bound.",
+            "priority": "Lower runs first. The first matching rule wins.",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["category"].queryset = Category.objects.filter(
+            is_active=True, children__isnull=True
+        ).select_related("parent").alphabetical()
+        self.fields["account"].queryset = Account.objects.filter(is_active=True)
+        self.fields["account"].required = False
+        self.fields["account"].empty_label = "Every account"
+        self.fields["min_amount"].required = False
+        self.fields["max_amount"].required = False
+        self.fields["notes"].required = False
+
+
+class RuleCreateView(FinanceAccessMixin, CreateView):
+    template_name = "finance/settings/rule_form.html"
+    form_class = RuleForm
+    success_url = reverse_lazy("finance:rules")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New category rule"
+        return context
+
+    def form_valid(self, form):
+        rule = form.instance
+        messages.success(
+            self.request,
+            f"Anything that {rule.get_match_type_display().lower()} "
+            f"“{rule.pattern}” now goes to {rule.category}.",
+        )
+        return super().form_valid(form)
 
 
 class PreferencesForm(forms.ModelForm):
