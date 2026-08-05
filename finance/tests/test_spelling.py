@@ -20,10 +20,21 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 # Directories whose contents this repo does not author.
 EXCLUDED_DIRS = {
     ".git", ".venv", "node_modules", "staticfiles", "__pycache__",
-    "migrations", ".devcontainer", "assets",
+    "migrations", ".devcontainer",
 }
 
-CHECKED_SUFFIXES = {".py", ".html", ".js", ".md"}
+# .css is here for assets/css/input.css, which carries real prose in its
+# comments.
+CHECKED_SUFFIXES = {".py", ".html", ".js", ".md", ".css"}
+
+# Generated or vendored, so not ours to spell. Excluded by filename rather
+# than by directory: static/js also holds finance-charts.js, which *is* ours
+# and does need checking.
+GENERATED_FILES = {"tailwind.css"}
+
+
+def _is_generated(path) -> bool:
+    return path.name in GENERATED_FILES or path.name.endswith(".min.js")
 
 # Stem → the US spelling to use instead. Matched case-insensitively as a
 # substring, so "normalis" catches normalise/normalised/normalising and
@@ -60,6 +71,8 @@ def _checked_files():
         if path.suffix not in CHECKED_SUFFIXES:
             continue
         if EXCLUDED_DIRS.intersection(path.parts):
+            continue
+        if _is_generated(path):
             continue
         yield path
 

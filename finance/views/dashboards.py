@@ -473,9 +473,12 @@ class ChartsView(FinanceView):
             # current per-chart account filter — a filter that happens to
             # pick accounts with no history yet must not also hide the
             # filter control itself, or there would be no way back.
-            "balances_over_time_available": bool(
-                analytics.balance_history(start=start, end=end)["series"]
-            ),
+            #
+            # An existence check, not a second full balance_history() build.
+            # The question is only "is there anything to chart", and building
+            # a day-by-day carried-forward series for every account to answer
+            # it was the most expensive thing on this page.
+            "balances_over_time_available": analytics.has_balance_history(end),
             "selected_balances_accounts": selected,
         }
 

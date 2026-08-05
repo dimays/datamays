@@ -11,9 +11,18 @@ from django import forms
 from .widgets import CHECKBOX_CLASSES, FIELD_CLASSES
 
 # Widgets that render a box to tick rather than a box to type in. Note
-# CheckboxSelectMultiple: it renders one <input> per choice and passes its
-# attrs down to each, which is exactly what's wanted here.
-CHECKBOX_WIDGETS = (forms.CheckboxInput, forms.CheckboxSelectMultiple)
+# CheckboxSelectMultiple and RadioSelect: each renders one <input> per choice
+# and passes its attrs down to all of them, which is exactly what's wanted.
+#
+# RadioSelect is here despite no form using one today. The mixin's promise is
+# "styled by widget type", and a promise with a hole in it is worse than no
+# promise — the first radio button added would have rendered as a full-width
+# text input and nobody would have known why.
+CHECKBOX_WIDGETS = (
+    forms.CheckboxInput,
+    forms.CheckboxSelectMultiple,
+    forms.RadioSelect,
+)
 
 # Nothing to style — these render no visible control.
 UNSTYLED_WIDGETS = (forms.HiddenInput, forms.MultipleHiddenInput)

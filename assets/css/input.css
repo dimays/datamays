@@ -11,10 +11,10 @@
     color-scheme: dark;
   }
 
-  /* Native checkboxes ignore Tailwind's text-* colour, so every checkbox in
+  /* Native checkboxes ignore Tailwind's text-* color, so every checkbox in
      the app was rendering in the browser's default blue against an indigo
      and teal palette. accent-color is the one property that actually
-     recolours them, and costs nothing next to pulling in a forms plugin. */
+     recolors them, and costs nothing next to pulling in a forms plugin. */
   input[type="checkbox"],
   input[type="radio"] {
     accent-color: theme("colors.primary.DEFAULT");

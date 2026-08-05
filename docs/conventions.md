@@ -79,10 +79,34 @@ Set `page_title` as a class attribute, or override `get_page_title()` when it
 depends on the object. Do not write a `get_context_data` override whose whole
 body is setting one string — `PageTitleMixin` handles it.
 
-For anything personal to one household member (alerts, scheduled reports),
-use `PersonalObjectMixin`. It covers both halves of the invariant — the
-queryset filter *and* the `form.instance.user` assignment — so a new personal
-view cannot ship with only one of them.
+For anything personal to one household member (alerts, scheduled reports):
+
+- `PersonalQuerysetMixin` scopes the queryset. **Every** personal view needs
+  it, including deletes.
+- `PersonalObjectMixin` adds the owner stamp on create. Only for views that
+  write a new row.
+
+They are separate because a `DeleteView` is confirmed with a plain `Form`
+that has no `.instance` — a single mixin doing both turned every alert
+delete into a 500, and no test noticed until one was written.
+
+## Queries
+
+**A page's query count must not grow with the number of accounts,
+categories, or transactions.** It may grow with the number of *sections* on
+it — that's a fixed cost you can read in the code.
+
+`finance/tests/test_query_budgets.py` enforces both halves: a loose ceiling
+per page, and a direct assertion that Charts costs the same with 4 accounts
+as with 20.
+
+The failure this protects against is quiet. Charts used to run one query per
+account to find each one's opening balance, three times over — 71 queries at
+9 accounts, 104 at 20 — and every test passed the whole time.
+
+If you write a loop over accounts, budgets, or categories, ask what happens
+inside it. `select_related` / `prefetch_related` for traversals; one grouped
+query and a dict for lookups.
 
 ## Testing
 

@@ -128,5 +128,6 @@ user-configurable: transactions, balances, paycheck. The
 | `QuarterlyReport` | A QFR. Metrics and comparisons are **computed once at generation time and stored**, not recomputed on view — a report should read the same a year later even if categories have since changed. |
 | `SyncRun` | Per-run observability: counts, duration, errors. |
 
-Anything personal must go through `PersonalObjectMixin` in its views. See
+Anything personal must be scoped by `PersonalQuerysetMixin` in its views —
+plus `PersonalObjectMixin` where a new row is written. See
 [`architecture.md`](architecture.md).
