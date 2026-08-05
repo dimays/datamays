@@ -38,3 +38,11 @@ PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 FIELD_ENCRYPTION_KEYS = [Fernet.generate_key().decode()]
 
 SECURE_SSL_REDIRECT = False
+
+# The manifest-hashed static storage needs collectstatic to have already run
+# to resolve {% static %} lookups — never true for a test run, so tests use
+# plain unhashed storage instead.
+STORAGES = {
+    **STORAGES,
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}

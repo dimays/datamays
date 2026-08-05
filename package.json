@@ -12,6 +12,6 @@
   "scripts": {
     "tailwind:build": "npx tailwindcss -i assets/css/input.css -o static/css/tailwind.css",
     "tailwind:watch": "npx tailwindcss -i assets/css/input.css -o static/css/tailwind.css --watch",
-    "vendor:js": "cp node_modules/htmx.org/dist/htmx.min.js static/js/htmx.min.js && cp node_modules/alpinejs/dist/cdn.min.js static/js/alpine.min.js && cp node_modules/chart.js/dist/chart.umd.min.js static/js/chart.min.js"
+    "vendor:js": "cp node_modules/htmx.org/dist/htmx.min.js static/js/htmx.min.js && cp node_modules/alpinejs/dist/cdn.min.js static/js/alpine.min.js && cp node_modules/chart.js/dist/chart.umd.min.js static/js/chart.min.js && cp node_modules/chart.js/dist/chart.umd.min.js.map static/js/chart.umd.min.js.map"
   }
 }
