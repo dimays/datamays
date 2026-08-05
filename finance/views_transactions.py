@@ -163,6 +163,12 @@ class TransactionListView(FinanceAccessMixin, ListView):
         context["page_title"] = "Activity"
         context["accounts"] = all_accounts
         context["categories"] = all_categories
+        # Archived categories stay assignable — just tucked into their own
+        # section at the bottom of the picker, so old data stays readable
+        # without cluttering the choices for new transactions.
+        context["archived_categories"] = Category.objects.filter(
+            is_active=False, children__isnull=True
+        ).select_related("parent").alphabetical()
         context["budgets"] = Budget.objects.filter(is_active=True).order_by("name")
         context["review_only"] = self.request.GET.get("review") == "1"
         context["review_count"] = Transaction.objects.filter(needs_review=True).count()

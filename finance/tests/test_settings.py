@@ -14,6 +14,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
+from finance.categories_seed import UNCATEGORIZED_SLUG
 from finance.models import (
     Account,
     AccountBalanceSnapshot,
@@ -22,9 +23,12 @@ from finance.models import (
     BalanceSource,
     Budget,
     Category,
+    CategoryKind,
     CategoryRule,
+    CategorySource,
     ConnectionStatus,
     MatchType,
+    MerchantCategoryMemo,
     UserPreference,
 )
 from finance.providers.base import ProviderError
@@ -203,6 +207,186 @@ class CategorizeNowTests(SettingsTestCase):
         self.client.logout()
 
         response = self.client.post(reverse("finance:settings"), {"action": "categorize"})
+
+        self.assertEqual(response.status_code, 403)
+
+
+class CategoryManagementTests(SettingsTestCase):
+    """Create, rename, archive, and delete a household category — separate
+    from CategoryRule, which only maps descriptions to an existing one."""
+
+    def setUp(self):
+        super().setUp()
+        self.groceries = Category.objects.get(slug="food-groceries")
+        self.uncategorized = Category.objects.get(slug=UNCATEGORIZED_SLUG)
+
+    def test_creating_a_top_level_category(self):
+        response = self.client.post(
+            reverse("finance:category_create"),
+            {"name": "Crypto", "parent": "", "kind": CategoryKind.EXPENSE, "sort_order": 100, "description": ""},
+        )
+
+        self.assertRedirects(response, reverse("finance:categories"))
+        category = Category.objects.get(name="Crypto")
+        self.assertEqual(category.slug, "crypto")
+        self.assertIsNone(category.parent)
+
+    def test_creating_a_subcategory_under_a_parent(self):
+        parent = Category.objects.get(slug="food")
+
+        response = self.client.post(
+            reverse("finance:category_create"),
+            {"name": "Meal Kits", "parent": parent.pk, "kind": CategoryKind.EXPENSE, "sort_order": 100, "description": ""},
+        )
+
+        self.assertRedirects(response, reverse("finance:categories"))
+        category = Category.objects.get(name="Meal Kits")
+        self.assertEqual(category.parent, parent)
+
+    def test_a_mismatched_kind_against_the_parent_is_rejected(self):
+        parent = Category.objects.get(slug="food")
+
+        response = self.client.post(
+            reverse("finance:category_create"),
+            {"name": "Meal Kits", "parent": parent.pk, "kind": CategoryKind.INCOME, "sort_order": 100, "description": ""},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Category.objects.filter(name="Meal Kits").exists())
+
+    def test_renaming_a_category_does_not_change_its_slug(self):
+        response = self.client.post(
+            reverse("finance:category_edit", args=[self.groceries.pk]),
+            {
+                "name": "Grocery Shopping",
+                "parent": self.groceries.parent_id or "",
+                "kind": self.groceries.kind,
+                "sort_order": self.groceries.sort_order,
+                "description": "",
+            },
+        )
+
+        self.assertRedirects(response, reverse("finance:categories"))
+        self.groceries.refresh_from_db()
+        self.assertEqual(self.groceries.name, "Grocery Shopping")
+        self.assertEqual(self.groceries.slug, "food-groceries")
+
+    def test_a_category_cannot_be_nested_under_its_own_descendant(self):
+        parent = Category.objects.get(slug="food")
+
+        response = self.client.post(
+            reverse("finance:category_edit", args=[parent.pk]),
+            {
+                "name": parent.name,
+                "parent": self.groceries.pk,
+                "kind": parent.kind,
+                "sort_order": parent.sort_order,
+                "description": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        parent.refresh_from_db()
+        self.assertIsNone(parent.parent)
+
+    def test_archiving_a_category_flips_is_active(self):
+        response = self.client.post(
+            reverse("finance:categories"), {"category": self.groceries.pk}
+        )
+
+        self.assertRedirects(response, reverse("finance:categories"))
+        self.groceries.refresh_from_db()
+        self.assertFalse(self.groceries.is_active)
+
+    def test_archiving_again_unarchives_it(self):
+        self.groceries.is_active = False
+        self.groceries.save(update_fields=["is_active"])
+
+        self.client.post(reverse("finance:categories"), {"category": self.groceries.pk})
+
+        self.groceries.refresh_from_db()
+        self.assertTrue(self.groceries.is_active)
+
+    def test_a_system_category_cannot_be_archived(self):
+        response = self.client.post(
+            reverse("finance:categories"), {"category": self.uncategorized.pk}
+        )
+
+        self.assertRedirects(response, reverse("finance:categories"))
+        self.uncategorized.refresh_from_db()
+        self.assertTrue(self.uncategorized.is_active)
+
+    def test_a_system_category_cannot_be_deleted(self):
+        response = self.client.post(
+            reverse("finance:category_delete", args=[self.uncategorized.pk]),
+            {"reassign_to": self.groceries.pk},
+        )
+
+        self.assertRedirects(response, reverse("finance:categories"))
+        self.assertTrue(Category.objects.filter(pk=self.uncategorized.pk).exists())
+
+    def test_a_category_with_children_cannot_be_deleted_directly(self):
+        parent = Category.objects.get(slug="food")
+
+        response = self.client.post(
+            reverse("finance:category_delete", args=[parent.pk]),
+            {"reassign_to": self.groceries.pk},
+        )
+
+        self.assertRedirects(response, reverse("finance:category_delete", args=[parent.pk]))
+        self.assertTrue(Category.objects.filter(pk=parent.pk).exists())
+
+    def test_deleting_reassigns_its_transactions_to_the_chosen_category(self):
+        restaurants = Category.objects.get(slug="food-restaurants")
+        txn = make_transaction(self.account, category=self.groceries, needs_review=False)
+
+        response = self.client.post(
+            reverse("finance:category_delete", args=[self.groceries.pk]),
+            {"reassign_to": restaurants.pk},
+        )
+
+        self.assertRedirects(response, reverse("finance:categories"))
+        self.assertFalse(Category.objects.filter(pk=self.groceries.pk).exists())
+        txn.refresh_from_db()
+        self.assertEqual(txn.category, restaurants)
+        self.assertEqual(txn.category_source, CategorySource.MANUAL)
+        self.assertFalse(txn.needs_review)
+
+    def test_deleting_to_uncategorized_flags_the_moved_transactions_for_review(self):
+        txn = make_transaction(self.account, category=self.groceries, needs_review=False)
+
+        self.client.post(
+            reverse("finance:category_delete", args=[self.groceries.pk]),
+            {"reassign_to": self.uncategorized.pk},
+        )
+
+        txn.refresh_from_db()
+        self.assertEqual(txn.category, self.uncategorized)
+        self.assertTrue(txn.needs_review)
+
+    def test_deleting_cascades_its_rules_and_memos(self):
+        rule = CategoryRule.objects.create(pattern="marianos", category=self.groceries)
+        memo = MerchantCategoryMemo.objects.create(merchant_key="marianos", category=self.groceries)
+
+        self.client.post(
+            reverse("finance:category_delete", args=[self.groceries.pk]),
+            {"reassign_to": self.uncategorized.pk},
+        )
+
+        self.assertFalse(CategoryRule.objects.filter(pk=rule.pk).exists())
+        self.assertFalse(MerchantCategoryMemo.objects.filter(pk=memo.pk).exists())
+
+    def test_delete_confirmation_defaults_the_reassignment_target_to_uncategorized(self):
+        response = self.client.get(reverse("finance:category_delete", args=[self.groceries.pk]))
+        body = response.content.decode()
+
+        marker = f'value="{self.uncategorized.pk}" selected'
+        self.assertIn(marker, body)
+
+    def test_categories_page_is_gated_like_everything_else(self):
+        self.client.logout()
+
+        response = self.client.get(reverse("finance:categories"))
 
         self.assertEqual(response.status_code, 403)
 

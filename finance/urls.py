@@ -31,6 +31,10 @@ urlpatterns = [
     path("settings/accounts/<int:pk>/", views_settings.AccountUpdateView.as_view(), name="account_edit"),
     path("settings/rules/", views_settings.RuleListView.as_view(), name="rules"),
     path("settings/rules/new/", views_settings.RuleCreateView.as_view(), name="rule_create"),
+    path("settings/categories/", views_settings.CategoryListView.as_view(), name="categories"),
+    path("settings/categories/new/", views_settings.CategoryCreateView.as_view(), name="category_create"),
+    path("settings/categories/<int:pk>/", views_settings.CategoryUpdateView.as_view(), name="category_edit"),
+    path("settings/categories/<int:pk>/delete/", views_settings.CategoryDeleteView.as_view(), name="category_delete"),
     path("preferences/", views_settings.PreferencesView.as_view(), name="preferences"),
     path("help/", views_help.HelpView.as_view(), name="help"),
     # Alerts and reports

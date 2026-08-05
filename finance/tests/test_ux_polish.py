@@ -133,6 +133,25 @@ class ReviewQueueSaveButtonTests(TestCase):
         self.assertNotContains(response, 'name="create_rule"')
         self.assertNotContains(response, ">always<")
 
+    def test_an_archived_category_appears_in_its_own_optgroup(self):
+        restaurants = Category.objects.get(slug="food-restaurants")
+        restaurants.is_active = False
+        restaurants.save(update_fields=["is_active"])
+
+        make_transaction(self.checking, description_raw="MARIANOS", category=self.groceries)
+
+        response = self.client.get(reverse("finance:transactions"))
+        body = response.content.decode()
+
+        self.assertIn('<optgroup label="Archived"', body)
+        self.assertIn(f'value="{restaurants.pk}"', body)
+
+    def test_an_active_category_never_appears_in_the_archived_optgroup(self):
+        response = self.client.get(reverse("finance:transactions"))
+        body = response.content.decode()
+
+        self.assertNotIn('<optgroup label="Archived"', body)
+
     def test_a_row_needing_review_can_be_saved_without_changing_the_category(self):
         # The classifier's suggestion prefills the select, so a row that
         # merely needs confirming starts with selected === initial — the
