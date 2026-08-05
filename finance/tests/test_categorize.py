@@ -234,6 +234,16 @@ class ClassifierTests(PipelineTestCase):
 
         self.assertIn("json", SYSTEM_PROMPT.lower())
 
+    def test_the_system_prompt_insists_on_a_verbatim_slug_copy(self):
+        # A production run classified real merchants and the model invented
+        # plausible-but-nonexistent slugs (e.g. "transport-auto-maintenance"
+        # instead of "transport-maintenance") often enough to be worth
+        # explicitly warning against, even though _parse's allowed-slug guard
+        # already discards anything that doesn't match.
+        from finance.services.classifier import SYSTEM_PROMPT
+
+        self.assertIn("character-for-character", SYSTEM_PROMPT)
+
     def test_without_an_api_key_the_deterministic_steps_still_work(self):
         from finance.services.classifier import NullClassifier
 

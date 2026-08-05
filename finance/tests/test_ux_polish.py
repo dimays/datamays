@@ -112,9 +112,10 @@ class ReviewQueueSaveButtonTests(TestCase):
         # expression evaluates true (nothing changed) until the person
         # actually picks something else.
         self.assertIn(
-            f"initial: '{self.groceries.pk}', selected: '{self.groceries.pk}'", body
+            f"initial: '{self.groceries.pk}', selected: '{self.groceries.pk}', needsReview: false",
+            body,
         )
-        self.assertIn(':disabled="selected === initial"', body)
+        self.assertIn(':disabled="selected === initial && !needsReview"', body)
 
     def test_picking_a_different_category_is_the_only_way_to_enable_it(self):
         # No "always"/create-a-rule shortcut folded into this save anymore —
@@ -131,6 +132,26 @@ class ReviewQueueSaveButtonTests(TestCase):
 
         self.assertNotContains(response, 'name="create_rule"')
         self.assertNotContains(response, ">always<")
+
+    def test_a_row_needing_review_can_be_saved_without_changing_the_category(self):
+        # The classifier's suggestion prefills the select, so a row that
+        # merely needs confirming starts with selected === initial — the
+        # Save button must still be enabled so "approve as suggested" is
+        # possible without picking a different category first.
+        make_transaction(
+            self.checking,
+            description_raw="MARIANOS",
+            category=self.groceries,
+            needs_review=True,
+        )
+
+        response = self.client.get(reverse("finance:transactions"))
+        body = response.content.decode()
+
+        self.assertIn(
+            f"initial: '{self.groceries.pk}', selected: '{self.groceries.pk}', needsReview: true",
+            body,
+        )
 
 
 class InstitutionManagementTests(TestCase):
