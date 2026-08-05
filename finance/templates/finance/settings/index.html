@@ -96,7 +96,7 @@
   </ul>
 </section>
 
-<section class="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+<section class="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
   <a href="{% url 'finance:institutions' %}" class="rounded-card border border-border bg-surface p-4 transition hover:border-primary/50">
     <p class="text-sm font-medium">Institutions</p>
     <p class="mt-1 text-xs text-text-muted">{{ institution_count }} on file</p>
@@ -108,6 +108,10 @@
   <a href="{% url 'finance:rules' %}" class="rounded-card border border-border bg-surface p-4 transition hover:border-primary/50">
     <p class="text-sm font-medium">Category rules</p>
     <p class="mt-1 text-xs text-text-muted">{{ rule_count }} configured</p>
+  </a>
+  <a href="{% url 'finance:categories' %}" class="rounded-card border border-border bg-surface p-4 transition hover:border-primary/50">
+    <p class="text-sm font-medium">Categories</p>
+    <p class="mt-1 text-xs text-text-muted">{{ category_count }} defined</p>
   </a>
   <a href="{% url 'finance:imports' %}" class="rounded-card border border-border bg-surface p-4 transition hover:border-primary/50">
     <p class="text-sm font-medium">Imports</p>

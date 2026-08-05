@@ -140,6 +140,13 @@
           {% for category in categories %}
             <option value="{{ category.pk }}" {% if txn.category_id == category.pk %}selected{% endif %}>{{ category.full_path }}</option>
           {% endfor %}
+          {% if archived_categories %}
+            <optgroup label="Archived" class="text-text-muted">
+              {% for category in archived_categories %}
+                <option value="{{ category.pk }}" class="text-text-muted" {% if txn.category_id == category.pk %}selected{% endif %}>{{ category.full_path }}</option>
+              {% endfor %}
+            </optgroup>
+          {% endif %}
         </select>
 
         <button type="submit" :disabled="selected === initial && !needsReview"

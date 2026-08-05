@@ -1,0 +1,68 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+<div class="flex flex-wrap items-center justify-between gap-3">
+  <h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Categories</h1>
+  <a href="{% url 'finance:category_create' %}"
+     class="rounded-button bg-primary px-3.5 py-2 text-xs font-medium text-white transition hover:bg-primary-600">
+    Add category
+  </a>
+</div>
+<p class="mt-2 max-w-2xl text-text-secondary">
+  Archiving keeps a category selectable on existing transactions — it just
+  moves to its own section at the bottom of the category picker, so old data
+  stays readable without cluttering the choices for new ones. Deleting asks
+  where its transactions should go instead of leaving them uncategorized by
+  accident.
+</p>
+
+{% include "finance/partials/messages.html" %}
+
+<div class="mt-8 space-y-2">
+  {% for category in categories %}
+    <div class="rounded-card border border-border bg-surface p-4 {% if not category.is_active %}opacity-60{% endif %}">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="min-w-0">
+          <p class="truncate text-sm font-medium">
+            {{ category.full_path }}
+            {% if not category.is_active %}
+              <span class="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">Archived</span>
+            {% endif %}
+            {% if category.is_system %}
+              <span class="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">System</span>
+            {% endif %}
+          </p>
+          <p class="mt-1 text-xs text-text-muted">
+            {{ category.get_kind_display }} · {{ category.transaction_count }} transaction{{ category.transaction_count|pluralize }}
+          </p>
+        </div>
+
+        <div class="flex shrink-0 flex-wrap gap-2">
+          <a href="{% url 'finance:category_edit' category.pk %}"
+             class="rounded-button border border-border px-3 py-1.5 text-xs transition hover:bg-muted">
+            Edit
+          </a>
+          {% if not category.is_system %}
+            <form method="post" action="{% url 'finance:categories' %}">
+              {% csrf_token %}
+              <input type="hidden" name="category" value="{{ category.pk }}" />
+              <button type="submit"
+                      class="rounded-button border border-border px-3 py-1.5 text-xs transition hover:bg-muted">
+                {% if category.is_active %}Archive{% else %}Unarchive{% endif %}
+              </button>
+            </form>
+            <a href="{% url 'finance:category_delete' category.pk %}"
+               class="rounded-button px-3 py-1.5 text-xs text-error transition hover:bg-error/10">
+              Delete
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  {% empty %}
+    <div class="rounded-card border border-dashed border-border bg-surface/50 p-8 text-center">
+      <p class="text-text-secondary">No categories yet.</p>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

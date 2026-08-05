@@ -9,6 +9,8 @@ one person sees that ledger, so they never touch shared data.
 
 from django import forms
 from django.contrib import messages
+from django.db import transaction as db_transaction
+from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -16,6 +18,7 @@ from django.utils.text import slugify
 from django.views.generic import CreateView, FormView, ListView, TemplateView, UpdateView
 
 from .access import FinanceAccessMixin
+from .categories_seed import UNCATEGORIZED_SLUG
 from .dates import household_today
 from .models import (
     Account,
@@ -24,6 +27,7 @@ from .models import (
     Budget,
     Category,
     CategoryRule,
+    CategorySource,
     ConnectionStatus,
     Institution,
     Provider,
@@ -65,6 +69,7 @@ class SettingsHomeView(FinanceView):
                 "institution_count": Institution.objects.count(),
                 "budget_count": Budget.objects.count(),
                 "rule_count": CategoryRule.objects.count(),
+                "category_count": Category.objects.count(),
                 "needs_attention": AccountConnection.objects.filter(
                     status__in=[ConnectionStatus.NEEDS_REAUTH, ConnectionStatus.ERROR]
                 ).defer("access_secret"),
@@ -595,6 +600,232 @@ class RuleCreateView(FinanceAccessMixin, CreateView):
             f"“{rule.pattern}” now goes to {rule.category}.",
         )
         return super().form_valid(form)
+
+
+class CategoryForm(forms.ModelForm):
+    """Create or rename a category. The slug is set once, at creation, and
+    never changes after — several system categories (Uncategorized, Internal
+    Transfer, Credit Card Payment) are looked up by slug in code, and a
+    handful of other slugs are what CategoryRule/MerchantCategoryMemo
+    matching keys off of, so renaming a category must not disturb it."""
+
+    class Meta:
+        model = Category
+        fields = ["name", "parent", "kind", "sort_order", "description"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": FIELD_CLASSES, "placeholder": "Groceries"}),
+            "parent": forms.Select(attrs={"class": FIELD_CLASSES}),
+            "kind": forms.Select(attrs={"class": FIELD_CLASSES}),
+            "sort_order": forms.NumberInput(attrs={"class": FIELD_CLASSES}),
+            "description": forms.TextInput(attrs={"class": FIELD_CLASSES}),
+        }
+        help_texts = {
+            "parent": "Leave unset for a top-level category. Nesting goes at most three levels deep.",
+            "kind": "A subcategory must share its parent's kind.",
+            "sort_order": "Lower sorts first among siblings.",
+            "description": "Steers the classifier — say what belongs here and what doesn't.",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["parent"].queryset = Category.objects.filter(is_active=True)
+        self.fields["parent"].required = False
+        self.fields["parent"].empty_label = "No parent (top-level)"
+        self.fields["description"].required = False
+
+    def clean_parent(self):
+        parent = self.cleaned_data.get("parent")
+
+        if parent and self.instance.pk:
+            # Without this guard, picking one of a category's own descendants
+            # as its new parent creates a cycle — full_path/depth walk parent
+            # links and would loop forever.
+            node = parent
+            while node is not None:
+                if node.pk == self.instance.pk:
+                    raise forms.ValidationError(
+                        "A category can't be nested under one of its own subcategories."
+                    )
+                node = node.parent
+
+        return parent
+
+    def save(self, commit=True):
+        category = super().save(commit=False)
+
+        if not category.slug:
+            category.slug = self._unique_slug(category.name)
+
+        if commit:
+            category.save()
+
+        return category
+
+    def _unique_slug(self, name):
+        base = slugify(name)[:90] or "category"
+        slug = base
+        suffix = 1
+
+        while Category.objects.filter(slug=slug).exclude(pk=self.instance.pk).exists():
+            suffix += 1
+            slug = f"{base}-{suffix}"
+
+        return slug
+
+
+class CategoryListView(FinanceAccessMixin, ListView):
+    template_name = "finance/settings/categories.html"
+    context_object_name = "categories"
+
+    def get_queryset(self):
+        return (
+            Category.objects.select_related("parent")
+            .annotate(transaction_count=Count("transactions", distinct=True))
+            .alphabetical()
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Categories"
+        return context
+
+    def post(self, request, *args, **kwargs):
+        category = get_object_or_404(Category, pk=request.POST.get("category"))
+
+        if category.is_system:
+            messages.error(request, "This category is built into the app and can't be archived.")
+            return redirect("finance:categories")
+
+        category.is_active = not category.is_active
+        category.save(update_fields=["is_active", "updated_at"])
+
+        messages.info(
+            request,
+            f"{category.full_path} {'archived' if not category.is_active else 'unarchived'}.",
+        )
+        return redirect("finance:categories")
+
+
+class CategoryCreateView(FinanceAccessMixin, CreateView):
+    template_name = "finance/settings/category_form.html"
+    form_class = CategoryForm
+    success_url = reverse_lazy("finance:categories")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New category"
+        return context
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        messages.success(self.request, f"Added {self.object.full_path}.")
+        return response
+
+
+class CategoryUpdateView(FinanceAccessMixin, UpdateView):
+    template_name = "finance/settings/category_form.html"
+    form_class = CategoryForm
+    model = Category
+    success_url = reverse_lazy("finance:categories")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit {self.object.full_path}"
+        return context
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        messages.success(self.request, f"Updated {self.object.full_path}.")
+        return response
+
+
+class CategoryDeleteView(FinanceAccessMixin, TemplateView):
+    """Deleting a category cascades to its CategoryRules and
+    MerchantCategoryMemos (both FK on_delete=CASCADE), and would otherwise
+    silently null out every transaction currently filed under it
+    (Transaction.category is on_delete=SET_NULL). Reassigning those
+    transactions to a chosen category first — defaulting to Uncategorized —
+    keeps that from happening quietly."""
+
+    template_name = "finance/settings/category_delete.html"
+
+    def get_category(self):
+        return get_object_or_404(Category, pk=self.kwargs["pk"])
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        category = self.get_category()
+        default_reassign = Category.objects.filter(slug=UNCATEGORIZED_SLUG).first()
+
+        context.update(
+            {
+                "page_title": f"Delete {category.full_path}",
+                "category": category,
+                "transaction_count": category.transactions.count(),
+                "rule_count": category.rules.count(),
+                "memo_count": category.merchant_memos.count(),
+                "child_count": category.children.count(),
+                "reassign_choices": Category.objects.filter(is_active=True)
+                .exclude(pk=category.pk)
+                .select_related("parent")
+                .alphabetical(),
+                "default_reassign": default_reassign,
+            }
+        )
+        return context
+
+    def post(self, request, *args, **kwargs):
+        category = self.get_category()
+
+        if category.is_system:
+            messages.error(request, "This category is built into the app and can't be deleted.")
+            return redirect("finance:categories")
+
+        if category.children.exists():
+            messages.error(
+                request,
+                f"{category.full_path} has subcategories — delete or reassign those first.",
+            )
+            return redirect("finance:category_delete", pk=category.pk)
+
+        reassign_to = (
+            Category.objects.filter(pk=request.POST.get("reassign_to"), is_active=True)
+            .exclude(pk=category.pk)
+            .first()
+        )
+
+        if reassign_to is None:
+            messages.error(request, "Pick a category for the existing transactions to move to.")
+            return redirect("finance:category_delete", pk=category.pk)
+
+        with db_transaction.atomic():
+            moved = category.transactions.count()
+
+            if reassign_to.slug == UNCATEGORIZED_SLUG:
+                # Matches services.categorize._assign_uncategorized: parked
+                # for review rather than treated as a confirmed decision.
+                category.transactions.update(
+                    category=reassign_to,
+                    category_source="",
+                    category_confidence=0.0,
+                    needs_review=True,
+                )
+            else:
+                category.transactions.update(
+                    category=reassign_to,
+                    category_source=CategorySource.MANUAL,
+                    category_confidence=1.0,
+                    needs_review=False,
+                )
+
+            name = category.full_path
+            category.delete()
+
+        messages.success(
+            request,
+            f"Deleted {name}. {moved} transaction{'s' if moved != 1 else ''} moved to {reassign_to.full_path}.",
+        )
+        return redirect("finance:categories")
 
 
 class PreferencesForm(forms.ModelForm):
