@@ -1400,6 +1400,10 @@ video {
   max-height: 16rem;
 }
 
+.max-h-\[28rem\] {
+  max-height: 28rem;
+}
+
 .min-h-\[140px\] {
   min-height: 140px;
 }
@@ -1454,6 +1458,10 @@ video {
 
 .min-w-0 {
   min-width: 0px;
+}
+
+.min-w-\[10rem\] {
+  min-width: 10rem;
 }
 
 .min-w-max {
@@ -2339,6 +2347,10 @@ video {
 
 .disabled\:opacity-40:disabled {
   opacity: 0.4;
+}
+
+.disabled\:opacity-60:disabled {
+  opacity: 0.6;
 }
 
 .disabled\:hover\:bg-primary:hover:disabled {

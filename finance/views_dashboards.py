@@ -30,6 +30,7 @@ from .dates import household_today
 from .models import (
     Account,
     Budget,
+    Category,
     UserPreference,
 )
 from .services import analytics
@@ -161,6 +162,25 @@ class ChartsView(FinanceView):
         raw = self.request.GET.getlist("balances_account")
         return [int(value) for value in raw if str(value).isdigit()]
 
+    def resolve_large_transactions_accounts(self):
+        # Its own filter too, for the same reason as balances: someone
+        # exploring "what are the biggest one-off outflows" wants to narrow
+        # by account independently of whatever the page's shared filter
+        # happens to be set to.
+        raw = self.request.GET.getlist("lt_account")
+        return [int(value) for value in raw if str(value).isdigit()]
+
+    def resolve_large_transactions_categories(self):
+        raw = self.request.GET.getlist("lt_category")
+        return [int(value) for value in raw if str(value).isdigit()]
+
+    def resolve_large_transactions_page(self):
+        try:
+            page = int(self.request.GET.get("lt_page", 1))
+        except (TypeError, ValueError):
+            return 1
+        return max(1, page)
+
     def known_sections(self):
         return {slug for slug, _ in CHART_SECTION_CHOICES}
 
@@ -234,7 +254,7 @@ class ChartsView(FinanceView):
         context.update(self._spend_context(start, end, grain, account_ids))
         context.update(self._income_context(start, end, grain, account_ids))
         context.update(self._cash_flow_context(start, end, grain, account_ids))
-        context.update(self._large_transactions_context(start, end, account_ids))
+        context.update(self._large_transactions_context(start, end))
         context.update(self._net_worth_context(start, end))
         context.update(self._balances_over_time_context(start, end))
 
@@ -247,7 +267,7 @@ class ChartsView(FinanceView):
             "spend_over_time": context["spend_has_data"],
             "spend_by_category_trend": context["spend_has_data"],
             "spend_by_category": context["spend_has_data"],
-            "large_transactions": context["large_transactions_has_data"],
+            "large_transactions": context["large_transactions_available"],
             "budget_attainment": context["spend_has_data"],
             "net_income": context["income_has_data"],
             "net_cash_flow": context["cash_flow_has_data"],
@@ -260,7 +280,7 @@ class ChartsView(FinanceView):
                 context["spend_has_data"],
                 context["income_has_data"],
                 context["cash_flow_has_data"],
-                context["large_transactions_has_data"],
+                context["large_transactions_available"],
                 context["net_worth_has_data"],
                 context["balances_over_time_available"],
             ]
@@ -273,6 +293,9 @@ class ChartsView(FinanceView):
             start, end, grain=grain, account_ids=account_ids
         )
         by_category = analytics.spend_by_category(start, end, account_ids=account_ids)
+        by_category_breakdown = analytics.spend_by_category_breakdown(
+            start, end, account_ids=account_ids
+        )
         by_category_over_time = analytics.spend_by_category_over_time(
             start, end, grain=grain, account_ids=account_ids
         )
@@ -305,6 +328,7 @@ class ChartsView(FinanceView):
         return {
             "spend_over_time_json": over_time,
             "spend_by_category_json": by_category,
+            "spend_by_category_breakdown_json": by_category_breakdown,
             "spend_by_category_over_time_json": by_category_over_time,
             "spend_total": by_category["total"],
             "budgets": budgets,
@@ -369,12 +393,55 @@ class ChartsView(FinanceView):
             "cash_flow_has_data": cash_flow["has_data"],
         }
 
-    def _large_transactions_context(self, start, end, account_ids):
-        result = analytics.largest_transactions(start, end, account_ids=account_ids)
+    def _large_transactions_context(self, start, end):
+        per_page = 10
+        selected_accounts = self.resolve_large_transactions_accounts()
+        selected_categories = self.resolve_large_transactions_categories()
+        page = self.resolve_large_transactions_page()
+
+        result = analytics.largest_transactions(
+            start,
+            end,
+            account_ids=selected_accounts or None,
+            category_ids=selected_categories or None,
+            limit=per_page,
+            offset=(page - 1) * per_page,
+        )
+        total_pages = max(1, -(-result["total"] // per_page))
+
+        previous_url = None
+        if page > 1:
+            query = self.request.GET.copy()
+            query["lt_page"] = page - 1
+            previous_url = f"{self.request.path}?{query.urlencode()}"
+
+        next_url = None
+        if page < total_pages:
+            query = self.request.GET.copy()
+            query["lt_page"] = page + 1
+            next_url = f"{self.request.path}?{query.urlencode()}"
 
         return {
             "large_transactions": result["transactions"],
             "large_transactions_has_data": result["has_data"],
+            "large_transactions_total": result["total"],
+            "large_transactions_page": page,
+            "large_transactions_total_pages": total_pages,
+            "large_transactions_previous_url": previous_url,
+            "large_transactions_next_url": next_url,
+            "large_transactions_accounts": Account.objects.filter(is_active=True),
+            "large_transactions_categories": Category.objects.filter(
+                is_active=True, children__isnull=True
+            ).select_related("parent").alphabetical(),
+            "large_transactions_selected_accounts": [str(a) for a in selected_accounts],
+            "large_transactions_selected_categories": [str(c) for c in selected_categories],
+            # Whether the section is available at all, regardless of the
+            # current per-chart filter/page — a filter that happens to match
+            # nothing must not also hide the filter controls themselves, or
+            # there'd be no way back to a wider result.
+            "large_transactions_available": analytics.largest_transactions(
+                start, end, limit=1
+            )["has_data"],
         }
 
     def _net_worth_context(self, start, end):

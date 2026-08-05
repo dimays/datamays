@@ -183,6 +183,73 @@ class SpendAnalyticsTests(AnalyticsTestCase):
         self.assertEqual(result["labels"], ["Food", "Everything else"])
         self.assertEqual(result["values"], [100.0, 40.0])
 
+    def test_breakdown_ranks_categories_largest_first_with_no_cap(self):
+        self.spend("-40.00", self.fuel, 7)
+        self.spend("-100.00", self.groceries, 5)
+        self.spend("-60.00", self.restaurants, 6)
+
+        result = analytics.spend_by_category_breakdown(
+            date(2026, 4, 1), date(2026, 4, 30)
+        )
+
+        names = [category["name"] for category in result["categories"]]
+        self.assertEqual(names, ["Food", "Transportation"])
+        self.assertEqual(result["categories"][0]["total"], 160.0)
+
+    def test_breakdown_ranks_subcategories_within_their_parent(self):
+        self.spend("-100.00", self.groceries, 5)
+        self.spend("-160.00", self.restaurants, 6)
+
+        result = analytics.spend_by_category_breakdown(
+            date(2026, 4, 1), date(2026, 4, 30)
+        )
+
+        food = next(c for c in result["categories"] if c["name"] == "Food")
+        self.assertEqual(
+            [sub["name"] for sub in food["subcategories"]],
+            ["Restaurants", "Groceries"],
+        )
+        self.assertEqual(food["subcategories"][0]["total"], 160.0)
+
+    def test_breakdown_a_top_level_category_with_no_children_has_none_listed(self):
+        # Transportation's spend here all lands on the same leaf, but the
+        # point is a category with genuinely no subcategories (e.g. a
+        # standalone top-level leaf) reports an empty list, not a
+        # single-entry list duplicating itself.
+        self.spend("-40.00", self.fuel, 7)
+
+        result = analytics.spend_by_category_breakdown(
+            date(2026, 4, 1), date(2026, 4, 30)
+        )
+
+        transport = next(c for c in result["categories"] if c["name"] == "Transportation")
+        self.assertEqual(transport["subcategories"], [{"name": "Fuel", "total": 40.0}])
+
+    def test_breakdown_floors_a_net_refunded_category_and_subcategory_at_zero(self):
+        self.spend("-20.00", self.groceries, 5)
+        self.spend("50.00", self.groceries, 12)
+        self.spend("-40.00", self.fuel, 7)
+
+        result = analytics.spend_by_category_breakdown(
+            date(2026, 4, 1), date(2026, 4, 30)
+        )
+
+        food = next(c for c in result["categories"] if c["name"] == "Food")
+        self.assertEqual(food["total"], 0.0)
+        self.assertEqual(food["subcategories"], [{"name": "Groceries", "total": 0.0}])
+
+    def test_breakdown_totals_everything_with_nothing_capped_into_a_tail_bucket(self):
+        self.spend("-100.00", self.groceries, 5)
+        self.spend("-40.00", self.fuel, 6)
+
+        result = analytics.spend_by_category_breakdown(
+            date(2026, 4, 1), date(2026, 4, 30)
+        )
+
+        names = [category["name"] for category in result["categories"]]
+        self.assertNotIn("Everything else", names)
+        self.assertEqual(result["total"], 140.0)
+
     def test_an_account_filter_narrows_the_series(self):
         self.spend("-100.00", self.groceries, 5, account=self.checking)
         self.spend("-60.00", self.groceries, 6, account=self.card)
@@ -506,6 +573,39 @@ class ChartsDashboardRenderTests(AnalyticsTestCase):
         self.assertIn('data-source-stacked="spend-over-time-by-category"', body)
         self.assertIn('id="spend-over-time-by-category"', body)
 
+    def test_by_category_renders_the_breakdown_chart_not_a_doughnut(self):
+        make_transaction(
+            self.checking,
+            posted_on=household_today(),
+            amount=Decimal("-100.00"),
+            description_raw="MARIANOS",
+            category=self.groceries,
+        )
+
+        response = self.client.get(reverse("finance:charts"))
+        body = response.content.decode()
+
+        self.assertIn('data-chart="categoryBreakdown"', body)
+        self.assertIn('id="spend-by-category-breakdown"', body)
+        self.assertNotIn('data-chart="doughnut"', body)
+
+    def test_spend_by_category_section_is_titled_and_offers_a_breakout_toggle(self):
+        make_transaction(
+            self.checking,
+            posted_on=household_today(),
+            amount=Decimal("-100.00"),
+            description_raw="MARIANOS",
+            category=self.groceries,
+        )
+
+        response = self.client.get(reverse("finance:charts"))
+        body = response.content.decode()
+
+        self.assertContains(response, "Spend by category")
+        self.assertIn('data-breakout-toggle="spend-by-category-breakdown"', body)
+        self.assertIn('data-breakout-target="spend-by-category-breakdown"', body)
+        self.assertContains(response, "Breakout by subcategory")
+
     def test_charts_page_handles_no_data(self):
         response = self.client.get(reverse("finance:charts"))
 
@@ -686,6 +786,74 @@ class ChartsDashboardRenderTests(AnalyticsTestCase):
         self.assertNotContains(response, "debt-series")
 
 
+class LargeTransactionsSectionTests(AnalyticsTestCase):
+    """The section's own account/category filter and pagination — separate
+    from the page's shared account filter, and from every other chart."""
+
+    def setUp(self):
+        super().setUp()
+        self.sign_in()
+
+    def test_the_filter_form_offers_accounts_and_categories(self):
+        self.spend("-900.00", self.groceries, 5)
+
+        response = self.client.get(reverse("finance:charts"))
+
+        self.assertContains(response, 'name="lt_account"')
+        self.assertContains(response, 'name="lt_category"')
+        self.assertContains(response, self.checking.name)
+        self.assertContains(response, self.groceries.full_path)
+
+    def test_an_lt_category_filter_narrows_the_list_independent_of_page_filters(self):
+        self.spend("-900.00", self.groceries, 5)
+        self.spend("-800.00", self.fuel, 6)
+
+        response = self.client.get(
+            reverse("finance:charts"), {"lt_category": self.fuel.pk}
+        )
+
+        self.assertContains(response, "TXN 4-6 -800.00 transport-fuel")
+        self.assertNotContains(response, "TXN 4-5 -900.00 food-groceries")
+
+    def test_a_filter_matching_nothing_shows_an_empty_state_not_the_whole_section_hiding(self):
+        self.spend("-900.00", self.groceries, 5)
+
+        response = self.client.get(
+            reverse("finance:charts"), {"lt_category": self.fuel.pk}
+        )
+
+        self.assertContains(response, "Largest transactions")
+        self.assertContains(response, "No transactions match this filter.")
+
+    def test_pagination_moves_past_the_first_page(self):
+        for day in range(1, 15):
+            self.spend(f"-{day * 10}.00", self.groceries, day)
+
+        first_page = self.client.get(reverse("finance:charts"))
+        self.assertEqual(len(first_page.context["large_transactions"]), 10)
+        self.assertEqual(first_page.context["large_transactions_total"], 14)
+        self.assertEqual(first_page.context["large_transactions_total_pages"], 2)
+        self.assertIsNotNone(first_page.context["large_transactions_next_url"])
+
+        second_page = self.client.get(reverse("finance:charts"), {"lt_page": 2})
+        self.assertEqual(len(second_page.context["large_transactions"]), 4)
+        self.assertIsNone(second_page.context["large_transactions_next_url"])
+        self.assertIsNotNone(second_page.context["large_transactions_previous_url"])
+
+    def test_the_next_page_link_preserves_the_pages_range_and_account_filter(self):
+        for day in range(1, 15):
+            self.spend(f"-{day * 10}.00", self.groceries, day, account=self.checking)
+
+        response = self.client.get(
+            reverse("finance:charts"), {"range": "12m", "account": self.checking.pk}
+        )
+
+        next_url = response.context["large_transactions_next_url"]
+        self.assertIn("range=12m", next_url)
+        self.assertIn(f"account={self.checking.pk}", next_url)
+        self.assertIn("lt_page=2", next_url)
+
+
 class ChartHideShowTests(AnalyticsTestCase):
     def setUp(self):
         super().setUp()
@@ -791,6 +959,38 @@ class BalancesOverTimeFilterTests(AnalyticsTestCase):
         self.assertFalse(response.context["balances_over_time_has_data"])
         self.assertTrue(response.context["balances_over_time_available"])
 
+    def test_the_account_filter_is_a_plain_inline_select_not_a_popover(self):
+        # Styled the same way as Largest Transactions' filters: a plain
+        # <select> inline in the section body, not a click-to-open overlay.
+        AccountBalanceSnapshot.objects.create(
+            account=self.checking, as_of=household_today(), current=Decimal("1000.00")
+        )
+
+        response = self.client.get(reverse("finance:charts"))
+        body = response.content.decode()
+
+        self.assertIn('name="balances_account" multiple', body)
+        self.assertNotIn("<details", body)
+
+    def test_selecting_two_accounts_narrows_the_series_to_both(self):
+        AccountBalanceSnapshot.objects.create(
+            account=self.checking, as_of=household_today(), current=Decimal("1000.00")
+        )
+        AccountBalanceSnapshot.objects.create(
+            account=self.card, as_of=household_today(), current=Decimal("-200.00")
+        )
+
+        response = self.client.get(
+            reverse("finance:charts"),
+            {"balances_account": [self.checking.pk, self.card.pk]},
+        )
+
+        self.assertEqual(
+            set(response.context["selected_balances_accounts"]),
+            {self.checking.pk, self.card.pk},
+        )
+        self.assertTrue(response.context["balances_over_time_has_data"])
+
 
 class SpendByCategoryOverTimeAnalyticsTests(AnalyticsTestCase):
     def test_each_category_gets_its_own_aligned_series(self):
@@ -860,6 +1060,40 @@ class LargestTransactionsAnalyticsTests(AnalyticsTestCase):
 
         self.assertFalse(result["has_data"])
         self.assertEqual(result["transactions"], [])
+
+    def test_a_category_filter_narrows_the_results(self):
+        self.spend("-900.00", self.groceries, 5)
+        self.spend("-800.00", self.fuel, 6)
+
+        result = analytics.largest_transactions(
+            date(2026, 4, 1), date(2026, 4, 30), category_ids=[self.fuel.pk]
+        )
+
+        self.assertEqual(len(result["transactions"]), 1)
+        self.assertEqual(result["transactions"][0].category, self.fuel)
+
+    def test_total_reflects_the_full_filtered_count_not_just_this_page(self):
+        for day in range(1, 6):
+            self.spend(f"-{day * 10}.00", self.groceries, day)
+
+        result = analytics.largest_transactions(
+            date(2026, 4, 1), date(2026, 4, 30), limit=2
+        )
+
+        self.assertEqual(len(result["transactions"]), 2)
+        self.assertEqual(result["total"], 5)
+
+    def test_offset_pages_past_the_first_batch(self):
+        # Descending by amount: -50, -40, -30, -20, -10.
+        for day in range(1, 6):
+            self.spend(f"-{day * 10}.00", self.groceries, day)
+
+        result = analytics.largest_transactions(
+            date(2026, 4, 1), date(2026, 4, 30), limit=2, offset=2
+        )
+
+        amounts = [t.amount for t in result["transactions"]]
+        self.assertEqual(amounts, [Decimal("-30.00"), Decimal("-20.00")])
 
 
 class NetCashFlowAnalyticsTests(AnalyticsTestCase):

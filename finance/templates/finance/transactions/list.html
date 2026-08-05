@@ -109,19 +109,41 @@
   </button>
 </form>
 
-<div class="mt-6" x-data="{ selected: [], selectAllFiltered: false }">
-  <div class="flex flex-wrap items-center gap-3 rounded-card border border-primary/40 bg-primary/10 px-4 py-3 text-sm"
+<div class="mt-6"
+     x-data="{
+       selected: [],
+       selectAllFiltered: false,
+       pageIds: [{% for txn in transactions %}{{ txn.pk }}{% if not forloop.last %},{% endif %}{% endfor %}],
+       toggleAllOnPage(checked) {
+         this.selectAllFiltered = false;
+         this.selected = checked ? this.pageIds.slice() : [];
+       },
+     }">
+  {% if transactions %}
+    <div class="flex flex-wrap items-center gap-4 text-xs text-text-muted">
+      <label class="flex items-center gap-1.5">
+        <input type="checkbox"
+               :checked="selectAllFiltered || (pageIds.length > 0 && selected.length === pageIds.length)"
+               :disabled="selectAllFiltered"
+               @change="toggleAllOnPage($event.target.checked)"
+               class="h-3.5 w-3.5 rounded border-border bg-background text-primary focus:ring-primary disabled:opacity-60" />
+        Select all on this page
+      </label>
+
+      {% if page_obj.paginator.count > transactions|length %}
+        <label class="flex items-center gap-1.5">
+          <input type="checkbox" x-model="selectAllFiltered" @change="if ($event.target.checked) selected = []"
+                 class="h-3.5 w-3.5 rounded border-border bg-background text-primary focus:ring-primary" />
+          Select all {{ page_obj.paginator.count }} matching this filter
+        </label>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <div class="mt-3 flex flex-wrap items-center gap-3 rounded-card border border-primary/40 bg-primary/10 px-4 py-3 text-sm"
        x-show="selected.length > 0 || selectAllFiltered">
     <span class="font-medium" x-show="!selectAllFiltered" x-text="selected.length + ' selected'"></span>
     <span class="font-medium" x-show="selectAllFiltered">All {{ page_obj.paginator.count }} matching this filter</span>
-
-    {% if page_obj.paginator.count > transactions|length %}
-      <label class="flex items-center gap-1.5 text-xs text-text-muted">
-        <input type="checkbox" x-model="selectAllFiltered" @change="if ($event.target.checked) selected = []"
-               class="h-3.5 w-3.5 rounded border-border bg-background text-primary focus:ring-primary" />
-        Select all {{ page_obj.paginator.count }}, not just this page
-      </label>
-    {% endif %}
 
     <form method="post" action="{{ request.get_full_path }}" class="flex flex-wrap items-center gap-2"
           onsubmit="return document.getElementById('bulk-all-flag').value !== '1' || confirm('Apply this category to all {{ page_obj.paginator.count }} transactions matching the current filter?')">
@@ -163,8 +185,11 @@
     {% for txn in transactions %}
       <div class="rounded-card border border-border bg-surface p-4 {% if txn.needs_review %}border-warning/40{% endif %}">
         <div class="flex items-start gap-3">
-          <input type="checkbox" :value="{{ txn.pk }}" x-model="selected"
-                 class="mt-1.5 h-3.5 w-3.5 shrink-0 rounded border-border bg-background text-primary focus:ring-primary" />
+          <input type="checkbox"
+                 :checked="selectAllFiltered || selected.includes({{ txn.pk }})"
+                 :disabled="selectAllFiltered"
+                 @change="$event.target.checked ? selected.push({{ txn.pk }}) : selected = selected.filter(id => id !== {{ txn.pk }})"
+                 class="mt-1.5 h-3.5 w-3.5 shrink-0 rounded border-border bg-background text-primary focus:ring-primary disabled:opacity-60" />
 
           <div class="min-w-0 flex-1">
             <div class="flex items-start justify-between gap-4">
@@ -233,14 +258,14 @@
 
 {% if is_paginated %}
   <div class="mt-6 flex items-center justify-between text-sm">
-    {% if page_obj.has_previous %}
-      <a href="?page={{ page_obj.previous_page_number }}" class="text-primary hover:underline">← Newer</a>
+    {% if previous_page_url %}
+      <a href="{{ previous_page_url }}" class="text-primary hover:underline">← Newer</a>
     {% else %}<span></span>{% endif %}
 
     <span class="text-text-muted">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
 
-    {% if page_obj.has_next %}
-      <a href="?page={{ page_obj.next_page_number }}" class="text-primary hover:underline">Older →</a>
+    {% if next_page_url %}
+      <a href="{{ next_page_url }}" class="text-primary hover:underline">Older →</a>
     {% else %}<span></span>{% endif %}
   </div>
 {% endif %}
