@@ -554,6 +554,25 @@ video {
   display: none;
 }
 
+/* Tells the browser this is a dark UI, so the controls it draws itself —
+     select dropdown panels, scrollbars, date pickers — come out dark too.
+     Without it a <select> opens a white panel on top of a near-black page,
+     which is the single most obvious "unfinished" tell on a dark theme. */
+
+:root {
+  color-scheme: dark;
+}
+
+/* Native checkboxes ignore Tailwind's text-* colour, so every checkbox in
+     the app was rendering in the browser's default blue against an indigo
+     and teal palette. accent-color is the one property that actually
+     recolours them, and costs nothing next to pulling in a forms plugin. */
+
+input[type="checkbox"],
+  input[type="radio"] {
+  accent-color: #4F46E5;
+}
+
 .container {
   width: 100%;
 }
@@ -1151,6 +1170,48 @@ video {
   --tw-prose-pre-bg: var(--tw-prose-invert-pre-bg);
   --tw-prose-th-borders: var(--tw-prose-invert-th-borders);
   --tw-prose-td-borders: var(--tw-prose-invert-td-borders);
+}
+
+/* Three patterns that were being retyped rather than reused. Each existed
+     in more than one variant purely by drift — the empty state in two
+     paddings, the page title in twenty copies of one class string — so
+     naming them is both less typing and the thing that keeps them uniform. */
+
+.page-title {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+@media (min-width: 768px) {
+  .page-title {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+  }
+}
+
+/* The line under a page's h1. max-width is part of it: these ran to the
+     full width of the page on some screens and were capped at max-w-2xl or
+     max-w-lg on others, purely by whoever wrote them. A measure that stays
+     readable is the right default, and a short subtitle never reaches it. */
+
+.page-subtitle {
+  margin-top: 0.5rem;
+  max-width: 42rem;
+  --tw-text-opacity: 1;
+  color: rgb(209 213 219 / var(--tw-text-opacity, 1));
+}
+
+.empty-state {
+  border-radius: 16px;
+  border-width: 1px;
+  border-style: dashed;
+  --tw-border-opacity: 1;
+  border-color: rgb(46 58 73 / var(--tw-border-opacity, 1));
+  background-color: rgb(17 24 39 / 0.5);
+  padding: 2rem;
+  text-align: center;
 }
 
 .sr-only {
@@ -1766,10 +1827,6 @@ video {
   border-top-width: 1px;
 }
 
-.border-dashed {
-  border-style: dashed;
-}
-
 .border-border {
   --tw-border-opacity: 1;
   border-color: rgb(46 58 73 / var(--tw-border-opacity, 1));
@@ -1863,10 +1920,6 @@ video {
   background-color: rgb(17 24 39 / var(--tw-bg-opacity, 1));
 }
 
-.bg-surface\/50 {
-  background-color: rgb(17 24 39 / 0.5);
-}
-
 .bg-surface\/60 {
   background-color: rgb(17 24 39 / 0.6);
 }
@@ -1923,10 +1976,6 @@ video {
 
 .p-6 {
   padding: 1.5rem;
-}
-
-.p-8 {
-  padding: 2rem;
 }
 
 .px-1 {
@@ -2293,7 +2342,7 @@ video {
   range_form_start: range form end;
 }
 
-/* Keeps Alpine-controlled elements hidden until Alpine initialises them,
+/* Keeps Alpine-controlled elements hidden until Alpine initializes them,
    so dropdowns don't flash open on first paint. */
 
 [x-cloak] {

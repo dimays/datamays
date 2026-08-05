@@ -2,7 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Keeps Alpine-controlled elements hidden until Alpine initialises them,
+@layer base {
+  /* Tells the browser this is a dark UI, so the controls it draws itself —
+     select dropdown panels, scrollbars, date pickers — come out dark too.
+     Without it a <select> opens a white panel on top of a near-black page,
+     which is the single most obvious "unfinished" tell on a dark theme. */
+  :root {
+    color-scheme: dark;
+  }
+
+  /* Native checkboxes ignore Tailwind's text-* colour, so every checkbox in
+     the app was rendering in the browser's default blue against an indigo
+     and teal palette. accent-color is the one property that actually
+     recolours them, and costs nothing next to pulling in a forms plugin. */
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: theme("colors.primary.DEFAULT");
+  }
+}
+
+@layer components {
+  /* Three patterns that were being retyped rather than reused. Each existed
+     in more than one variant purely by drift — the empty state in two
+     paddings, the page title in twenty copies of one class string — so
+     naming them is both less typing and the thing that keeps them uniform. */
+
+  .page-title {
+    @apply text-2xl font-extrabold tracking-tight md:text-3xl;
+  }
+
+  /* The line under a page's h1. max-width is part of it: these ran to the
+     full width of the page on some screens and were capped at max-w-2xl or
+     max-w-lg on others, purely by whoever wrote them. A measure that stays
+     readable is the right default, and a short subtitle never reaches it. */
+  .page-subtitle {
+    @apply mt-2 max-w-2xl text-text-secondary;
+  }
+
+  .empty-state {
+    @apply rounded-card border border-dashed border-border bg-surface/50 p-8 text-center;
+  }
+}
+
+/* Keeps Alpine-controlled elements hidden until Alpine initializes them,
    so dropdowns don't flash open on first paint. */
 [x-cloak] {
   display: none !important;

@@ -2,13 +2,13 @@
 
 {% block finance_content %}
 <div class="flex flex-wrap items-center justify-between gap-3">
-  <h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Institutions</h1>
+  <h1 class="page-title">Institutions</h1>
   <a href="{% url 'finance:institution_create' %}"
      class="rounded-button bg-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600">
     New institution
   </a>
 </div>
-<p class="mt-2 text-text-secondary">
+<p class="page-subtitle">
   Every account attaches to one of these — including the ones no automated
   connector can reach, which just need an institution here before you can
   add a manual account or import a statement for them.
@@ -35,7 +35,7 @@
       </div>
     </a>
   {% empty %}
-    <div class="rounded-card border border-dashed border-border bg-surface/50 p-8 text-center">
+    <div class="empty-state">
       <p class="text-text-secondary">No institutions yet.</p>
       <a href="{% url 'finance:institution_create' %}" class="mt-2 inline-block text-primary hover:underline">
         Add the first one →
