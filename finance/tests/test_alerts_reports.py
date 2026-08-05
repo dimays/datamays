@@ -499,6 +499,48 @@ class AlertUIScopingTests(AlertTestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    def test_i_can_delete_my_own_alert(self):
+        """Deleting is confirmed with a plain Form, which has no `.instance`.
+        A mixin that assumed one turned this into a 500 — and nothing caught
+        it, because no test posted to this URL until now."""
+        from django.urls import reverse
+
+        response = self.client.post(
+            reverse("finance:alert_delete", args=[self.mine.pk])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Alert.objects.filter(pk=self.mine.pk).exists())
+
+    def test_i_cannot_delete_someone_elses_alert(self):
+        from django.urls import reverse
+
+        response = self.client.post(
+            reverse("finance:alert_delete", args=[self.theirs.pk])
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(Alert.objects.filter(pk=self.theirs.pk).exists())
+
+    def test_a_created_alert_is_stamped_with_its_owner(self):
+        """The half PersonalObjectMixin adds on top of the scoping."""
+        from django.urls import reverse
+
+        self.client.post(
+            reverse("finance:alert_create"),
+            {
+                "name": "Fresh",
+                "kind": AlertKind.ACCOUNT_BALANCE,
+                "account": self.checking.pk,
+                "comparison": Comparison.BELOW,
+                "threshold": "250",
+                "cooldown_hours": 24,
+                "is_active": "on",
+            },
+        )
+
+        self.assertEqual(Alert.objects.get(name="Fresh").user, self.user)
+
     def test_a_new_alert_is_filed_under_me(self):
         from django.urls import reverse
 
