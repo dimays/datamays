@@ -1460,6 +1460,10 @@ video {
   min-width: 0px;
 }
 
+.min-w-\[10rem\] {
+  min-width: 10rem;
+}
+
 .min-w-max {
   min-width: -moz-max-content;
   min-width: max-content;
