@@ -464,7 +464,7 @@ class ColumnMapTests(TestCase):
     """"amount_convention" starts with "amount" and was stored as a column."""
 
     def test_only_real_field_names_are_kept(self):
-        from finance.views_imports import OPTIONAL_FIELDS, REQUIRED_FIELDS
+        from finance.views.imports import OPTIONAL_FIELDS, REQUIRED_FIELDS
 
         allowed = set(
             REQUIRED_FIELDS[RecordType.TRANSACTIONS]

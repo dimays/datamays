@@ -1,8 +1,14 @@
 # Household Finance — architecture
 
 Orientation for a developer touching this codebase, not this app's operator.
-For "how do I run this in production," see [`RUNBOOK.md`](RUNBOOK.md). For
+For "how do I run this in production," see [`runbook.md`](runbook.md). For
 what each screen does, see the in-app Help page (header menu → Help).
+
+This file covers layout and the conventions specific to this app. Its
+siblings go deeper: [`data-model.md`](data-model.md),
+[`pipeline.md`](pipeline.md), [`screens.md`](screens.md), and
+[`extending.md`](extending.md) for step-by-step recipes. Repo-wide material —
+dev setup, code conventions, deploys — is in [`../../docs/`](../../docs/).
 
 ## Layout
 
@@ -28,14 +34,23 @@ finance/
                     that expose it.
 ```
 
-`views_*.py` files sit at the top level of the app (`views_budgets.py`,
-`views_dashboards.py`, …) rather than in a `views/` package, matching the
-existing convention — check `finance/urls.py` for the full map from URL to
-view module.
+Views live in a `views/` package, one module per screen area, re-exported
+from `views/__init__.py` — check `finance/urls.py` for the full map from URL
+to view. `views/base.py` holds the three things every view shares: the access
+gate, `PageTitleMixin` (set `page_title`, or override `get_page_title()` when
+it depends on the object), and the personal-object mixins for the alert and
+report views, which must only ever see the signed-in person's own rows —
+`PersonalQuerysetMixin` to scope, `PersonalObjectMixin` to also stamp the
+owner on create.
+
+Forms live in `forms/`, not alongside the views that render them.
+`forms/base.py`'s `StyledFormMixin` applies the app's field styling by widget
+type, so a form declares `widgets` only for attributes specific to it — a
+step, a min/max, a placeholder. Do not restate the class string.
 
 ## Two conventions everything depends on
 
-Both are documented in [`models/base.py`](models/base.py), and almost every
+Both are documented in [`models/base.py`](../models/base.py), and almost every
 calculation in the app assumes they hold:
 
 **Money is `Decimal`, never `float`.** A binary float can't represent 0.10

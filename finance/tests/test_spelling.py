@@ -20,10 +20,21 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 # Directories whose contents this repo does not author.
 EXCLUDED_DIRS = {
     ".git", ".venv", "node_modules", "staticfiles", "__pycache__",
-    "migrations", ".devcontainer", "assets",
+    "migrations", ".devcontainer",
 }
 
-CHECKED_SUFFIXES = {".py", ".html", ".js", ".md"}
+# .css is here for assets/css/input.css, which carries real prose in its
+# comments.
+CHECKED_SUFFIXES = {".py", ".html", ".js", ".md", ".css"}
+
+# Generated or vendored, so not ours to spell. Excluded by filename rather
+# than by directory: static/js also holds finance-charts.js, which *is* ours
+# and does need checking.
+GENERATED_FILES = {"tailwind.css"}
+
+
+def _is_generated(path) -> bool:
+    return path.name in GENERATED_FILES or path.name.endswith(".min.js")
 
 # Stem → the US spelling to use instead. Matched case-insensitively as a
 # substring, so "normalis" catches normalise/normalised/normalising and
@@ -49,12 +60,19 @@ BRITISH_STEMS = {
 
 PATTERN = re.compile("|".join(BRITISH_STEMS), re.IGNORECASE)
 
+# A line carrying this marker is skipped. For the rare legitimate case: a
+# style guide showing the wrong spelling as a counter-example, or a quotation
+# from an external source. Opting a line out beats deleting the check.
+OPT_OUT = "spelling-check: ignore"
+
 
 def _checked_files():
     for path in REPO_ROOT.rglob("*"):
         if path.suffix not in CHECKED_SUFFIXES:
             continue
         if EXCLUDED_DIRS.intersection(path.parts):
+            continue
+        if _is_generated(path):
             continue
         yield path
 
@@ -75,6 +93,9 @@ class SpellingTests(SimpleTestCase):
                 continue
 
             for number, line in enumerate(lines, start=1):
+                if OPT_OUT in line:
+                    continue
+
                 for match in PATTERN.finditer(line):
                     british = match.group(0)
                     american = BRITISH_STEMS[british.lower()]

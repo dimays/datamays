@@ -67,6 +67,16 @@ def find_transfer_pairs(transactions=None):
 
     paired = 0
 
+    # Looked up once, not per matched pair. Only two categories are ever
+    # assigned here, and this loop runs over every uncategorized outflow on
+    # the hourly chain.
+    transfer_categories = {
+        category.slug: category
+        for category in Category.objects.filter(
+            slug__in=[TRANSFER_SLUG, CARD_PAYMENT_SLUG]
+        )
+    }
+
     for candidate in queryset.filter(amount__lt=0).select_related("account"):
         if candidate.transfer_pair_id or candidate.is_transfer:
             continue
@@ -96,7 +106,7 @@ def find_transfer_pairs(transactions=None):
             if match.account.account_type in LIABILITY_TYPES
             else TRANSFER_SLUG
         )
-        category = Category.objects.filter(slug=slug).first()
+        category = transfer_categories.get(slug)
 
         for leg, other in ((candidate, match), (match, candidate)):
             leg.is_transfer = True

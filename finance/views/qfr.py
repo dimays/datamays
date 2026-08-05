@@ -10,19 +10,19 @@ from django.contrib import messages
 from django.shortcuts import redirect
 from django.views.generic import DetailView, ListView
 
-from .access import FinanceAccessMixin
-from .models import QuarterlyReport
-from .services.qfr import available_quarters_for_generation, generate_qfr
+from ..models import QuarterlyReport
+from ..services.qfr import available_quarters_for_generation, generate_qfr
+from .base import FinancePageMixin
 
 
-class QFRListView(FinanceAccessMixin, ListView):
+class QFRListView(FinancePageMixin, ListView):
     template_name = "finance/qfr/list.html"
     context_object_name = "reports"
     model = QuarterlyReport
+    page_title = "QFRs"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = "QFRs"
         context["available_quarters"] = available_quarters_for_generation()
         return context
 
@@ -50,14 +50,16 @@ class QFRListView(FinanceAccessMixin, ListView):
         return redirect("finance:qfr_detail", pk=report.pk)
 
 
-class QFRDetailView(FinanceAccessMixin, DetailView):
+class QFRDetailView(FinancePageMixin, DetailView):
     template_name = "finance/qfr/detail.html"
     context_object_name = "report"
     model = QuarterlyReport
 
+    def get_page_title(self):
+        return self.object.label
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = self.object.label
 
         metrics = self.object.metrics or {}
         context["spend_by_category"] = sorted(
