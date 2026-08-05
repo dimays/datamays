@@ -216,6 +216,16 @@ STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# Content-hashed filenames (e.g. finance-charts.abc123.js), so a deploy that
+# changes a static file is picked up immediately instead of waiting out
+# whatever cache-control lifetime a browser or CDN already has on the old,
+# identically-named file.
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
 if WORKING_ENV == 'dev':
     SECURE_SSL_REDIRECT = False
 else:
