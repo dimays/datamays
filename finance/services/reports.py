@@ -146,7 +146,7 @@ def build_sections(report, start, end):
         blocks.append(
             (
                 "Needs review",
-                f"  {count} transaction{'s' if count != 1 else ''} waiting to be categorised."
+                f"  {count} transaction{'s' if count != 1 else ''} waiting to be categorized."
                 if count
                 else "  Nothing waiting.",
             )

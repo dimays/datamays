@@ -328,7 +328,7 @@ class ChartsView(FinanceView):
         }
 
     def _income_context(self, start, end, grain, account_ids):
-        # The primary figure: every income-categorised deposit, whether or
+        # The primary figure: every income-categorized deposit, whether or
         # not a payslip was ever imported for it. Works for a household
         # member whose pay never gets a detailed payslip.
         net_income = analytics.net_income_over_time(

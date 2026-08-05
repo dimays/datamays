@@ -45,7 +45,7 @@ TRANSFER_WINDOW_DAYS = 4
 
 
 @dataclass
-class CategorisationSummary:
+class CategorizationSummary:
     transfers: int = 0
     by_rule: int = 0
     by_memo: int = 0
@@ -163,15 +163,15 @@ def remember_merchant(merchant_key, category, user=None):
     return memo
 
 
-def categorise_transactions(queryset=None, *, classifier=None, detect_transfers=True):
-    """Run the pipeline over uncategorised transactions.
+def categorize_transactions(queryset=None, *, classifier=None, detect_transfers=True):
+    """Run the pipeline over uncategorized transactions.
 
     Deliberately not wrapped in a single transaction. The classifier step makes
     a network call, and holding a database transaction open across it would pin
     a connection for as long as the provider takes to answer — on a small
     Postgres plan that is a real availability risk.
     """
-    summary = CategorisationSummary()
+    summary = CategorizationSummary()
 
     if detect_transfers:
         summary.transfers = find_transfer_pairs()
@@ -217,7 +217,7 @@ def categorise_transactions(queryset=None, *, classifier=None, detect_transfers=
         if merchant_key:
             awaiting_classifier.setdefault(merchant_key, []).append(txn)
         else:
-            _assign_uncategorised(txn)
+            _assign_uncategorized(txn)
             summary.unmatched += 1
 
     if awaiting_classifier:
@@ -279,7 +279,7 @@ def _run_classifier(awaiting, classifier, summary):
             continue
 
         for txn in transactions:
-            _assign_uncategorised(txn)
+            _assign_uncategorized(txn)
             summary.unmatched += 1
             summary.needs_review += 1
 
@@ -300,7 +300,7 @@ def _assign(txn, category, source, confidence, needs_review=False):
     )
 
 
-def _assign_uncategorised(txn):
+def _assign_uncategorized(txn):
     """Park a transaction in the review queue rather than leaving it invisible."""
     category = Category.objects.filter(slug=UNCATEGORIZED_SLUG).first()
 

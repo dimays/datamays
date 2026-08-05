@@ -55,7 +55,7 @@ def spend_for(budget: Budget, start, end) -> Decimal:
 
     Budget categories are always expense-kind by construction (see
     BudgetForm), so there's no equivalent here of analytics.spend_filter()'s
-    care around uncategorised positive amounts being mistaken for a refund —
+    care around uncategorized positive amounts being mistaken for a refund —
     every category in category_ids was deliberately chosen as spending.
     """
     category_ids = expand_categories(budget.categories.all())
