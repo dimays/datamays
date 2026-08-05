@@ -1,37 +1,31 @@
-{% if balances_over_time_available %}
-  <section class="rounded-card border border-border bg-surface p-5">
-    <div class="flex items-start justify-between gap-3">
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Balances over time</h2>
-      {% include "finance/dashboards/_hide_chart_button.html" %}
+{% extends "finance/dashboards/_section.html" %}
+
+{% block body %}
+  <form method="get" class="mt-3 flex flex-wrap items-center gap-2">
+    <input type="hidden" name="range" value="{{ selected_range }}" />
+    <input type="hidden" name="grain" value="{{ selected_grain }}" />
+    {% for account in selected_accounts %}<input type="hidden" name="account" value="{{ account }}" />{% endfor %}
+
+    <select name="balances_account" multiple size="4"
+            class="min-w-[10rem] rounded-button border border-border bg-background px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-primary">
+      {% for account in all_accounts %}
+        <option value="{{ account.pk }}" {% if account.pk in selected_balances_accounts %}selected{% endif %}>{{ account.name }}</option>
+      {% endfor %}
+    </select>
+
+    <button type="submit" class="rounded-button border border-border bg-surface px-3 py-1.5 text-xs font-medium transition hover:bg-muted">
+      Filter
+    </button>
+
+    <span class="text-xs text-text-muted">Cmd/Ctrl-click to compare more than one account.</span>
+  </form>
+
+  {% if balances_over_time_has_data %}
+    <div class="mt-4 h-72">
+      <canvas data-chart="lines" data-source="balances-over-time"></canvas>
     </div>
-    <p class="mt-1 text-xs text-text-muted">Every account, signed the same way it reads everywhere else — a debt is negative.</p>
-
-    <form method="get" class="mt-3 flex flex-wrap items-center gap-2">
-      <input type="hidden" name="range" value="{{ selected_range }}" />
-      <input type="hidden" name="grain" value="{{ selected_grain }}" />
-      {% for account in selected_accounts %}<input type="hidden" name="account" value="{{ account }}" />{% endfor %}
-
-      <select name="balances_account" multiple size="4"
-              class="min-w-[10rem] rounded-button border border-border bg-background px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-primary">
-        {% for account in all_accounts %}
-          <option value="{{ account.pk }}" {% if account.pk in selected_balances_accounts %}selected{% endif %}>{{ account.name }}</option>
-        {% endfor %}
-      </select>
-
-      <button type="submit" class="rounded-button border border-border bg-surface px-3 py-1.5 text-xs font-medium transition hover:bg-muted">
-        Filter
-      </button>
-
-      <span class="text-xs text-text-muted">Cmd/Ctrl-click to compare more than one account.</span>
-    </form>
-
-    {% if balances_over_time_has_data %}
-      <div class="mt-4 h-72">
-        <canvas data-chart="lines" data-source="balances-over-time"></canvas>
-      </div>
-      {{ balances_over_time_json|json_script:"balances-over-time" }}
-    {% else %}
-      <p class="mt-4 text-sm text-text-muted">No balance history for the selected accounts in this window.</p>
-    {% endif %}
-  </section>
-{% endif %}
+    {{ balances_over_time_json|json_script:"balances-over-time" }}
+  {% else %}
+    <p class="mt-4 text-sm text-text-muted">No balance history for the selected accounts in this window.</p>
+  {% endif %}
+{% endblock %}

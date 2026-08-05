@@ -1,20 +1,13 @@
-{% if income_has_data %}
-  <section class="mt-8 rounded-card border border-border bg-surface p-5">
-    <div class="flex items-start justify-between gap-3">
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Net income</h2>
-      {% include "finance/dashboards/_hide_chart_button.html" %}
-    </div>
-    <p class="mt-1 text-xs text-text-muted">
-      Every deposit categorized as income, whether or not a payslip was imported for it.
-    </p>
-    <div class="mt-4 h-64">
-      <canvas data-chart="bar" data-source="net-income" data-label="Net income"></canvas>
-    </div>
-    {{ net_income_json|json_script:"net-income" }}
-  </section>
+{% extends "finance/dashboards/_section.html" %}
+
+{% block body %}
+  <div class="mt-4 h-64">
+    <canvas data-chart="bar" data-source="net-income" data-label="Net income"></canvas>
+  </div>
+  {{ net_income_json|json_script:"net-income" }}
 
   {% if unmatched_count %}
-    <div class="mt-4 rounded-card border border-border bg-surface/60 p-4">
+    <div class="mt-4 rounded-card border border-border bg-background/60 p-4">
       <p class="text-sm text-text-secondary">
         {{ unmatched_count }} deposit{{ unmatched_count|pluralize }} above with no payslip imported.
       </p>
@@ -26,27 +19,36 @@
     </div>
   {% endif %}
 
+  {% comment %}
+    Payslip detail is nested inside this section rather than sitting beside
+    it as two more top-level cards. It is supplementary to net income and
+    only exists when a payslip happens to have been imported — as siblings,
+    the two would drift away from the figure they explain the moment
+    someone reordered the page.
+  {% endcomment %}
   {% if has_payslip_detail %}
-    <section class="mt-4 rounded-card border border-border bg-surface p-5">
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Gross vs net</h2>
-      <p class="mt-1 text-xs text-text-muted">
-        Optional detail, only for pay periods with an imported payslip.
-      </p>
-      <div class="mt-4 h-64">
-        <canvas data-chart="lines" data-source="payslip-gross"></canvas>
+    <div class="mt-6 space-y-4 border-t border-border pt-5">
+      <div>
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted">Gross vs net</h3>
+        <p class="mt-1 text-xs text-text-muted">
+          Optional detail, only for pay periods with an imported payslip.
+        </p>
+        <div class="mt-3 h-64">
+          <canvas data-chart="lines" data-source="payslip-gross"></canvas>
+        </div>
+        {{ payslip_gross_json|json_script:"payslip-gross" }}
       </div>
-      {{ payslip_gross_json|json_script:"payslip-gross" }}
-    </section>
 
-    <section class="mt-4 rounded-card border border-border bg-surface p-5">
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Where gross pay goes</h2>
-      <p class="mt-1 text-xs text-text-muted">
-        Retirement and HSA are shown apart from tax — that money is still yours.
-      </p>
-      <div class="mt-4 h-64">
-        <canvas data-chart="lines" data-source="payslip-breakdown"></canvas>
+      <div>
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted">Where gross pay goes</h3>
+        <p class="mt-1 text-xs text-text-muted">
+          Retirement and HSA are shown apart from tax — that money is still yours.
+        </p>
+        <div class="mt-3 h-64">
+          <canvas data-chart="lines" data-source="payslip-breakdown"></canvas>
+        </div>
+        {{ payslip_breakdown_json|json_script:"payslip-breakdown" }}
       </div>
-      {{ payslip_breakdown_json|json_script:"payslip-breakdown" }}
-    </section>
+    </div>
   {% endif %}
-{% endif %}
+{% endblock %}

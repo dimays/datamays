@@ -29,19 +29,20 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import ListView
 
-from .access import FinanceAccessMixin
-from .categories_seed import UNCATEGORIZED_SLUG
-from .models import Account, Budget, Category, CategorySource, Transaction
-from .redirects import safe_next
-from .services.analytics import spend_filter
-from .services.categorize import confirm_category
-from .services.rollups import expand_categories
+from .base import FinancePageMixin
+from ..categories_seed import UNCATEGORIZED_SLUG
+from ..models import Account, Budget, Category, CategorySource, Transaction
+from ..redirects import safe_next
+from ..services.analytics import spend_filter
+from ..services.categorize import confirm_category
+from ..services.rollups import expand_categories
 
 
-class TransactionListView(FinanceAccessMixin, ListView):
+class TransactionListView(FinancePageMixin, ListView):
     template_name = "finance/transactions/list.html"
     context_object_name = "transactions"
     paginate_by = 50
+    page_title = "Activity"
 
     def get_queryset(self):
         queryset = Transaction.objects.select_related("account", "category")
@@ -162,7 +163,6 @@ class TransactionListView(FinanceAccessMixin, ListView):
         ).select_related("parent").alphabetical()
         filtered_budgets = self.filtered_budgets()
 
-        context["page_title"] = "Activity"
         context["accounts"] = all_accounts
         context["categories"] = all_categories
         # Archived categories stay assignable — just tucked into their own
