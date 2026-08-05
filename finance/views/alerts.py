@@ -14,10 +14,10 @@ from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 from ..forms import AlertForm, ReportForm
 from ..models import Alert, ScheduledReport
 from ..services.reports import send_report
-from .base import FinancePageMixin, PersonalObjectMixin
+from .base import FinancePageMixin, PersonalObjectMixin, PersonalQuerysetMixin
 
 
-class AlertListView(PersonalObjectMixin, FinancePageMixin, ListView):
+class AlertListView(PersonalQuerysetMixin, FinancePageMixin, ListView):
     template_name = "finance/alerts/list.html"
     context_object_name = "alerts"
     model = Alert
@@ -53,7 +53,7 @@ class AlertUpdateView(PersonalObjectMixin, FinancePageMixin, UpdateView):
     page_title = "Edit alert"
 
 
-class AlertDeleteView(PersonalObjectMixin, FinancePageMixin, DeleteView):
+class AlertDeleteView(PersonalQuerysetMixin, FinancePageMixin, DeleteView):
     template_name = "finance/alerts/confirm_delete.html"
     model = Alert
     success_url = reverse_lazy("finance:alerts")
