@@ -15,7 +15,7 @@ Deliberately scoped to this app rather than flipping the project's TIME_ZONE,
 which would also change how the public site renders every timestamp.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
@@ -42,3 +42,17 @@ def to_household_date(value) -> date:
         return value.astimezone(household_timezone()).date()
 
     return value
+
+
+def household_start_of_day(value: date) -> datetime:
+    """An aware datetime at the start of a household-local date.
+
+    Balance snapshots are dated, not timestamped, but `Account.balance_as_of`
+    is a datetime because staleness math needs one. Anchoring to the start of
+    the day rather than the end keeps a reading from ever looking newer than
+    it is — the safe direction for an alert that asks "has this gone quiet?".
+    """
+    if value is None:
+        return None
+
+    return datetime.combine(value, time.min, tzinfo=household_timezone())

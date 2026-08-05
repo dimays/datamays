@@ -24,7 +24,11 @@ from ..models import (
     TransactionSource,
 )
 from .detection import parse_amount, parse_date, sniff
-from .sync import next_fingerprint, record_balance_snapshot
+from .sync import (
+    next_fingerprint,
+    record_balance_snapshot,
+    refresh_account_balance_from_snapshots,
+)
 
 
 class ImportError_(Exception):
@@ -295,6 +299,13 @@ def commit_batch(batch: ImportBatch) -> ImportBatch:
             created += _commit_balance(batch, row)
         else:
             created += _commit_paycheck(batch, row)
+
+    # A balances import is only half-written until the account's cached
+    # balance points at the newest snapshot. Done once, after every row, so a
+    # file containing history or rows out of order still ends up pointing at
+    # the most recent reading — see refresh_account_balance_from_snapshots.
+    if batch.record_type == RecordType.BALANCES and batch.account_id:
+        refresh_account_balance_from_snapshots(batch.account)
 
     batch.created_count = created
     batch.status = ImportStatus.COMMITTED

@@ -19,7 +19,7 @@ from django.db import transaction as db_transaction
 from django.utils import timezone
 from django.utils.text import slugify
 
-from ..dates import household_today, to_household_date
+from ..dates import household_start_of_day, household_today, to_household_date
 from ..models import (
     LIABILITY_TYPES,
     Account,
@@ -239,7 +239,12 @@ def upsert_account(connection: AccountConnection, payload) -> Account:
 
 
 def record_balance_snapshot(account, *, as_of, current, available=None, source=None):
-    """One reading per account per day; a re-run overwrites rather than stacks."""
+    """One reading per account per day; a re-run overwrites rather than stacks.
+
+    Writes history only. `Account.current_balance` is a separate, denormalized
+    cache of the latest reading — see refresh_account_balance_from_snapshots()
+    for why both exist and when to update the second one.
+    """
     AccountBalanceSnapshot.objects.update_or_create(
         account=account,
         as_of=as_of,
@@ -250,6 +255,48 @@ def record_balance_snapshot(account, *, as_of, current, available=None, source=N
             "source": source or BalanceSource.PROVIDER,
         },
     )
+
+
+def refresh_account_balance_from_snapshots(account) -> bool:
+    """Point an account's cached balance at its newest snapshot.
+
+    Two places hold a balance, on purpose:
+
+    - `AccountBalanceSnapshot` is the history. Every balance chart is built
+      from it, because summing transactions cannot work for an account that
+      only ever reports a balance.
+    - `Account.current_balance` caches the latest reading. The homepage, the
+      account list and every net worth total read it, rather than running a
+      per-account "newest snapshot" query on each page load.
+
+    A provider sync writes both. CSV balance import wrote only the snapshot,
+    so an imported balance appeared on the Charts tab and nowhere else —
+    which is exactly the bug this function exists to close.
+
+    Reads the newest snapshot rather than trusting the caller's row, so a
+    file containing history (or rows out of order) still leaves the cache
+    pointing at the most recent reading rather than the last one parsed.
+
+    Returns whether anything was written.
+    """
+    latest = account.balance_snapshots.order_by("-as_of").first()
+
+    if latest is None:
+        return False
+
+    account.current_balance = latest.current
+    account.available_balance = latest.available
+    account.balance_as_of = household_start_of_day(latest.as_of)
+    account.save(
+        update_fields=[
+            "current_balance",
+            "available_balance",
+            "balance_as_of",
+            "updated_at",
+        ]
+    )
+
+    return True
 
 
 def upsert_transaction(account: Account, payload) -> str:

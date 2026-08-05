@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from django.test import TestCase
 
+from finance.dates import to_household_date
 from finance.models import (
     AccountBalanceSnapshot,
     AmountConvention,
@@ -354,6 +355,76 @@ class BalanceAndPaycheckImportTests(ImportBatchTestCase):
             AccountBalanceSnapshot.objects.get(as_of=date(2026, 2, 28)).current,
             Decimal("18720.00"),
         )
+
+    def test_importing_balances_updates_the_accounts_cached_balance(self):
+        """The reported bug: imported balances showed on the Charts tab (built
+        from snapshots) but the homepage kept reading a stale — in practice
+        None — Account.current_balance, because nothing wrote it."""
+        content = b"""Statement Date,Cash Value
+2026-01-31,18450.00
+2026-02-28,18720.00
+"""
+        batch = self.make_batch(content, record_type=RecordType.BALANCES)
+        batch = parse_batch(
+            batch, column_map=self.columns(batch), date_format="%Y-%m-%d"
+        )
+        commit_batch(batch)
+
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.current_balance, Decimal("18720.00"))
+        self.assertIsNotNone(self.account.balance_as_of)
+        self.assertEqual(
+            to_household_date(self.account.balance_as_of), date(2026, 2, 28)
+        )
+
+    def test_the_cached_balance_follows_the_newest_row_not_the_last_parsed(self):
+        """A file can hold history, or rows out of order. The cache must end
+        up on the most recent reading either way."""
+        content = b"""Statement Date,Cash Value
+2026-02-28,18720.00
+2026-01-31,18450.00
+"""
+        batch = self.make_batch(content, record_type=RecordType.BALANCES)
+        batch = parse_batch(
+            batch, column_map=self.columns(batch), date_format="%Y-%m-%d"
+        )
+        commit_batch(batch)
+
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.current_balance, Decimal("18720.00"))
+
+    def test_importing_older_history_does_not_regress_a_newer_balance(self):
+        """Backfilling 2025 statements must not drag the homepage back in
+        time — the cache tracks the newest snapshot, not the newest import."""
+        AccountBalanceSnapshot.objects.create(
+            account=self.account, as_of=date(2026, 6, 30), current=Decimal("21000.00")
+        )
+
+        content = b"""Statement Date,Cash Value
+2025-01-31,9000.00
+2025-02-28,9500.00
+"""
+        batch = self.make_batch(content, record_type=RecordType.BALANCES)
+        batch = parse_batch(
+            batch, column_map=self.columns(batch), date_format="%Y-%m-%d"
+        )
+        commit_batch(batch)
+
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.current_balance, Decimal("21000.00"))
+
+    def test_a_transactions_import_leaves_the_cached_balance_alone(self):
+        """Only a balances file carries a balance. A transactions import must
+        not invent one."""
+        self.account.current_balance = Decimal("500.00")
+        self.account.save(update_fields=["current_balance"])
+
+        batch = self.make_batch(SIMPLE_CSV)
+        batch = parse_batch(batch, column_map=self.columns(batch), date_format="%m/%d/%Y")
+        commit_batch(batch)
+
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.current_balance, Decimal("500.00"))
 
     def test_paychecks_import_with_their_deductions(self):
         content = b"""Pay Date,Employer,Gross Pay,Net Pay,Federal Tax,FICA,Retirement
