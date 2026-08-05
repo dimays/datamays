@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 from django.test import SimpleTestCase, TestCase, override_settings
 
-from finance.dates import household_today, to_household_date
+from finance.dates import household_start_of_day, household_today, to_household_date
 from finance.models import Budget
 
 # 20:30 on 31 August in Chicago is 01:30 on 1 September in UTC.
@@ -38,6 +38,31 @@ class HouseholdDateTests(SimpleTestCase):
     def test_aware_datetimes_convert(self):
         self.assertEqual(to_household_date(LATE_EVENING), date(2026, 8, 31))
         self.assertIsNone(to_household_date(None))
+
+
+class StartOfDayTests(TestCase):
+    """Balance snapshots are dated; Account.balance_as_of is a datetime."""
+
+    def test_it_returns_an_aware_datetime_on_the_same_household_date(self):
+        result = household_start_of_day(date(2026, 8, 31))
+
+        self.assertIsNotNone(result.tzinfo)
+        self.assertEqual(to_household_date(result), date(2026, 8, 31))
+
+    def test_it_anchors_to_the_start_of_the_day_not_the_end(self):
+        """A reading must never look newer than it is — the safe direction
+        for a staleness alert."""
+        result = household_start_of_day(date(2026, 8, 31))
+
+        self.assertEqual((result.hour, result.minute), (0, 0))
+
+    def test_it_round_trips_through_to_household_date(self):
+        for day in (date(2026, 1, 1), date(2026, 6, 15), date(2026, 12, 31)):
+            with self.subTest(day=day):
+                self.assertEqual(to_household_date(household_start_of_day(day)), day)
+
+    def test_none_passes_through(self):
+        self.assertIsNone(household_start_of_day(None))
 
 
 class BudgetPeriodBoundaryTests(TestCase):
