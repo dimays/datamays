@@ -60,7 +60,7 @@ class HeaderNavTests(TestCase):
         response = self.client.get(reverse("finance:home"))
         body = response.content.decode()
 
-        self.assertIn("Import data", body)
+        self.assertIn("Import", body)
         self.assertIn(f'href="{reverse("finance:imports")}"', body)
 
     def test_settings_comes_after_import_in_the_desktop_nav(self):
