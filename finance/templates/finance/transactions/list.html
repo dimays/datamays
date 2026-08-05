@@ -109,68 +109,126 @@
   </button>
 </form>
 
-<div class="mt-6 space-y-2">
-  {% for txn in transactions %}
-    <div class="rounded-card border border-border bg-surface p-4 {% if txn.needs_review %}border-warning/40{% endif %}">
-      <div class="flex items-start justify-between gap-4">
-        <div class="min-w-0">
-          <p class="truncate font-medium">{{ txn.description_raw }}</p>
-          <p class="mt-1 text-xs text-text-muted">
-            {{ txn.posted_on|date:"j M" }} · {{ txn.account.name }}
-            {% if txn.is_transfer %}· <span class="text-accent">transfer</span>{% endif %}
-            {% if txn.category_source == 'llm' and txn.category_confidence %}
-              · classified {{ txn.category_confidence|floatformat:2 }}
-            {% endif %}
-          </p>
-        </div>
+<div class="mt-6" x-data="{ selected: [], selectAllFiltered: false }">
+  <div class="flex flex-wrap items-center gap-3 rounded-card border border-primary/40 bg-primary/10 px-4 py-3 text-sm"
+       x-show="selected.length > 0 || selectAllFiltered">
+    <span class="font-medium" x-show="!selectAllFiltered" x-text="selected.length + ' selected'"></span>
+    <span class="font-medium" x-show="selectAllFiltered">All {{ page_obj.paginator.count }} matching this filter</span>
 
-        <p class="shrink-0 font-mono text-sm {% if txn.amount < 0 %}text-text-primary{% else %}text-success{% endif %}">
-          {% if txn.amount < 0 %}−{% endif %}${{ txn.display_amount|money }}
-        </p>
-      </div>
+    {% if page_obj.paginator.count > transactions|length %}
+      <label class="flex items-center gap-1.5 text-xs text-text-muted">
+        <input type="checkbox" x-model="selectAllFiltered" @change="if ($event.target.checked) selected = []"
+               class="h-3.5 w-3.5 rounded border-border bg-background text-primary focus:ring-primary" />
+        Select all {{ page_obj.paginator.count }}, not just this page
+      </label>
+    {% endif %}
 
-      <form method="post" class="mt-3 flex flex-wrap items-center gap-2"
-            x-data="{ initial: '{{ txn.category_id|default:'' }}', selected: '{{ txn.category_id|default:'' }}', needsReview: {{ txn.needs_review|yesno:'true,false' }} }">
-        {% csrf_token %}
-        <input type="hidden" name="transaction" value="{{ txn.pk }}" />
-        <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+    <form method="post" action="{{ request.get_full_path }}" class="flex flex-wrap items-center gap-2"
+          onsubmit="return document.getElementById('bulk-all-flag').value !== '1' || confirm('Apply this category to all {{ page_obj.paginator.count }} transactions matching the current filter?')">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="bulk_categorize" />
+      <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+      <input type="hidden" id="bulk-all-flag" name="apply_to_all_filtered" :value="selectAllFiltered ? '1' : ''" />
+      <template x-for="id in selected" :key="id">
+        <input type="hidden" name="transaction_ids" :value="id" />
+      </template>
 
-        <select name="category" x-model="selected"
-                class="min-w-0 flex-1 rounded-button border border-border bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary">
-          {% for category in categories %}
-            <option value="{{ category.pk }}" {% if txn.category_id == category.pk %}selected{% endif %}>{{ category.full_path }}</option>
-          {% endfor %}
-          {% if archived_categories %}
-            <optgroup label="Archived" class="text-text-muted">
-              {% for category in archived_categories %}
-                <option value="{{ category.pk }}" class="text-text-muted" {% if txn.category_id == category.pk %}selected{% endif %}>{{ category.full_path }}</option>
-              {% endfor %}
-            </optgroup>
-          {% endif %}
-        </select>
-
-        <button type="submit" :disabled="selected === initial && !needsReview"
-                class="rounded-button bg-primary px-3 py-1.5 text-xs font-medium text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary">
-          Save
-        </button>
-      </form>
-    </div>
-  {% empty %}
-    <div class="rounded-card border border-dashed border-border bg-surface/50 p-8 text-center">
-      <p class="text-text-secondary">
-        {% if review_only %}
-          Nothing left to review.
-        {% elif has_active_filters %}
-          No transactions match these filters — try widening the date range or clearing a filter.
-        {% else %}
-          No transactions yet.
+      <select name="category" required
+              class="min-w-0 flex-1 rounded-button border border-border bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+        <option value="" disabled selected>Set category to…</option>
+        {% for category in categories %}
+          <option value="{{ category.pk }}">{{ category.full_path }}</option>
+        {% endfor %}
+        {% if archived_categories %}
+          <optgroup label="Archived">
+            {% for category in archived_categories %}
+              <option value="{{ category.pk }}">{{ category.full_path }}</option>
+            {% endfor %}
+          </optgroup>
         {% endif %}
-      </p>
-      {% if has_active_filters and not review_only %}
-        <a href="{% url 'finance:transactions' %}" class="mt-2 inline-block text-primary hover:underline">Clear all filters</a>
-      {% endif %}
-    </div>
-  {% endfor %}
+      </select>
+
+      <button type="submit"
+              class="rounded-button bg-primary px-3 py-1.5 text-xs font-medium text-white transition hover:bg-primary-600">
+        Apply
+      </button>
+      <button type="button" @click="selected = []; selectAllFiltered = false"
+              class="rounded-button border border-border px-3 py-1.5 text-xs transition hover:bg-muted">
+        Clear
+      </button>
+    </form>
+  </div>
+
+  <div class="mt-2 space-y-2">
+    {% for txn in transactions %}
+      <div class="rounded-card border border-border bg-surface p-4 {% if txn.needs_review %}border-warning/40{% endif %}">
+        <div class="flex items-start gap-3">
+          <input type="checkbox" :value="{{ txn.pk }}" x-model="selected"
+                 class="mt-1.5 h-3.5 w-3.5 shrink-0 rounded border-border bg-background text-primary focus:ring-primary" />
+
+          <div class="min-w-0 flex-1">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0">
+                <p class="truncate font-medium">{{ txn.description_raw }}</p>
+                <p class="mt-1 text-xs text-text-muted">
+                  {{ txn.posted_on|date:"j M" }} · {{ txn.account.name }}
+                  {% if txn.is_transfer %}· <span class="text-accent">transfer</span>{% endif %}
+                  {% if txn.category_source == 'llm' and txn.category_confidence %}
+                    · classified {{ txn.category_confidence|floatformat:2 }}
+                  {% endif %}
+                </p>
+              </div>
+
+              <p class="shrink-0 font-mono text-sm {% if txn.amount < 0 %}text-text-primary{% else %}text-success{% endif %}">
+                {% if txn.amount < 0 %}−{% endif %}${{ txn.display_amount|money }}
+              </p>
+            </div>
+
+            <form method="post" class="mt-3 flex flex-wrap items-center gap-2"
+                  x-data="{ initial: '{{ txn.category_id|default:'' }}', selected: '{{ txn.category_id|default:'' }}', needsReview: {{ txn.needs_review|yesno:'true,false' }} }">
+              {% csrf_token %}
+              <input type="hidden" name="transaction" value="{{ txn.pk }}" />
+              <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+
+              <select name="category" x-model="selected"
+                      class="min-w-0 flex-1 rounded-button border border-border bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                {% for category in categories %}
+                  <option value="{{ category.pk }}" {% if txn.category_id == category.pk %}selected{% endif %}>{{ category.full_path }}</option>
+                {% endfor %}
+                {% if archived_categories %}
+                  <optgroup label="Archived" class="text-text-muted">
+                    {% for category in archived_categories %}
+                      <option value="{{ category.pk }}" class="text-text-muted" {% if txn.category_id == category.pk %}selected{% endif %}>{{ category.full_path }}</option>
+                    {% endfor %}
+                  </optgroup>
+                {% endif %}
+              </select>
+
+              <button type="submit" :disabled="selected === initial && !needsReview"
+                      class="rounded-button bg-primary px-3 py-1.5 text-xs font-medium text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary">
+                Save
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    {% empty %}
+      <div class="rounded-card border border-dashed border-border bg-surface/50 p-8 text-center">
+        <p class="text-text-secondary">
+          {% if review_only %}
+            Nothing left to review.
+          {% elif has_active_filters %}
+            No transactions match these filters — try widening the date range or clearing a filter.
+          {% else %}
+            No transactions yet.
+          {% endif %}
+        </p>
+        {% if has_active_filters and not review_only %}
+          <a href="{% url 'finance:transactions' %}" class="mt-2 inline-block text-primary hover:underline">Clear all filters</a>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
 </div>
 
 {% if is_paginated %}

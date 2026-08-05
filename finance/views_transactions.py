@@ -24,12 +24,14 @@ transactions at all".
 
 from datetime import date
 
+from django.contrib import messages
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import ListView
 
 from .access import FinanceAccessMixin
-from .models import Account, Budget, Category, Transaction
+from .categories_seed import UNCATEGORIZED_SLUG
+from .models import Account, Budget, Category, CategorySource, Transaction
 from .redirects import safe_next
 from .services.analytics import spend_filter
 from .services.categorize import confirm_category
@@ -195,15 +197,60 @@ class TransactionListView(FinanceAccessMixin, ListView):
         return context
 
     def post(self, request, *args, **kwargs):
-        """Confirm a category from the list.
+        """Confirm a category from the list, or apply one in bulk.
 
         Standing rules are created from Settings > Category rules instead,
         with the full pattern-matching system available there — not folded
         into this save.
         """
+        if request.POST.get("action") == "bulk_categorize":
+            return self._bulk_categorize(request)
+
         transaction = get_object_or_404(Transaction, pk=request.POST.get("transaction"))
         category = get_object_or_404(Category, pk=request.POST.get("category"))
 
         confirm_category(transaction, category, request.user)
 
+        return redirect(safe_next(request, default=request.get_full_path()))
+
+    def _bulk_categorize(self, request):
+        """Set one category on many transactions at once — either an
+        explicit id list, or every transaction matching the page's current
+        filters (self.get_queryset() reads request.GET, which is populated
+        from the URL regardless of this being a POST, so it sees the exact
+        same filters the page was rendered with).
+
+        Bypasses confirm_category(): that writes a MerchantCategoryMemo per
+        merchant, which doesn't make sense for an arbitrary bulk selection
+        that may span many unrelated merchants."""
+        category = get_object_or_404(Category, pk=request.POST.get("category"))
+
+        if request.POST.get("apply_to_all_filtered") == "1":
+            queryset = self.get_queryset()
+        else:
+            queryset = Transaction.objects.filter(
+                pk__in=request.POST.getlist("transaction_ids")
+            )
+
+        if category.slug == UNCATEGORIZED_SLUG:
+            # Matches services.categorize._assign_uncategorized: parked for
+            # review rather than treated as a confirmed decision.
+            count = queryset.update(
+                category=category,
+                category_source="",
+                category_confidence=0.0,
+                needs_review=True,
+            )
+        else:
+            count = queryset.update(
+                category=category,
+                category_source=CategorySource.MANUAL,
+                category_confidence=1.0,
+                needs_review=False,
+            )
+
+        messages.success(
+            request,
+            f"Set {count} transaction{'s' if count != 1 else ''} to {category.full_path}.",
+        )
         return redirect(safe_next(request, default=request.get_full_path()))
