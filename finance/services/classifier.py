@@ -35,7 +35,9 @@ Rules:
   confidence. When you have no real idea, use "uncategorized" with a low
   confidence rather than guessing something plausible-sounding.
 - confidence is 0.0 to 1.0 and should reflect real uncertainty. A well-known
-  national merchant is high confidence; an ambiguous abbreviation is not."""
+  national merchant is high confidence; an ambiguous abbreviation is not.
+
+Respond with a single JSON object matching the given response_shape."""
 
 
 @dataclass(frozen=True)

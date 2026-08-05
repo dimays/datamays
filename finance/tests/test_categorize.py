@@ -226,6 +226,14 @@ class ClassifierTests(PipelineTestCase):
 
         self.assertEqual(parsed, [])
 
+    def test_the_system_prompt_says_json_as_required_by_response_format(self):
+        # OpenAI's API rejects response_format=json_object unless one of the
+        # messages literally contains the word "json" — a 400 that silently
+        # failed every batch in production until this was added.
+        from finance.services.classifier import SYSTEM_PROMPT
+
+        self.assertIn("json", SYSTEM_PROMPT.lower())
+
     def test_without_an_api_key_the_deterministic_steps_still_work(self):
         from finance.services.classifier import NullClassifier
 
