@@ -3,9 +3,8 @@ from django.urls import reverse
 
 register = template.Library()
 
-# The screens that earn a spot on a phone's thumb bar — daily-use, at-a-glance
-# screens. Settings, Help, and Import live in the desktop header instead (see
-# SECONDARY_NAV): useful, but not something a phone needs one thumb-tap away.
+# The daily-use, at-a-glance screens — first in line on both the phone's
+# thumb bar and the desktop header.
 PRIMARY_NAV = [
     {"url_name": "home", "label": "Home", "icon": "home"},
     {"url_name": "transactions", "label": "Activity", "icon": "list"},
@@ -13,13 +12,15 @@ PRIMARY_NAV = [
     {"url_name": "qfrs", "label": "QFRs", "icon": "report", "related": ["qfr_detail"]},
 ]
 
-# Desktop-header-only items, alongside PRIMARY_NAV. The account dropdown is
-# reserved for user-specific things (preferences, alerts, sign out) — these
-# are app navigation, so they belong at the top level instead.
+# App navigation that isn't daily-use, but still belongs at the top level
+# rather than buried in the account dropdown (which is reserved for
+# user-specific things — preferences, alerts, sign out). Shown on both the
+# desktop header and the mobile tab bar, so the two never drift apart.
 SECONDARY_NAV = [
     {
         "url_name": "settings",
         "label": "Settings",
+        "icon": "settings",
         "related": [
             "institutions", "institution_create", "institution_edit",
             "connection_create", "connection_detail",
@@ -29,10 +30,11 @@ SECONDARY_NAV = [
     {
         "url_name": "imports",
         "label": "Import data",
+        "icon": "upload",
         "related": ["import_schemas", "import_upload", "import_map", "import_preview"],
         "is_button": True,
     },
-    {"url_name": "help", "label": "Help"},
+    {"url_name": "help", "label": "Help", "icon": "help"},
 ]
 
 

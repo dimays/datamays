@@ -29,8 +29,12 @@ class HeaderNavTests(TestCase):
         response = self.client.get(reverse("finance:home"))
         body = response.content.decode()
 
+        # Bounded to the header: the dropdown lives entirely inside it, and
+        # both the primary/secondary nav and the mobile tab bar (which also
+        # legitimately says "Settings" and "Help") live outside it.
         dropdown_start = body.index('role="menu"')
-        dropdown = body[dropdown_start:]
+        dropdown_end = body.index("</header>", dropdown_start)
+        dropdown = body[dropdown_start:dropdown_end]
 
         self.assertIn("Alerts", dropdown)
         self.assertIn("Preferences", dropdown)
@@ -53,3 +57,30 @@ class HeaderNavTests(TestCase):
 
         self.assertIn("Import data", body)
         self.assertIn(f'href="{reverse("finance:imports")}"', body)
+
+    def test_the_mobile_tab_bar_matches_the_desktop_nav(self):
+        # The bug report this guards against: the footer tab bar only ever
+        # rendered PRIMARY_NAV, so Settings/Import/Help were reachable on
+        # desktop but invisible on a phone.
+        response = self.client.get(reverse("finance:home"))
+        body = response.content.decode()
+
+        tab_bar_start = body.index('aria-label="Primary"')
+        tab_bar = body[tab_bar_start:]
+
+        for href in [
+            reverse("finance:settings"),
+            reverse("finance:imports"),
+            reverse("finance:help"),
+        ]:
+            self.assertIn(f'href="{href}"', tab_bar)
+
+    def test_the_import_tab_gets_a_call_to_action_treatment(self):
+        response = self.client.get(reverse("finance:home"))
+        body = response.content.decode()
+
+        tab_bar_start = body.index('aria-label="Primary"')
+        imports_index = body.index(f'href="{reverse("finance:imports")}"', tab_bar_start)
+
+        # The blue chip wrapping the icon, not just plain matching text color.
+        self.assertIn("bg-primary", body[imports_index:imports_index + 400])
