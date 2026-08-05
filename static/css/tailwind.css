@@ -1184,10 +1184,6 @@ video {
   top: 0px;
 }
 
-.z-20 {
-  z-index: 20;
-}
-
 .z-40 {
   z-index: 40;
 }
@@ -1436,10 +1432,6 @@ video {
   width: 13rem;
 }
 
-.w-56 {
-  width: 14rem;
-}
-
 .w-6 {
   width: 1.5rem;
 }
@@ -1462,6 +1454,10 @@ video {
 
 .min-w-0 {
   min-width: 0px;
+}
+
+.min-w-\[10rem\] {
+  min-width: 10rem;
 }
 
 .min-w-max {
@@ -2201,12 +2197,6 @@ video {
 
 .opacity-60 {
   opacity: 0.6;
-}
-
-.shadow-lg {
-  --tw-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --tw-shadow-colored: 0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);
-  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
 
 .shadow-xl {

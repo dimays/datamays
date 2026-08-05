@@ -797,7 +797,9 @@ class BalancesOverTimeFilterTests(AnalyticsTestCase):
         self.assertFalse(response.context["balances_over_time_has_data"])
         self.assertTrue(response.context["balances_over_time_available"])
 
-    def test_the_account_filter_is_a_popover_not_a_details_element(self):
+    def test_the_account_filter_is_a_plain_inline_select_not_a_popover(self):
+        # Styled the same way as Largest Transactions' filters: a plain
+        # <select> inline in the section body, not a click-to-open overlay.
         AccountBalanceSnapshot.objects.create(
             account=self.checking, as_of=household_today(), current=Decimal("1000.00")
         )
@@ -805,8 +807,27 @@ class BalancesOverTimeFilterTests(AnalyticsTestCase):
         response = self.client.get(reverse("finance:charts"))
         body = response.content.decode()
 
-        self.assertIn('x-data="{ open: false }"', body)
+        self.assertIn('name="balances_account" multiple', body)
         self.assertNotIn("<details", body)
+
+    def test_selecting_two_accounts_narrows_the_series_to_both(self):
+        AccountBalanceSnapshot.objects.create(
+            account=self.checking, as_of=household_today(), current=Decimal("1000.00")
+        )
+        AccountBalanceSnapshot.objects.create(
+            account=self.card, as_of=household_today(), current=Decimal("-200.00")
+        )
+
+        response = self.client.get(
+            reverse("finance:charts"),
+            {"balances_account": [self.checking.pk, self.card.pk]},
+        )
+
+        self.assertEqual(
+            set(response.context["selected_balances_accounts"]),
+            {self.checking.pk, self.card.pk},
+        )
+        self.assertTrue(response.context["balances_over_time_has_data"])
 
 
 class SpendByCategoryOverTimeAnalyticsTests(AnalyticsTestCase):
