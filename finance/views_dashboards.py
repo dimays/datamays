@@ -26,6 +26,7 @@ from urllib.parse import urlencode
 from django.shortcuts import redirect
 from django.urls import reverse
 
+from .chart_sections import CHART_SECTION_CHOICES
 from .dates import household_today
 from .models import (
     Account,
@@ -73,24 +74,6 @@ GRAIN_MIN_RANGE_DAYS = {
     "quarterly": 182,
     "annually": 365,
 }
-
-# Charts tab sections a person can choose to show, hide, and reorder, from
-# Preferences or from the Hide chart / Hidden charts controls on the Charts
-# tab itself — both write to the same UserPreference.chart_sections, so the
-# two are always in sync. Each slug maps to a template partial at
-# finance/dashboards/sections/<slug>.html.
-CHART_SECTION_CHOICES = [
-    ("spend_over_time", "Spend over time"),
-    ("spend_by_category_trend", "Spend by category, over time"),
-    ("spend_by_category", "Spend by category"),
-    ("large_transactions", "Largest transactions"),
-    ("budget_attainment", "Budget attainment"),
-    ("net_income", "Net income"),
-    ("net_cash_flow", "Net cash flow"),
-    ("net_worth", "Net worth"),
-    ("balances_over_time", "Balances over time"),
-]
-
 
 class ChartsView(FinanceView):
     """Shared filter handling: range, resolution, and account selection."""

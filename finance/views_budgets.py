@@ -5,63 +5,15 @@ grocery budget is fine on the 25th and alarming on the 8th, and "can we afford
 this?" is the question this screen exists to answer.
 """
 
-from django import forms
 from django.contrib import messages
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
-from .dates import household_today
 from .access import FinanceAccessMixin
-from .models import Account, Budget, Category, CategoryKind
+from .dates import household_today
+from .forms import BudgetForm
+from .models import Budget
 from .services.rollups import backfill_budget, roll_up_budget
-
-FIELD_CLASSES = (
-    "w-full rounded-button border border-border bg-background px-3 py-2 text-sm "
-    "text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
-)
-
-CHECKBOX_CLASSES = (
-    "h-4 w-4 rounded border-border bg-background text-primary focus:ring-primary"
-)
-
-
-class BudgetForm(forms.ModelForm):
-    class Meta:
-        model = Budget
-        fields = [
-            "name", "amount", "period_type", "anchor_date",
-            "categories", "accounts", "rollover", "is_active", "notes",
-        ]
-        widgets = {
-            "name": forms.TextInput(attrs={"class": FIELD_CLASSES}),
-            "amount": forms.NumberInput(attrs={"class": FIELD_CLASSES, "step": "0.01", "min": "0"}),
-            "period_type": forms.Select(attrs={"class": FIELD_CLASSES}),
-            "anchor_date": forms.DateInput(attrs={"class": FIELD_CLASSES, "type": "date"}),
-            "categories": forms.CheckboxSelectMultiple(attrs={"class": CHECKBOX_CLASSES}),
-            "accounts": forms.CheckboxSelectMultiple(attrs={"class": CHECKBOX_CLASSES}),
-            "rollover": forms.CheckboxInput(attrs={"class": CHECKBOX_CLASSES}),
-            "is_active": forms.CheckboxInput(attrs={"class": CHECKBOX_CLASSES}),
-            "notes": forms.Textarea(attrs={"class": FIELD_CLASSES, "rows": 2}),
-        }
-        help_texts = {
-            "anchor_date": "Sets when the cycle resets — pick a payday for a pay-cycle budget.",
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        # Transfers and income are never spending, so offering them here would
-        # only produce budgets that can never be met.
-        self.fields["categories"].queryset = Category.objects.filter(
-            is_active=True, kind=CategoryKind.EXPENSE
-        ).select_related("parent").alphabetical()
-
-        self.fields["accounts"].queryset = Account.objects.filter(is_active=True)
-        self.fields["accounts"].required = False
-        self.fields["categories"].required = True
-
-        if not self.instance.pk:
-            self.fields["anchor_date"].initial = household_today().replace(day=1)
 
 
 class BudgetListView(FinanceAccessMixin, ListView):
