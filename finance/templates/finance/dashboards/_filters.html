@@ -1,6 +1,16 @@
-{% comment %}Shared range/grain/account filter bar.{% endcomment %}
-<form method="get" class="mt-6 space-y-3">
-  <div class="flex flex-wrap gap-2">
+{% comment %}
+  Shared range/grain/account filter bar.
+
+  Two separate forms, not one: a hidden input carrying the *other* filter's
+  current value has to live in a different form from that filter's own
+  buttons, or submitting the form adds a second value for the same name (the
+  clicked button's value, plus the hidden input's) rather than replacing it.
+  Django's QueryDict keeps the last one, so this silently pinned range/grain
+  to whatever was already selected no matter which button was clicked.
+{% endcomment %}
+<div class="mt-6 space-y-3">
+  <form method="get" class="flex flex-wrap gap-2">
+    {% if show_grain %}<input type="hidden" name="grain" value="{{ selected_grain }}" />{% endif %}
     {% for key, label, days in range_choices %}
       <button type="submit" name="range" value="{{ key }}"
               class="rounded-full px-3.5 py-1.5 text-xs font-medium transition
@@ -8,10 +18,10 @@
         {{ label }}
       </button>
     {% endfor %}
-  </div>
+  </form>
 
   {% if show_grain %}
-    <div class="flex flex-wrap gap-2">
+    <form method="get" class="flex flex-wrap gap-2">
       <input type="hidden" name="range" value="{{ selected_range }}" />
       {% for key, label in grain_choices %}
         <button type="submit" name="grain" value="{{ key }}"
@@ -20,6 +30,6 @@
           {{ label }}
         </button>
       {% endfor %}
-    </div>
+    </form>
   {% endif %}
-</form>
+</div>
