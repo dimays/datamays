@@ -2,12 +2,29 @@
 {% load finance_extras %}
 
 {% block finance_content %}
-<h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Quarterly Finance Reports</h1>
-<p class="mt-2 max-w-2xl text-text-secondary">
-  A snapshot of each closed quarter — generated once it ends, not live. Run
-  <code class="rounded bg-muted px-1.5 py-0.5 text-xs">manage.py generate_qfrs</code>
-  to add the next one.
-</p>
+<div class="flex flex-wrap items-start justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Quarterly Finance Reports</h1>
+    <p class="mt-2 max-w-2xl text-text-secondary">
+      A snapshot of each closed quarter — generated once it ends, not live.
+    </p>
+  </div>
+
+  {% if available_quarters %}
+    <form method="post" class="flex shrink-0 flex-wrap items-center gap-2">
+      {% csrf_token %}
+      <select name="quarter"
+              class="rounded-button border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+        {% for year, quarter, label in available_quarters reversed %}
+          <option value="{{ year }}-{{ quarter }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="rounded-button bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-600">
+        Generate
+      </button>
+    </form>
+  {% endif %}
+</div>
 
 {% include "finance/partials/messages.html" %}
 
@@ -37,10 +54,12 @@
   {% empty %}
     <div class="rounded-card border border-dashed border-border bg-surface/50 p-8 text-center">
       <p class="text-text-secondary">No reports generated yet.</p>
-      <p class="mt-2 text-xs text-text-muted">
-        Once a quarter has closed:
-        <code class="rounded bg-muted px-1.5 py-0.5">manage.py generate_qfrs --quarter 2026-Q1</code>
-      </p>
+      {% if not available_quarters %}
+        <p class="mt-2 text-xs text-text-muted">
+          Nothing to generate yet — a quarter only becomes available once it's
+          closed and fully covered by transaction history.
+        </p>
+      {% endif %}
     </div>
   {% endfor %}
 </div>

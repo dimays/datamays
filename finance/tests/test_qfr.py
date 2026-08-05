@@ -34,6 +34,7 @@ from finance.services import qfr as qfr_service
 from finance.services.qfr import (
     NullNarrator,
     QFRNarrator,
+    available_quarters_for_generation,
     compute_metrics,
     generate_qfr,
     historical_comparisons,
@@ -94,6 +95,51 @@ class QuarterBoundsTests(SimpleTestCase):
         self.assertTrue(quarter_is_complete(2020, 1, today=date(2026, 1, 1)))
         self.assertFalse(quarter_is_complete(2026, 2, today=date(2026, 4, 15)))
         self.assertTrue(quarter_is_complete(2026, 1, today=date(2026, 4, 1)))
+
+
+class AvailableQuartersForGenerationTests(TestCase):
+    def setUp(self):
+        call_command("seed_finance_categories", verbosity=0)
+        self.institution = make_institution()
+        self.account = make_account(self.institution, name="Checking")
+
+    def test_no_transactions_offers_nothing(self):
+        self.assertEqual(available_quarters_for_generation(today=date(2026, 7, 15)), [])
+
+    def test_excludes_the_currently_open_quarter(self):
+        make_transaction(self.account, posted_on=date(2020, 1, 1))
+
+        quarters = available_quarters_for_generation(today=date(2026, 7, 15))
+
+        self.assertNotIn((2026, 3, "Q3 2026"), quarters)
+        self.assertIn((2026, 2, "Q2 2026"), quarters)
+
+    def test_a_quarter_only_partially_covered_by_history_is_excluded(self):
+        # History starts mid-quarter, so Q2 2026 itself is not fully covered
+        # -- the first eligible quarter is the next one.
+        make_transaction(self.account, posted_on=date(2026, 5, 15))
+
+        quarters = available_quarters_for_generation(today=date(2026, 10, 1))
+
+        self.assertNotIn((2026, 2, "Q2 2026"), quarters)
+        self.assertIn((2026, 3, "Q3 2026"), quarters)
+
+    def test_history_starting_exactly_on_a_quarter_boundary_includes_it(self):
+        make_transaction(self.account, posted_on=date(2026, 4, 1))
+
+        quarters = available_quarters_for_generation(today=date(2026, 10, 1))
+
+        self.assertIn((2026, 2, "Q2 2026"), quarters)
+
+    def test_quarters_are_ordered_oldest_first(self):
+        make_transaction(self.account, posted_on=date(2025, 1, 1))
+
+        quarters = available_quarters_for_generation(today=date(2026, 4, 15))
+
+        self.assertEqual(
+            [(y, q) for y, q, _ in quarters],
+            sorted((y, q) for y, q, _ in quarters),
+        )
 
 
 class ComputeMetricsTestCase(TestCase):
@@ -531,3 +577,62 @@ class QFRViewTests(TestCase):
         response = self.client.get(reverse("finance:qfr_detail", args=[metrics_only.pk]))
 
         self.assertContains(response, "No narrative was generated")
+
+
+class QFRGenerateViewTests(TestCase):
+    def setUp(self):
+        call_command("seed_finance_categories", verbosity=0)
+
+        self.user = make_user("david", with_device=True)
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["otp_device_id"] = TOTPDevice.objects.get(user=self.user).persistent_id
+        session.save()
+
+        self.institution = make_institution()
+        self.account = make_account(self.institution, name="Checking")
+        make_transaction(self.account, posted_on=date(2026, 1, 1))
+
+    def test_the_generate_form_offers_available_quarters(self):
+        with patch("finance.services.qfr.household_today", return_value=date(2026, 7, 1)):
+            response = self.client.get(reverse("finance:qfrs"))
+
+        self.assertContains(response, "Q2 2026")
+        self.assertNotContains(response, "Q3 2026")
+
+    def test_generating_an_available_quarter_creates_it_and_redirects_to_it(self):
+        with patch("finance.services.qfr.household_today", return_value=date(2026, 7, 1)):
+            response = self.client.post(reverse("finance:qfrs"), {"quarter": "2026-1"})
+
+        report = QuarterlyReport.objects.get(year=2026, quarter=1)
+        self.assertRedirects(response, reverse("finance:qfr_detail", args=[report.pk]))
+
+    def test_generating_the_currently_open_quarter_is_refused(self):
+        with patch("finance.services.qfr.household_today", return_value=date(2026, 7, 1)):
+            response = self.client.post(
+                reverse("finance:qfrs"), {"quarter": "2026-3"}, follow=True
+            )
+
+        self.assertFalse(QuarterlyReport.objects.filter(year=2026, quarter=3).exists())
+        self.assertContains(response, "isn&#x27;t available")
+
+    def test_generating_a_quarter_before_the_transaction_history_is_refused(self):
+        with patch("finance.services.qfr.household_today", return_value=date(2026, 7, 1)):
+            response = self.client.post(
+                reverse("finance:qfrs"), {"quarter": "2020-1"}, follow=True
+            )
+
+        self.assertFalse(QuarterlyReport.objects.filter(year=2020, quarter=1).exists())
+        self.assertContains(response, "isn&#x27;t available")
+
+    def test_a_malformed_quarter_value_does_not_error(self):
+        response = self.client.post(reverse("finance:qfrs"), {"quarter": "nonsense"})
+
+        self.assertRedirects(response, reverse("finance:qfrs"))
+
+    def test_generation_is_gated_like_everything_else(self):
+        self.client.logout()
+
+        response = self.client.post(reverse("finance:qfrs"), {"quarter": "2026-1"})
+
+        self.assertEqual(response.status_code, 403)
