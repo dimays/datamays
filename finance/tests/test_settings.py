@@ -855,6 +855,22 @@ class PreferenceTests(SettingsTestCase):
             UserPreference.for_user(self.user).chart_section_order,
         )
 
+    def test_a_retired_section_in_a_saved_preference_does_not_break_the_page(self):
+        # A section removed from CHART_SECTION_CHOICES (e.g. a retired
+        # chart) can still be sitting in an already-saved preference —
+        # the page must drop it silently, not KeyError on the label lookup.
+        preference = UserPreference.for_user(self.user)
+        preference.chart_sections = ["spend_over_time", "some_retired_section"]
+        preference.save()
+
+        response = self.client.get(reverse("finance:preferences"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(
+            "some_retired_section",
+            response.context["form"].fields["chart_sections_selected"].initial,
+        )
+
 
 class SettingsAccessTests(SettingsTestCase):
     def test_settings_pages_are_gated(self):
