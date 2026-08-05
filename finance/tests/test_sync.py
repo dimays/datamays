@@ -3,17 +3,21 @@
 from datetime import date, datetime, timedelta
 from datetime import timezone as dt_timezone
 from decimal import Decimal
+from io import StringIO
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
+from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 
+from finance.dates import household_today
 from finance.models import (
     Account,
     AccountBalanceSnapshot,
     AccountConnection,
     AccountType,
+    BalanceSource,
     ConnectionStatus,
     SyncStatus,
     Transaction,
@@ -261,8 +265,50 @@ class BalanceSnapshotTests(SyncTestCase):
         self.run_sync()
 
         snapshot = AccountBalanceSnapshot.objects.get()
-        self.assertEqual(snapshot.as_of, date(2026, 4, 15))
         self.assertEqual(snapshot.current, Decimal("4210.55"))
+
+    def test_the_snapshot_is_dated_today_not_by_the_providers_own_timestamp(self):
+        """The payload says this balance was read on 15 April. It is still
+        what the account holds *today*, and dating the snapshot back would
+        leave the newest snapshot older than Account.current_balance — the
+        gap that let a manual entry outrank a later sync."""
+        self.run_sync()
+
+        snapshot = AccountBalanceSnapshot.objects.get()
+        self.assertEqual(snapshot.as_of, household_today())
+        self.assertNotEqual(snapshot.as_of, date(2026, 4, 15))
+
+    def test_the_newest_snapshot_agrees_with_the_cached_balance(self):
+        """The invariant the Charts tab and the homepage both depend on."""
+        self.run_sync()
+
+        account = Account.objects.get()
+        newest = account.balance_snapshots.order_by("-as_of").first()
+        self.assertEqual(newest.current, account.current_balance)
+
+    def test_a_sync_overwrites_a_manual_reading_entered_the_same_day(self):
+        """Documented behavior for a connected account: a manual balance is
+        only as durable as the next sync. It has to hold for the snapshot
+        too, or Charts keeps showing the manual figure after the sync."""
+        self.run_sync()
+        account = Account.objects.get()
+
+        AccountBalanceSnapshot.objects.update_or_create(
+            account=account,
+            as_of=household_today(),
+            defaults={"current": Decimal("999.00"), "source": BalanceSource.MANUAL},
+        )
+
+        self.run_sync(
+            fetch_result(
+                accounts=[account_payload(raw_balance=Decimal("4000.00"))],
+                transactions={},
+            )
+        )
+
+        newest = account.balance_snapshots.order_by("-as_of").first()
+        self.assertEqual(newest.current, Decimal("4000.00"))
+        self.assertEqual(newest.source, BalanceSource.PROVIDER)
 
     def test_two_syncs_on_one_day_overwrite_rather_than_stack(self):
         self.run_sync()
@@ -274,6 +320,81 @@ class BalanceSnapshotTests(SyncTestCase):
 
         self.assertEqual(AccountBalanceSnapshot.objects.count(), 1)
         self.assertEqual(AccountBalanceSnapshot.objects.get().current, Decimal("4000.00"))
+
+
+class RefreshAccountBalancesCommandTests(TestCase):
+    """The repair tool for when the cache and the history have drifted."""
+
+    def setUp(self):
+        self.institution = make_institution()
+        self.account = make_account(self.institution, name="Rollover IRA")
+        AccountBalanceSnapshot.objects.create(
+            account=self.account,
+            as_of=household_today(),
+            current=Decimal("19090.65"),
+            source=BalanceSource.CSV,
+        )
+
+    def run_command(self, *args):
+        out = StringIO()
+        call_command("refresh_account_balances", *args, stdout=out)
+        return out.getvalue()
+
+    def test_it_writes_nothing_without_apply(self):
+        output = self.run_command()
+
+        self.account.refresh_from_db()
+        self.assertIsNone(self.account.current_balance)
+        self.assertIn("Would update", output)
+        self.assertIn("Dry run", output)
+
+    def test_apply_repoints_the_cache_at_the_newest_snapshot(self):
+        self.run_command("--apply")
+
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.current_balance, Decimal("19090.65"))
+
+    def test_an_account_already_in_step_is_left_alone(self):
+        self.run_command("--apply")
+        output = self.run_command()
+
+        self.assertIn("Every cached balance is current", output)
+
+    def test_only_empty_skips_an_account_that_already_has_a_figure(self):
+        """The conservative mode: fill gaps, never override a value some
+        other path deliberately set."""
+        self.account.current_balance = Decimal("123.45")
+        self.account.save(update_fields=["current_balance"])
+
+        self.run_command("--only-empty", "--apply")
+
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.current_balance, Decimal("123.45"))
+
+    def test_account_limits_it_to_one(self):
+        other = make_account(self.institution, name="Roth IRA")
+        AccountBalanceSnapshot.objects.create(
+            account=other,
+            as_of=household_today(),
+            current=Decimal("16600.88"),
+            source=BalanceSource.CSV,
+        )
+
+        self.run_command("--account", str(self.account.pk), "--apply")
+
+        self.account.refresh_from_db()
+        other.refresh_from_db()
+        self.assertEqual(self.account.current_balance, Decimal("19090.65"))
+        self.assertIsNone(other.current_balance)
+
+    def test_an_account_with_no_snapshots_is_ignored(self):
+        make_account(self.institution, name="Brand New")
+
+        self.run_command("--apply")
+
+        self.assertIsNone(
+            Account.objects.get(name="Brand New").current_balance
+        )
 
 
 class AccountDiscoveryTests(SyncTestCase):
