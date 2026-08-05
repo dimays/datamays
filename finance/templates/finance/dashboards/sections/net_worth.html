@@ -1,0 +1,10 @@
+{% if net_worth_has_data %}
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Net worth</h2>
+    <p class="mt-1 text-xs text-text-muted">Everything you own minus everything you owe, day by day.</p>
+    <div class="mt-4 h-64">
+      <canvas data-chart="line" data-source="net-worth" data-label="Net worth"></canvas>
+    </div>
+    {{ net_worth_json|json_script:"net-worth" }}
+  </section>
+{% endif %}

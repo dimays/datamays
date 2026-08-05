@@ -1,5 +1,5 @@
 {% extends "finance/base_finance.html" %}
-{% load static %}
+{% load finance_extras static %}
 
 {% block finance_content %}
 <h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Charts</h1>
@@ -14,8 +14,45 @@
   <p class="mt-6 text-sm text-text-muted">{{ start|date:"j M Y" }} — {{ end|date:"j M Y" }}</p>
 
   {% for slug in chart_sections %}
-    {% include "finance/dashboards/sections/"|add:slug|add:".html" %}
+    {% if section_has_data|get_item:slug %}
+      <div class="mt-8">
+        <div class="flex justify-end">
+          <form method="post" action="{{ current_path }}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="hide_section" />
+            <input type="hidden" name="section" value="{{ slug }}" />
+            <button type="submit" class="text-xs text-text-muted underline decoration-dotted hover:text-text-secondary">
+              Hide chart
+            </button>
+          </form>
+        </div>
+        {% include "finance/dashboards/sections/"|add:slug|add:".html" %}
+      </div>
+    {% endif %}
   {% endfor %}
+{% endif %}
+
+{% if hidden_sections %}
+  <details class="mt-10 rounded-card border border-border bg-surface p-5">
+    <summary class="cursor-pointer select-none text-sm font-semibold uppercase tracking-wide text-text-muted">
+      Hidden charts ({{ hidden_sections|length }})
+    </summary>
+    <ul class="mt-4 divide-y divide-border">
+      {% for slug, label in hidden_sections %}
+        <li class="flex items-center justify-between gap-3 py-2.5">
+          <span class="text-sm">{{ label }}</span>
+          <form method="post" action="{{ current_path }}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="show_section" />
+            <input type="hidden" name="section" value="{{ slug }}" />
+            <button type="submit" class="rounded-button border border-border px-3 py-1.5 text-xs font-medium transition hover:bg-muted">
+              Show chart
+            </button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  </details>
 {% endif %}
 {% endblock %}
 

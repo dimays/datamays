@@ -1,4 +1,5 @@
-"""Charts: spend, income, cash flow, and savings & debt in one place.
+"""Charts: every chart the household uses to understand its money, in one
+customisable page.
 
 One view resolves a date range, resolution, and account filter from the query
 string, falling back to the person's saved dashboard filters, then hands
@@ -6,16 +7,23 @@ plain series to the template. All the arithmetic lives in services.analytics
 so it can be tested without rendering anything.
 
 Not every chart on the page follows the shared resolution selector — balance
-history (net worth, savings, debt) is daily-carried-forward by nature, and
-budget attainment follows each budget's own anchored period, so forcing
+history (net worth, balances over time) is daily-carried-forward by nature,
+and budget attainment follows each budget's own anchored period, so forcing
 either onto weekly/monthly/quarterly/annually would misrepresent what they
-actually are. The resolution applies to the four flow-based charts: spend
-over time, net income, net cash flow, and spend by category over time.
+actually are. The resolution applies to the flow-based charts: spend over
+time, spend by category over time, recurring expenses, net income, and net
+cash flow.
+
+Which sections show, and in what order, is per-person (UserPreference.
+chart_sections) — set from Preferences' drag-to-reorder list, or from the
+Hide chart / Hidden charts controls right on this page. Both write to the
+exact same field, so there is only ever one source of truth for it.
 """
 
 from datetime import timedelta
 from urllib.parse import urlencode
 
+from django.shortcuts import redirect
 from django.urls import reverse
 
 from .dates import household_today
@@ -67,17 +75,23 @@ GRAIN_MIN_RANGE_DAYS = {
     "annually": 365,
 }
 
-# Charts tab sections a person can choose to show and reorder, in Preferences
-# — the same arrange-your-own pattern as the homepage widgets. Each slug maps
-# to a template partial at finance/dashboards/sections/<slug>.html.
+# Charts tab sections a person can choose to show, hide, and reorder, from
+# Preferences or from the Hide chart / Hidden charts controls on the Charts
+# tab itself — both write to the same UserPreference.chart_sections, so the
+# two are always in sync. Each slug maps to a template partial at
+# finance/dashboards/sections/<slug>.html.
 CHART_SECTION_CHOICES = [
     ("spend_over_time", "Spend over time"),
     ("spend_by_category_trend", "Spend by category, over time"),
     ("spend_by_category", "Spend by category"),
+    ("large_transactions", "Largest transactions"),
+    ("recurring_expenses", "Recurring expenses, over time"),
     ("budget_attainment", "Budget attainment"),
     ("net_income", "Net income"),
     ("net_cash_flow", "Net cash flow"),
-    ("savings_debt", "Savings & debt"),
+    ("net_worth", "Net worth"),
+    ("balances_over_time", "Balances over time"),
+    ("accounts_list", "Savings & debt accounts"),
 ]
 
 
@@ -144,6 +158,58 @@ class ChartsView(FinanceView):
 
         return [int(value) for value in raw if str(value).isdigit()]
 
+    def resolve_balances_accounts(self):
+        """A filter scoped to just the balances-over-time chart.
+
+        Kept separate from resolve_accounts(): the page's shared account
+        filter narrows the flow-based charts (spend, income, cash flow) to
+        the accounts money actually moves through, but a balance line chart
+        is just as meaningful for a 401(k) or a mortgage — accounts that
+        would never appear in a spend/income filter at all.
+        """
+        raw = self.request.GET.getlist("balances_account")
+        return [int(value) for value in raw if str(value).isdigit()]
+
+    def known_sections(self):
+        return {slug for slug, _ in CHART_SECTION_CHOICES}
+
+    def effective_chart_sections(self):
+        """The person's chosen sections, filtered to ones that still exist —
+        a section retired from CHART_SECTION_CHOICES should not linger in a
+        saved preference forever."""
+        known = self.known_sections()
+        return [slug for slug in self.get_preference().chart_section_order if slug in known]
+
+    def post(self, request, *args, **kwargs):
+        action = request.POST.get("action")
+
+        if action in {"hide_section", "show_section"}:
+            return self._toggle_section(request, action)
+
+        return self.get(request, *args, **kwargs)
+
+    def _toggle_section(self, request, action):
+        """Hide chart / Show chart — the same UserPreference.chart_sections
+        Preferences' drag-to-reorder list edits, just a faster path to it
+        from the chart itself. Showing a hidden chart puts it at the end of
+        the visible list, per the same "arrange it yourself" philosophy as
+        everything else here."""
+        preference = self.get_preference()
+        current = self.effective_chart_sections()
+        section = request.POST.get("section")
+
+        if action == "hide_section" and section in current:
+            current.remove(section)
+        elif action == "show_section" and section in self.known_sections() and section not in current:
+            current.append(section)
+
+        preference.chart_sections = current
+        preference.save(update_fields=["chart_sections", "updated_at"])
+
+        # Preserve whatever range/grain/account filters were active — hiding
+        # or showing one chart shouldn't reset the rest of the page.
+        return redirect(request.get_full_path())
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
@@ -151,11 +217,11 @@ class ChartsView(FinanceView):
         grain = self.resolve_grain(range_key)
         account_ids = self.resolve_accounts()
 
-        known_sections = {slug for slug, _ in CHART_SECTION_CHOICES}
-        chart_sections = [
-            slug
-            for slug in self.get_preference().chart_section_order
-            if slug in known_sections
+        chart_sections = self.effective_chart_sections()
+        hidden_sections = [
+            (slug, label)
+            for slug, label in CHART_SECTION_CHOICES
+            if slug not in chart_sections
         ]
 
         context.update(
@@ -169,20 +235,49 @@ class ChartsView(FinanceView):
                 "start": start,
                 "end": end,
                 "chart_sections": chart_sections,
+                "hidden_sections": hidden_sections,
+                "current_path": self.request.get_full_path(),
             }
         )
 
         context.update(self._spend_context(start, end, grain, account_ids))
         context.update(self._income_context(start, end, grain, account_ids))
         context.update(self._cash_flow_context(start, end, grain, account_ids))
-        context.update(self._savings_context(start, end))
+        context.update(self._large_transactions_context(start, end, account_ids))
+        context.update(self._recurring_expenses_context(start, end, grain, account_ids))
+        context.update(self._net_worth_context(start, end))
+        context.update(self._balances_over_time_context(start, end))
+        context.update(self._accounts_list_context())
+
+        # A section is only worth a "Hide chart" button once it actually has
+        # something to hide. Several slugs share one underlying data source
+        # (all four spend-side sections empty together, since they all read
+        # from the same window of transactions), so this is a lookup rather
+        # than a fifth copy of each flag.
+        context["section_has_data"] = {
+            "spend_over_time": context["spend_has_data"],
+            "spend_by_category_trend": context["spend_has_data"],
+            "spend_by_category": context["spend_has_data"],
+            "large_transactions": context["large_transactions_has_data"],
+            "recurring_expenses": context["recurring_expenses_has_data"],
+            "budget_attainment": context["spend_has_data"],
+            "net_income": context["income_has_data"],
+            "net_cash_flow": context["cash_flow_has_data"],
+            "net_worth": context["net_worth_has_data"],
+            "balances_over_time": context["balances_over_time_available"],
+            "accounts_list": context["accounts_list_has_data"],
+        }
 
         context["has_any_data"] = any(
             [
                 context["spend_has_data"],
                 context["income_has_data"],
                 context["cash_flow_has_data"],
-                context["savings_has_data"],
+                context["large_transactions_has_data"],
+                context["recurring_expenses_has_data"],
+                context["net_worth_has_data"],
+                context["balances_over_time_available"],
+                context["accounts_list_has_data"],
             ]
         )
 
@@ -289,15 +384,57 @@ class ChartsView(FinanceView):
             "cash_flow_has_data": cash_flow["has_data"],
         }
 
-    def _savings_context(self, start, end):
-        savings = analytics.balance_history(
-            start=start, end=end, account_types=self.SAVINGS_TYPES
+    def _large_transactions_context(self, start, end, account_ids):
+        result = analytics.largest_transactions(start, end, account_ids=account_ids)
+
+        return {
+            "large_transactions": result["transactions"],
+            "large_transactions_has_data": result["has_data"],
+        }
+
+    def _recurring_expenses_context(self, start, end, grain, account_ids):
+        recurring = analytics.recurring_expenses_over_time(
+            start, end, grain=grain, account_ids=account_ids
         )
-        debts = analytics.balance_history(
-            start=start, end=end, account_types=self.DEBT_TYPES
-        )
+
+        return {
+            "recurring_expenses_json": recurring,
+            "recurring_expenses_has_data": recurring["has_data"],
+        }
+
+    def _net_worth_context(self, start, end):
         net_worth = analytics.net_worth_history(start=start, end=end)
 
+        return {
+            "net_worth_json": net_worth,
+            # values is always one entry per day in the window — a null for
+            # every day it is, until at least one snapshot exists.
+            "net_worth_has_data": any(v is not None for v in net_worth["values"]),
+        }
+
+    def _balances_over_time_context(self, start, end):
+        # Its own account filter, not the page's shared one: every account
+        # has a balance worth charting, including ones (401(k), mortgage)
+        # that would never appear in a spend/income filter.
+        selected = self.resolve_balances_accounts()
+        history = analytics.balance_history(
+            account_ids=selected or None, start=start, end=end
+        )
+
+        return {
+            "balances_over_time_json": self._to_chart(history),
+            "balances_over_time_has_data": bool(history["series"]),
+            # Whether the chart is available at all, regardless of the
+            # current per-chart account filter — a filter that happens to
+            # pick accounts with no history yet must not also hide the
+            # filter control itself, or there would be no way back.
+            "balances_over_time_available": bool(
+                analytics.balance_history(start=start, end=end)["series"]
+            ),
+            "selected_balances_accounts": selected,
+        }
+
+    def _accounts_list_context(self):
         accounts = list(
             Account.objects.filter(
                 is_active=True, account_type__in=self.SAVINGS_TYPES + self.DEBT_TYPES
@@ -305,14 +442,14 @@ class ChartsView(FinanceView):
         )
 
         return {
-            "savings_json": self._to_chart(savings),
-            "debts_json": self._to_chart(debts, magnitude=True),
-            "net_worth_json": net_worth,
             "savings_debt_accounts": accounts,
             # These are the accounts no aggregator can reach, so their
-            # charts only move when a statement is imported.
+            # balances only move when a statement is imported or someone
+            # updates them by hand.
             "manual_savings_debt_accounts": [a for a in accounts if a.is_manual],
-            "savings_has_data": bool(savings["series"] or debts["series"]),
+            # A savings/debt-type account with no balance yet (freshly added,
+            # never synced) isn't worth its own list row.
+            "accounts_list_has_data": any(a.current_balance is not None for a in accounts),
         }
 
     @staticmethod

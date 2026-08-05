@@ -613,6 +613,136 @@ class ChartsDashboardRenderTests(AnalyticsTestCase):
             response.context["chart_sections"], ["net_cash_flow", "spend_over_time"]
         )
 
+    def test_large_transactions_and_recurring_expenses_sections_render(self):
+        self.spend("-900.00", self.groceries, 5)
+        for month in (2, 3, 4):
+            make_transaction(
+                self.checking, posted_on=date(2026, month, 6), amount=Decimal("-15.99"),
+                description_raw="NETFLIX", merchant="Netflix", category=self.groceries,
+            )
+
+        response = self.client.get(reverse("finance:charts"), {"range": "6m"})
+
+        self.assertContains(response, "Largest transactions")
+        self.assertContains(response, "recurring-expenses")
+
+    def test_balances_over_time_replaces_the_old_savings_and_debt_charts(self):
+        AccountBalanceSnapshot.objects.create(
+            account=self.checking, as_of=household_today(), current=Decimal("1000.00")
+        )
+
+        response = self.client.get(reverse("finance:charts"))
+
+        self.assertContains(response, "balances-over-time")
+        self.assertNotContains(response, "savings-series")
+        self.assertNotContains(response, "debt-series")
+
+
+class ChartHideShowTests(AnalyticsTestCase):
+    def setUp(self):
+        super().setUp()
+        self.sign_in()
+        make_transaction(
+            self.checking, posted_on=household_today(), amount=Decimal("-100.00"),
+            description_raw="MARIANOS", category=self.groceries,
+        )
+
+    def test_hiding_a_chart_removes_it_from_the_page_and_saves_the_preference(self):
+        from finance.models import UserPreference
+
+        response = self.client.post(
+            reverse("finance:charts"),
+            {"action": "hide_section", "section": "spend_over_time"},
+        )
+
+        self.assertRedirects(response, reverse("finance:charts"))
+        preference = UserPreference.for_user(self.user)
+        self.assertNotIn("spend_over_time", preference.chart_sections)
+
+        page = self.client.get(reverse("finance:charts"))
+        self.assertNotIn("spend_over_time", page.context["chart_sections"])
+
+    def test_a_hidden_chart_appears_in_the_hidden_charts_tray(self):
+        self.client.post(
+            reverse("finance:charts"),
+            {"action": "hide_section", "section": "spend_over_time"},
+        )
+
+        response = self.client.get(reverse("finance:charts"))
+
+        self.assertIn(
+            "spend_over_time", dict(response.context["hidden_sections"])
+        )
+        self.assertContains(response, "Hidden charts")
+
+    def test_showing_a_hidden_chart_appends_it_to_the_end(self):
+        from finance.models import UserPreference
+
+        preference = UserPreference.for_user(self.user)
+        preference.chart_sections = ["net_cash_flow", "spend_over_time"]
+        preference.save()
+
+        self.client.post(
+            reverse("finance:charts"),
+            {"action": "show_section", "section": "spend_over_time"},
+        )
+        # Re-hide something already visible first, so re-showing it proves
+        # the "goes to the end" behaviour rather than "stayed in place".
+        self.client.post(
+            reverse("finance:charts"),
+            {"action": "hide_section", "section": "net_cash_flow"},
+        )
+        self.client.post(
+            reverse("finance:charts"),
+            {"action": "show_section", "section": "net_cash_flow"},
+        )
+
+        preference.refresh_from_db()
+        self.assertEqual(
+            preference.chart_sections, ["spend_over_time", "net_cash_flow"]
+        )
+
+    def test_hide_and_show_are_gated_like_everything_else(self):
+        self.client.logout()
+
+        response = self.client.post(
+            reverse("finance:charts"),
+            {"action": "hide_section", "section": "spend_over_time"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_hiding_preserves_the_active_range_filter(self):
+        response = self.client.post(
+            f"{reverse('finance:charts')}?range=3m",
+            {"action": "hide_section", "section": "spend_over_time"},
+        )
+
+        self.assertRedirects(response, f"{reverse('finance:charts')}?range=3m")
+
+
+class BalancesOverTimeFilterTests(AnalyticsTestCase):
+    def setUp(self):
+        super().setUp()
+        self.sign_in()
+
+    def test_the_filter_stays_visible_even_when_the_selection_has_no_history(self):
+        from finance.models import AccountBalanceSnapshot
+
+        AccountBalanceSnapshot.objects.create(
+            account=self.checking, as_of=household_today(), current=Decimal("1000.00")
+        )
+
+        # Filtering down to an account with no snapshots at all must not
+        # also hide the filter control -- that would be a dead end.
+        response = self.client.get(
+            reverse("finance:charts"), {"balances_account": [self.card.pk]}
+        )
+
+        self.assertContains(response, "Balances over time")
+        self.assertFalse(response.context["balances_over_time_has_data"])
+        self.assertTrue(response.context["balances_over_time_available"])
+
 
 class SpendByCategoryOverTimeAnalyticsTests(AnalyticsTestCase):
     def test_each_category_gets_its_own_aligned_series(self):
@@ -646,6 +776,107 @@ class SpendByCategoryOverTimeAnalyticsTests(AnalyticsTestCase):
 
         self.assertFalse(result["has_data"])
         self.assertEqual(result["series"], [])
+
+
+class LargestTransactionsAnalyticsTests(AnalyticsTestCase):
+    def test_largest_outflows_ranked_first(self):
+        self.spend("-40.00", self.groceries, 5)
+        self.spend("-900.00", self.groceries, 6)
+        self.spend("-15.00", self.fuel, 7)
+
+        result = analytics.largest_transactions(date(2026, 4, 1), date(2026, 4, 30))
+
+        amounts = [t.amount for t in result["transactions"]]
+        self.assertEqual(amounts, [Decimal("-900.00"), Decimal("-40.00"), Decimal("-15.00")])
+        self.assertTrue(result["has_data"])
+
+    def test_refunds_are_not_treated_as_large_expenses(self):
+        self.spend("-40.00", self.groceries, 5)
+        self.spend("500.00", self.groceries, 12)  # a big refund, same category
+
+        result = analytics.largest_transactions(date(2026, 4, 1), date(2026, 4, 30))
+
+        self.assertEqual(len(result["transactions"]), 1)
+        self.assertEqual(result["transactions"][0].amount, Decimal("-40.00"))
+
+    def test_respects_the_limit(self):
+        for day in range(1, 6):
+            self.spend(f"-{day * 10}.00", self.groceries, day)
+
+        result = analytics.largest_transactions(date(2026, 4, 1), date(2026, 4, 30), limit=2)
+
+        self.assertEqual(len(result["transactions"]), 2)
+
+    def test_an_empty_window_reports_no_data(self):
+        result = analytics.largest_transactions(date(2020, 1, 1), date(2020, 3, 31))
+
+        self.assertFalse(result["has_data"])
+        self.assertEqual(result["transactions"], [])
+
+
+class RecurringExpensesAnalyticsTests(AnalyticsTestCase):
+    def merchant_txn(self, merchant, amount, day, month=4):
+        return make_transaction(
+            self.checking,
+            posted_on=date(2026, month, day),
+            amount=Decimal(amount),
+            description_raw=f"{merchant} PURCHASE",
+            merchant=merchant,
+            category=self.groceries,
+        )
+
+    def test_a_merchant_recurring_across_periods_gets_its_own_line(self):
+        self.merchant_txn("Netflix", "-15.99", 5, month=2)
+        self.merchant_txn("Netflix", "-15.99", 5, month=3)
+        self.merchant_txn("Netflix", "-17.99", 5, month=4)
+
+        result = analytics.recurring_expenses_over_time(
+            date(2026, 2, 1), date(2026, 4, 30), grain="monthly", min_occurrences=3
+        )
+
+        by_label = {series["label"]: series["values"] for series in result["series"]}
+        self.assertEqual(by_label["Netflix"], [15.99, 15.99, 17.99])
+
+    def test_a_merchant_seen_only_once_is_not_recurring(self):
+        self.merchant_txn("One-off Store", "-40.00", 5, month=4)
+
+        result = analytics.recurring_expenses_over_time(
+            date(2026, 2, 1), date(2026, 4, 30), grain="monthly", min_occurrences=3
+        )
+
+        self.assertEqual(result["series"], [])
+        self.assertFalse(result["has_data"])
+
+    def test_falls_back_to_description_when_no_merchant_is_set(self):
+        for month in (2, 3, 4):
+            make_transaction(
+                self.checking, posted_on=date(2026, month, 5), amount=Decimal("-9.99"),
+                description_raw="ACME WIDGET CO", merchant="", category=self.groceries,
+            )
+
+        result = analytics.recurring_expenses_over_time(
+            date(2026, 2, 1), date(2026, 4, 30), grain="monthly", min_occurrences=3
+        )
+
+        labels = [series["label"] for series in result["series"]]
+        self.assertEqual(labels, ["ACME WIDGET CO"])
+
+    def test_ranked_by_total_spend_and_capped_to_the_limit(self):
+        for month in (2, 3, 4):
+            self.merchant_txn("Big Spender", "-200.00", 5, month=month)
+            self.merchant_txn("Small Spender", "-5.00", 6, month=month)
+
+        result = analytics.recurring_expenses_over_time(
+            date(2026, 2, 1), date(2026, 4, 30), grain="monthly", min_occurrences=3, limit=1
+        )
+
+        labels = [series["label"] for series in result["series"]]
+        self.assertEqual(labels, ["Big Spender"])
+
+    def test_an_empty_window_reports_no_data(self):
+        result = analytics.recurring_expenses_over_time(date(2020, 1, 1), date(2020, 3, 31))
+
+        self.assertFalse(result["has_data"])
 
 
 class NetCashFlowAnalyticsTests(AnalyticsTestCase):

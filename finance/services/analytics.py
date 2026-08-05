@@ -404,6 +404,85 @@ def spend_by_category_over_time(start, end, *, grain="monthly", account_ids=None
     }
 
 
+def largest_transactions(start, end, *, account_ids=None, limit=10):
+    """The biggest individual outflows in a window — the one-off expenses
+    worth a second look, as distinct from the steady recurring ones.
+
+    Only true outflows count (amount < 0): spend_transactions() also matches
+    positive refunds against expense categories, which are not "big
+    expenses" no matter how large the reimbursement.
+    """
+    transactions = list(
+        spend_transactions(start, end, account_ids)
+        .filter(amount__lt=0)
+        .select_related("account", "category")
+        .order_by("amount")[:limit]
+    )
+
+    return {"transactions": transactions, "has_data": bool(transactions)}
+
+
+def recurring_expenses_over_time(
+    start, end, *, grain="monthly", account_ids=None, min_occurrences=3, limit=6
+):
+    """Spend per period for merchants that show up again and again — a
+    subscription or a utility creeping up is easy to miss buried in a
+    category total, but obvious once it has its own line.
+
+    "Recurring" is deliberately simple: a merchant qualifies if it has spend
+    in at least `min_occurrences` distinct periods within the window. This is
+    not a subscription-detection model reading amounts or cadence — a
+    grocery store visited every week qualifies too, which is a feature for
+    this chart's purpose (anything reliably recurring is worth watching),
+    not a bug.
+    """
+    bucket_starts = _bucket_starts(start, end, grain)
+    trunc, _ = GRAINS.get(grain, GRAINS["monthly"])
+
+    rows = list(
+        spend_transactions(start, end, account_ids)
+        .filter(amount__lt=0)
+        .annotate(bucket=trunc("posted_on"))
+        .values("bucket", "merchant", "description_raw", "amount")
+    )
+
+    per_merchant = {}
+    grand_totals = {}
+    buckets_seen = {}
+
+    for row in rows:
+        # Merchant when the classifier or an import worked it out, else the
+        # raw description — grouped per row rather than at the database
+        # level, since the fallback key is computed, not a real column.
+        name = (row["merchant"] or row["description_raw"] or "Unknown").strip() or "Unknown"
+
+        per_bucket = per_merchant.setdefault(name, {})
+        per_bucket[row["bucket"]] = per_bucket.get(row["bucket"], Decimal("0")) - row["amount"]
+        grand_totals[name] = grand_totals.get(name, Decimal("0")) - row["amount"]
+        buckets_seen.setdefault(name, set()).add(row["bucket"])
+
+    recurring = [name for name, seen in buckets_seen.items() if len(seen) >= min_occurrences]
+    ranked = sorted(
+        ((name, grand_totals[name]) for name in recurring),
+        key=lambda item: item[1],
+        reverse=True,
+    )[:limit]
+
+    series = [
+        {
+            "label": name,
+            "values": [float(per_merchant[name].get(b, Decimal("0"))) for b in bucket_starts],
+        }
+        for name, _ in ranked
+    ]
+
+    return {
+        "labels": [_bucket_label(b, grain) for b in bucket_starts],
+        "series": series,
+        "has_data": bool(series),
+    }
+
+
 def net_cash_flow_over_time(start, end, *, grain="monthly", account_ids=None):
     """Net income minus spend, per period — positive is cash accumulating,
     negative is cash draining. Both sides share one x-axis (_bucket_starts),
