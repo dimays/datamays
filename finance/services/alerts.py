@@ -256,7 +256,7 @@ def evaluate_alerts(*, send=True, now=None):
 
         event = AlertEvent.objects.create(
             alert=alert,
-            # Quantised, never routed through float — see models.base.
+            # Quantized, never routed through float — see models.base.
             observed_value=Decimal(value).quantize(Decimal("0.01")),
             message=build_message(alert, value),
         )

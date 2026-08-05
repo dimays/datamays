@@ -1,5 +1,5 @@
 """Charts: every chart the household uses to understand its money, in one
-customisable page.
+customizable page.
 
 One view resolves a date range, resolution, and account filter from the query
 string, falling back to the person's saved dashboard filters, then hands
