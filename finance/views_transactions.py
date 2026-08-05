@@ -194,7 +194,28 @@ class TransactionListView(FinanceAccessMixin, ListView):
             "end": self.request.GET.get("end", ""),
         }
 
+        page_obj = context.get("page_obj")
+        if page_obj is not None:
+            # Bare "?page=N" would drop every other active filter (review=1
+            # included) — a page-2 link must carry the rest of the query
+            # string forward, not just replace it.
+            context["previous_page_url"] = (
+                self._page_url(page_obj.previous_page_number())
+                if page_obj.has_previous()
+                else None
+            )
+            context["next_page_url"] = (
+                self._page_url(page_obj.next_page_number())
+                if page_obj.has_next()
+                else None
+            )
+
         return context
+
+    def _page_url(self, page_number):
+        query = self.request.GET.copy()
+        query["page"] = page_number
+        return f"{self.request.path}?{query.urlencode()}"
 
     def post(self, request, *args, **kwargs):
         """Confirm a category from the list, or apply one in bulk.

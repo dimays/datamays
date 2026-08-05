@@ -12,6 +12,7 @@ from decimal import Decimal
 from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
+from django.utils.html import escape
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from finance.models import (
@@ -366,6 +367,108 @@ class BulkCategorizeTests(TestCase):
         response = self.bulk_post(category=self.restaurants.pk, transaction_ids=[])
 
         self.assertEqual(response.status_code, 403)
+
+
+class PaginationPreservesFiltersTests(TestCase):
+    """A page-2 link used to be a bare "?page=2", silently dropping every
+    other active filter — most confusingly review=1, which made "next page"
+    from the review queue look like it dumped you into the full activity
+    list."""
+
+    def setUp(self):
+        call_command("seed_finance_categories", verbosity=0)
+
+        self.institution = make_institution()
+        self.checking = make_account(self.institution, name="Checking")
+        self.groceries = Category.objects.get(slug="food-groceries")
+
+        for i in range(55):
+            make_transaction(
+                self.checking,
+                needs_review=True,
+                category=Category.objects.get(slug="uncategorized"),
+                description_raw=f"NEEDS REVIEW {i}",
+                posted_on=date(2026, 4, 1) + timedelta(days=i % 20),
+            )
+
+        self.user = make_user("david", with_device=True)
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["otp_device_id"] = TOTPDevice.objects.get(user=self.user).persistent_id
+        session.save()
+
+    def test_the_next_page_link_carries_the_review_filter_forward(self):
+        response = self.client.get(reverse("finance:transactions"), {"review": "1"})
+
+        # Both on the SAME link's query string, not just present somewhere
+        # on the page — checked against the actual URL the view built,
+        # rather than against HTML-escaped page content.
+        self.assertIn("review=1", response.context["next_page_url"])
+        self.assertIn("page=2", response.context["next_page_url"])
+        self.assertContains(response, escape(response.context["next_page_url"]))
+
+    def test_the_next_page_link_carries_an_account_filter_forward(self):
+        response = self.client.get(
+            reverse("finance:transactions"), {"account": self.checking.pk}
+        )
+
+        self.assertIn(f"account={self.checking.pk}", response.context["next_page_url"])
+        self.assertIn("page=2", response.context["next_page_url"])
+
+    def test_the_last_page_has_no_next_link(self):
+        response = self.client.get(reverse("finance:transactions"), {"page": 2})
+
+        self.assertIsNone(response.context["next_page_url"])
+        self.assertIn("page=1", response.context["previous_page_url"])
+
+
+class SelectAllTests(TestCase):
+    """Selecting everything shouldn't require clicking each row first."""
+
+    def setUp(self):
+        call_command("seed_finance_categories", verbosity=0)
+
+        self.institution = make_institution()
+        self.checking = make_account(self.institution, name="Checking")
+        self.groceries = Category.objects.get(slug="food-groceries")
+
+        self.user = make_user("david", with_device=True)
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["otp_device_id"] = TOTPDevice.objects.get(user=self.user).persistent_id
+        session.save()
+
+    def test_a_select_all_on_page_control_is_always_present(self):
+        make_transaction(self.checking, category=self.groceries, description_raw="A")
+
+        response = self.client.get(reverse("finance:transactions"))
+
+        self.assertContains(response, "Select all on this page")
+
+    def test_the_select_all_filtered_control_does_not_require_a_prior_selection(self):
+        for i in range(55):
+            make_transaction(
+                self.checking,
+                category=self.groceries,
+                description_raw=f"TXN {i}",
+                posted_on=date(2026, 4, 1) + timedelta(days=i % 20),
+            )
+
+        response = self.client.get(reverse("finance:transactions"))
+        body = response.content.decode()
+
+        # Not nested inside the x-show="selected.length > 0 ..." toolbar --
+        # it must render in markup regardless of Alpine's runtime state.
+        self.assertIn("Select all 55 matching this filter", body)
+
+    def test_no_select_all_filtered_control_when_everything_fits_on_one_page(self):
+        make_transaction(self.checking, category=self.groceries, description_raw="A")
+
+        response = self.client.get(reverse("finance:transactions"))
+
+        # Distinct from the toolbar's always-in-markup (merely hidden)
+        # "All N matching this filter" status text, which lacks "Select all".
+        self.assertNotContains(response, "Select all 1 matching this filter")
 
 
 class MultiSelectFilterTests(TestCase):
