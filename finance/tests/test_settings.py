@@ -29,7 +29,7 @@ from finance.models import (
 )
 from finance.providers.base import ProviderError
 
-from .factories import make_account, make_institution
+from .factories import make_account, make_institution, make_transaction
 from .test_access import make_user
 
 ACCESS_URL = "https://user:super-secret-token@bridge.simplefin.org/simplefin"
@@ -170,6 +170,41 @@ class ConnectionManagementTests(SettingsTestCase):
         )
 
         sync.assert_called_once()
+
+
+class CategorizeNowTests(SettingsTestCase):
+    """The button that runs the same pipeline the hourly job does, on
+    demand, instead of it being CLI/Heroku-Scheduler only."""
+
+    @patch("finance.views_settings.categorize_transactions")
+    def test_it_runs_the_pipeline_and_reports_a_summary(self, run):
+        from finance.services.categorize import CategorizationSummary
+
+        run.return_value = CategorizationSummary(
+            transfers=1, by_rule=2, by_memo=3, by_classifier=4, needs_review=5, unmatched=0
+        )
+
+        response = self.client.post(
+            reverse("finance:settings"), {"action": "categorize"}, follow=True
+        )
+
+        run.assert_called_once()
+        self.assertContains(response, "by rule: 2")
+        self.assertContains(response, "needs review: 5")
+
+    def test_the_uncategorized_count_reflects_the_pipelines_own_default(self):
+        make_transaction(self.account, category=None, is_transfer=False)
+
+        response = self.client.get(reverse("finance:settings"))
+
+        self.assertContains(response, "1 transaction waiting right now")
+
+    def test_categorize_now_is_gated_like_everything_else(self):
+        self.client.logout()
+
+        response = self.client.post(reverse("finance:settings"), {"action": "categorize"})
+
+        self.assertEqual(response.status_code, 403)
 
 
 class AccountCardRenderTests(SettingsTestCase):

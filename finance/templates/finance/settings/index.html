@@ -115,6 +115,30 @@
   </a>
 </section>
 
+<section class="mt-8 rounded-card border border-border bg-surface p-4">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Categorization</h2>
+      <p class="mt-1 text-xs text-text-muted">
+        Normally runs hourly on its own — rules and remembered merchants first,
+        the classifier last.
+        {% if uncategorized_count %}
+          {{ uncategorized_count }} transaction{{ uncategorized_count|pluralize }} waiting right now.
+        {% else %}
+          Nothing waiting right now.
+        {% endif %}
+      </p>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="categorize" />
+      <button type="submit" class="rounded-button border border-border px-3.5 py-2 text-xs font-medium transition hover:bg-muted">
+        Categorize now
+      </button>
+    </form>
+  </div>
+</section>
+
 <section class="mt-8">
   <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Recent syncs</h2>
   <ul class="mt-3 divide-y divide-border rounded-card border border-border bg-surface text-sm">
