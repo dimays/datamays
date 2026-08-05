@@ -486,7 +486,7 @@ class ChartsDashboardRenderTests(AnalyticsTestCase):
         self.assertContains(response, "spend-over-time")
         self.assertContains(response, "spend-by-category-over-time")
 
-    def test_spend_over_time_offers_a_by_category_toggle_with_its_own_data(self):
+    def test_spend_over_time_offers_a_by_category_mode_with_its_own_data(self):
         # The stacked view reuses the same per-category series the "Spend by
         # category, over time" line chart is built from, but needs its own
         # json_script id so it renders even when that other section is
@@ -502,9 +502,33 @@ class ChartsDashboardRenderTests(AnalyticsTestCase):
         response = self.client.get(reverse("finance:charts"))
         body = response.content.decode()
 
-        self.assertIn('data-chart-toggle="spend-over-time"', body)
+        self.assertIn('data-chart-mode="spend-over-time"', body)
         self.assertIn('data-source-stacked="spend-over-time-by-category"', body)
         self.assertIn('id="spend-over-time-by-category"', body)
+        self.assertIn('<option value="category">By category</option>', body)
+
+    def test_spend_over_time_offers_a_per_category_subcategory_drilldown(self):
+        self.spend("-100.00", self.groceries, 5)
+        self.spend("-60.00", self.restaurants, 6)
+        self.spend("-40.00", self.fuel, 7)
+
+        response = self.client.get(reverse("finance:charts"))
+        body = response.content.decode()
+
+        food = Category.objects.get(slug="food")
+        self.assertIn(f'<option value="sub:{food.pk}">Food, by subcategory</option>', body)
+        self.assertIn('data-source-subcategory="spend-over-time-by-subcategory"', body)
+        self.assertIn('id="spend-over-time-by-subcategory"', body)
+
+    def test_a_category_with_no_spend_this_window_is_not_offered_as_a_drilldown(self):
+        self.spend("-100.00", self.groceries, 5)
+
+        response = self.client.get(reverse("finance:charts"))
+        body = response.content.decode()
+
+        # Pets has subcategories in the seed but no spend in this test at all.
+        pets = Category.objects.get(slug="pets")
+        self.assertNotIn(f"sub:{pets.pk}", body)
 
     def test_charts_page_handles_no_data(self):
         response = self.client.get(reverse("finance:charts"))
@@ -826,6 +850,66 @@ class SpendByCategoryOverTimeAnalyticsTests(AnalyticsTestCase):
     def test_an_empty_window_still_reports_no_data(self):
         result = analytics.spend_by_category_over_time(
             date(2020, 1, 1), date(2020, 3, 31)
+        )
+
+        self.assertFalse(result["has_data"])
+        self.assertEqual(result["series"], [])
+
+
+class SpendBySubcategoryOverTimeAnalyticsTests(AnalyticsTestCase):
+    """The "drill into just this one category" alt view — splits by that
+    category's own subcategories instead of by every top-level category."""
+
+    def test_only_the_chosen_categorys_subcategories_get_a_series(self):
+        self.spend("-100.00", self.groceries, 5, month=3)
+        self.spend("-60.00", self.restaurants, 6, month=4)
+        self.spend("-40.00", self.fuel, 6, month=4)
+
+        food = Category.objects.get(slug="food")
+        result = analytics.spend_by_subcategory_over_time(
+            date(2026, 3, 1), date(2026, 4, 30), food, grain="monthly"
+        )
+
+        by_label = {series["label"]: series["values"] for series in result["series"]}
+        self.assertEqual(set(by_label), {"Groceries", "Restaurants"})
+        self.assertEqual(by_label["Groceries"], [100.0, 0.0])
+        self.assertEqual(by_label["Restaurants"], [0.0, 60.0])
+
+    def test_a_transaction_filed_on_the_parent_itself_gets_its_own_series(self):
+        food = Category.objects.get(slug="food")
+        make_transaction(
+            self.checking, posted_on=date(2026, 4, 5), amount=Decimal("-25.00"),
+            description_raw="FOOD MISC", category=food,
+        )
+
+        result = analytics.spend_by_subcategory_over_time(
+            date(2026, 4, 1), date(2026, 4, 30), food, grain="monthly"
+        )
+
+        self.assertEqual(len(result["series"]), 1)
+        self.assertEqual(result["series"][0]["label"], "Food")
+        self.assertEqual(result["series"][0]["values"], [25.0])
+
+    def test_ranked_largest_subcategory_first(self):
+        self.spend("-40.00", self.fuel, 6)
+        transportation = self.fuel.parent
+        parking = Category.objects.get(slug="transport-parking-tolls")
+        make_transaction(
+            self.checking, posted_on=date(2026, 4, 7), amount=Decimal("-90.00"),
+            description_raw="PARKING GARAGE", category=parking,
+        )
+
+        result = analytics.spend_by_subcategory_over_time(
+            date(2026, 4, 1), date(2026, 4, 30), transportation, grain="monthly"
+        )
+
+        self.assertEqual(result["series"][0]["label"], "Parking & Tolls")
+
+    def test_an_empty_window_reports_no_data(self):
+        food = Category.objects.get(slug="food")
+
+        result = analytics.spend_by_subcategory_over_time(
+            date(2020, 1, 1), date(2020, 3, 31), food
         )
 
         self.assertFalse(result["has_data"])
