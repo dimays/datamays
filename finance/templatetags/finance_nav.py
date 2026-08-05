@@ -20,7 +20,7 @@ PRIMARY_NAV = [
 SECONDARY_NAV = [
     {
         "url_name": "imports",
-        "label": "Import data",
+        "label": "Import",
         "icon": "upload",
         "related": ["import_schemas", "import_upload", "import_map", "import_preview"],
     },
