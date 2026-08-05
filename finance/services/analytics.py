@@ -99,15 +99,15 @@ def spend_filter() -> Q:
 
     Excludes income and transfers, but *keeps* transactions with no category
     yet. Requiring an expense category silently dropped everything the
-    categoriser had not reached — and since the hourly chain isolates step
-    failures, a broken categorise run would have made the dashboards
+    categorizer had not reached — and since the hourly chain isolates step
+    failures, a broken categorize run would have made the dashboards
     under-report spend while looking perfectly healthy.
 
     A positive amount against an expense category counts too — a refund or a
     credit posted as its own transaction should net back against the outflow
     it corrects, not sit invisibly outside every spend total just because its
     sign differs from the purchase. This is deliberately narrower than "any
-    positive amount, any category": an *uncategorised* positive transaction
+    positive amount, any category": an *uncategorized* positive transaction
     is far more likely to be income the classifier hasn't reached yet than a
     refund, so that bucket keeps the original amount__lt=0 requirement.
     Aggregates built on this Q floor a negative net (more refunded than
@@ -214,7 +214,7 @@ def spend_by_category(start, end, *, account_ids=None, limit=10):
         name = (
             row["category__parent__name"]
             or row["category__name"]
-            or "Not yet categorised"
+            or "Not yet categorized"
         )
         grouped[name] = grouped.get(name, Decimal("0")) + -row["total"]
 
@@ -257,8 +257,8 @@ def income_filter() -> Q:
     """What counts as income, as a reusable Q — the mirror image of
     spend_filter(). Requires an explicit Income-kind category rather than
     "any positive amount," the same conservative choice spend_filter() makes
-    in the other direction: a deposit that hasn't been categorised yet is
-    just as likely to be an uncategorised refund as it is income, so it's
+    in the other direction: a deposit that hasn't been categorized yet is
+    just as likely to be an uncategorized refund as it is income, so it's
     left out until the classifier (or a person) says which."""
     return Q(is_transfer=False, amount__gt=0, category__kind=CategoryKind.INCOME)
 
@@ -266,7 +266,7 @@ def income_filter() -> Q:
 def net_income_over_time(start, end, *, grain="monthly", account_ids=None):
     """Net income per period, straight from deposits — no payslip required.
 
-    The primary read of "how much came in": every income-categorised deposit
+    The primary read of "how much came in": every income-categorized deposit
     counts, whether or not a payslip was ever imported for it. This is what
     makes the Income dashboard work for a household member whose pay never
     gets a detailed payslip import — see income_over_time() for the
@@ -368,7 +368,7 @@ def spend_by_category_over_time(start, end, *, grain="monthly", account_ids=None
         name = (
             row["category__parent__name"]
             or row["category__name"]
-            or "Not yet categorised"
+            or "Not yet categorized"
         )
         per_bucket = per_category.setdefault(name, {})
         amount = -row["total"]

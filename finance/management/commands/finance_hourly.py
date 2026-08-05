@@ -4,12 +4,12 @@ from django.core.management.base import BaseCommand
 
 class Command(BaseCommand):
     help = (
-        "The hourly chain: sync day-to-day accounts, categorise what arrived, "
+        "The hourly chain: sync day-to-day accounts, categorize what arrived, "
         "roll up budgets, then evaluate alerts. Wired to Heroku Scheduler."
     )
 
     # Order matters: alerts must see freshly rolled-up budgets, and budgets
-    # must see freshly categorised transactions.
+    # must see freshly categorized transactions.
     STEPS = [
         ("sync_accounts", {"high_frequency_only": True}),
         ("categorize_transactions", {}),

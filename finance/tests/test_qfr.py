@@ -424,7 +424,7 @@ class GenerateQFRTransactionIsolationTests(TransactionTestCase):
 
     TransactionTestCase rather than TestCase: the latter wraps each test in a
     transaction, which would mask exactly the thing being asserted -- the
-    same reasoning as the categoriser's own isolation test.
+    same reasoning as the categorizer's own isolation test.
     """
 
     def test_the_narrator_call_is_outside_any_open_transaction(self):

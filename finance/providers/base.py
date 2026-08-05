@@ -1,7 +1,7 @@
 """The boundary between an outside financial institution and our data model.
 
 Adapters do one job: turn whatever a provider returns into the normalised
-payloads below. Everything downstream — sync, categorisation, dashboards —
+payloads below. Everything downstream — sync, categorization, dashboards —
 depends on the conventions in `finance.models.base` already holding, so this is
 the only layer allowed to reason about a provider's sign quirks or date
 formats. Adding a second provider later should mean writing one adapter and

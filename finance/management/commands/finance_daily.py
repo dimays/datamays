@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand
 class Command(BaseCommand):
     help = (
         "The daily chain: sync everything including slow-moving accounts, "
-        "categorise, snapshot balances, roll up budgets, and send due reports."
+        "categorize, snapshot balances, roll up budgets, and send due reports."
     )
 
     STEPS = [

@@ -1,4 +1,4 @@
-"""The categorisation pipeline.
+"""The categorization pipeline.
 
 The classifier is always a stub here — no test makes a network call.
 """
@@ -21,7 +21,7 @@ from finance.models import (
 )
 from finance.services.categorize import (
     REVIEW_THRESHOLD,
-    categorise_transactions,
+    categorize_transactions,
     confirm_category,
     find_transfer_pairs,
 )
@@ -91,7 +91,7 @@ class RuleTests(PipelineTestCase):
         CategoryRule.objects.create(pattern="marianos", category=self.groceries)
         txn = make_transaction(self.checking, description_raw="MARIANOS #1234 CHICAGO IL")
 
-        categorise_transactions(classifier=StubClassifier())
+        categorize_transactions(classifier=StubClassifier())
 
         txn.refresh_from_db()
         self.assertEqual(txn.category, self.groceries)
@@ -104,7 +104,7 @@ class RuleTests(PipelineTestCase):
         txn = make_transaction(self.checking, description_raw="MARIANOS #1234")
 
         classifier = StubClassifier({"marianos": ("food-restaurants", 0.99)})
-        categorise_transactions(classifier=classifier)
+        categorize_transactions(classifier=classifier)
 
         txn.refresh_from_db()
         self.assertEqual(txn.category, self.groceries)
@@ -116,7 +116,7 @@ class RuleTests(PipelineTestCase):
         CategoryRule.objects.create(pattern="coffee", category=self.groceries, priority=50)
 
         txn = make_transaction(self.checking, description_raw="BLUE BOTTLE COFFEE")
-        categorise_transactions(classifier=StubClassifier())
+        categorize_transactions(classifier=StubClassifier())
 
         txn.refresh_from_db()
         self.assertEqual(txn.category, self.coffee)
@@ -130,7 +130,7 @@ class MemoTests(PipelineTestCase):
         txn = make_transaction(self.checking, description_raw="MARIANOS #5678 CHICAGO IL")
 
         classifier = StubClassifier()
-        categorise_transactions(classifier=classifier)
+        categorize_transactions(classifier=classifier)
 
         txn.refresh_from_db()
         self.assertEqual(txn.category, self.groceries)
@@ -143,7 +143,7 @@ class MemoTests(PipelineTestCase):
         )
         make_transaction(self.checking, description_raw="MARIANOS #1")
 
-        categorise_transactions(classifier=StubClassifier())
+        categorize_transactions(classifier=StubClassifier())
 
         memo.refresh_from_db()
         self.assertEqual(memo.hit_count, 1)
@@ -155,7 +155,7 @@ class ClassifierTests(PipelineTestCase):
         txn = make_transaction(self.checking, description_raw="BLUE BOTTLE COFFEE 4471")
         key = normalise_merchant(txn.description_raw)
 
-        categorise_transactions(classifier=StubClassifier({key: ("food-coffee", 0.95)}))
+        categorize_transactions(classifier=StubClassifier({key: ("food-coffee", 0.95)}))
 
         txn.refresh_from_db()
         self.assertEqual(txn.category, self.coffee)
@@ -167,7 +167,7 @@ class ClassifierTests(PipelineTestCase):
         txn = make_transaction(self.checking, description_raw="ACME HOLDINGS LLC")
         key = normalise_merchant(txn.description_raw)
 
-        categorise_transactions(
+        categorize_transactions(
             classifier=StubClassifier({key: ("food-coffee", REVIEW_THRESHOLD - 0.2)})
         )
 
@@ -186,7 +186,7 @@ class ClassifierTests(PipelineTestCase):
             )
 
         classifier = StubClassifier()
-        categorise_transactions(classifier=classifier)
+        categorize_transactions(classifier=classifier)
 
         self.assertEqual(len(classifier.calls), 1)
         self.assertEqual(len(classifier.calls[0]), 1)
@@ -194,7 +194,7 @@ class ClassifierTests(PipelineTestCase):
     def test_unclassified_transactions_land_in_the_review_queue(self):
         txn = make_transaction(self.checking, description_raw="MYSTERY VENDOR XYZ")
 
-        categorise_transactions(classifier=StubClassifier())
+        categorize_transactions(classifier=StubClassifier())
 
         txn.refresh_from_db()
         self.assertEqual(txn.category.slug, UNCATEGORIZED_SLUG)
@@ -235,7 +235,7 @@ class ClassifierTests(PipelineTestCase):
             self.checking, description_raw="MYSTERY LLC", amount=Decimal("-9.00")
         )
 
-        categorise_transactions(classifier=NullClassifier())
+        categorize_transactions(classifier=NullClassifier())
 
         ruled.refresh_from_db()
         unknown.refresh_from_db()
@@ -322,7 +322,7 @@ class TransferTests(PipelineTestCase):
         make_transaction(self.savings, amount=Decimal("500.00"))
 
         classifier = StubClassifier()
-        summary = categorise_transactions(classifier=classifier)
+        summary = categorize_transactions(classifier=classifier)
 
         self.assertEqual(summary.transfers, 1)
         self.assertEqual(classifier.calls, [])
@@ -345,7 +345,7 @@ class ConfirmationTests(PipelineTestCase):
         self.assertEqual(memo.category, self.coffee)
         self.assertEqual(memo.confirmed_by, user)
 
-    def test_a_confirmed_merchant_categorises_future_transactions_automatically(self):
+    def test_a_confirmed_merchant_categorizes_future_transactions_automatically(self):
         first = make_transaction(self.checking, description_raw="BLUE BOTTLE COFFEE 4471")
         confirm_category(first, self.coffee)
 
@@ -357,7 +357,7 @@ class ConfirmationTests(PipelineTestCase):
         )
 
         classifier = StubClassifier()
-        categorise_transactions(classifier=classifier)
+        categorize_transactions(classifier=classifier)
 
         later.refresh_from_db()
         self.assertEqual(later.category, self.coffee)
@@ -368,7 +368,7 @@ class ConfirmationTests(PipelineTestCase):
         confirm_category(txn, self.coffee, remember=False)
 
         CategoryRule.objects.create(pattern="marianos", category=self.groceries)
-        categorise_transactions(classifier=StubClassifier())
+        categorize_transactions(classifier=StubClassifier())
 
         txn.refresh_from_db()
         self.assertEqual(txn.category, self.coffee)
@@ -381,7 +381,7 @@ class ClassifierIsolationTests(TransactionTestCase):
     transaction, which would mask exactly the thing being asserted.
     """
 
-    def test_categorisation_does_not_hold_a_transaction_across_the_call(self):
+    def test_categorization_does_not_hold_a_transaction_across_the_call(self):
         from django.db import transaction as db_transaction
 
         call_command("seed_finance_categories", verbosity=0)
@@ -397,7 +397,7 @@ class ClassifierIsolationTests(TransactionTestCase):
                 )
                 return []
 
-        categorise_transactions(classifier=RecordingClassifier())
+        categorize_transactions(classifier=RecordingClassifier())
 
         # A held transaction pins a database connection for as long as the
         # provider takes to answer.

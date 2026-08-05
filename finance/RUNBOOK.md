@@ -27,8 +27,8 @@ manager, not this repo.
 |---|---|---|
 | `FIELD_ENCRYPTION_KEYS` | Encrypts provider credentials | Yes |
 | `SECRET_KEY` | Signs sessions — the app refuses to boot without it outside dev | Yes |
-| `OPENAI_API_KEY` | Transaction categorisation and QFR narratives | No — both degrade gracefully without it |
-| `FINANCE_CATEGORISER_MODEL` | Defaults to `gpt-4o-mini` | No |
+| `OPENAI_API_KEY` | Transaction categorization and QFR narratives | No — both degrade gracefully without it |
+| `FINANCE_CATEGORIZER_MODEL` | Defaults to `gpt-4o-mini` | No |
 | `FINANCE_QFR_MODEL` | Defaults to `gpt-4o-mini` | No |
 | `FINANCE_TIME_ZONE` | What "today" means for periods and alerts. Defaults to `America/Chicago` | No |
 | `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | Alerts and reports | Only if you want email |
@@ -73,7 +73,7 @@ Add the Heroku Scheduler add-on, then create exactly two jobs:
 | Daily (pick an early-morning UTC time) | `python manage.py finance_daily` |
 
 **Hourly** syncs day-to-day accounts (checking, savings, money market, credit
-cards), categorises what arrived, rolls up budgets, then evaluates alerts. The
+cards), categorizes what arrived, rolls up budgets, then evaluates alerts. The
 order matters — alerts must see fresh budget numbers.
 
 **Daily** syncs *everything* including loans and the mortgage, snapshots
@@ -126,7 +126,7 @@ already-negative rather than as a positive amount owed. Untick
 *"Most institutions report a debt as a positive amount owed"* on that account
 in **Settings → Accounts**. Don't edit data to compensate.
 
-**Transactions aren't categorised.** Check `OPENAI_API_KEY` is set. Without it
+**Transactions aren't categorized.** Check `OPENAI_API_KEY` is set. Without it
 everything still runs — rules and remembered merchants apply — and the rest
 queues in **Activity → needs review**. To re-run:
 
