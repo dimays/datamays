@@ -16,16 +16,6 @@
   {% for slug in chart_sections %}
     {% if section_has_data|get_item:slug %}
       <div class="mt-8">
-        <div class="flex justify-end">
-          <form method="post" action="{{ current_path }}">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="hide_section" />
-            <input type="hidden" name="section" value="{{ slug }}" />
-            <button type="submit" class="text-xs text-text-muted underline decoration-dotted hover:text-text-secondary">
-              Hide chart
-            </button>
-          </form>
-        </div>
         {% include "finance/dashboards/sections/"|add:slug|add:".html" %}
       </div>
     {% endif %}
