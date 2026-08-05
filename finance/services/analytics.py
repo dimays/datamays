@@ -472,6 +472,56 @@ def spend_by_category_over_time(start, end, *, grain="monthly", account_ids=None
     }
 
 
+def spend_by_subcategory_over_time(start, end, category, *, grain="monthly", account_ids=None):
+    """Spend within one top-level category, split by its own subcategories,
+    per period — the "drill into just this one" companion to
+    spend_by_category_over_time(), which splits by every top-level category
+    instead of going one level deeper into a single one.
+
+    A transaction filed on the top-level category itself (rather than one of
+    its children) gets its own series under the category's own name, same as
+    a merchant with no category at all gets "Not yet categorized" elsewhere.
+    """
+    bucket_starts = _bucket_starts(start, end, grain)
+    trunc, _ = GRAINS.get(grain, GRAINS["monthly"])
+
+    rows = list(
+        spend_transactions(start, end, account_ids)
+        .filter(Q(category=category) | Q(category__parent=category))
+        .annotate(bucket=trunc("posted_on"))
+        .values("bucket", "category__id", "category__name")
+        .annotate(total=Sum("amount"))
+    )
+
+    per_subcategory = {}
+    grand_totals = {}
+
+    for row in rows:
+        name = category.name if row["category__id"] == category.pk else row["category__name"]
+        per_bucket = per_subcategory.setdefault(name, {})
+        amount = -row["total"]
+        per_bucket[row["bucket"]] = per_bucket.get(row["bucket"], Decimal("0")) + amount
+        grand_totals[name] = grand_totals.get(name, Decimal("0")) + amount
+
+    ranked = sorted(grand_totals.items(), key=lambda item: item[1], reverse=True)
+
+    series = [
+        {
+            "label": name,
+            "values": [
+                float(per_subcategory[name].get(b, Decimal("0"))) for b in bucket_starts
+            ],
+        }
+        for name, _ in ranked
+    ]
+
+    return {
+        "labels": [_bucket_label(b, grain) for b in bucket_starts],
+        "series": series,
+        "has_data": bool(rows),
+    }
+
+
 def largest_transactions(
     start, end, *, account_ids=None, category_ids=None, limit=10, offset=0
 ):

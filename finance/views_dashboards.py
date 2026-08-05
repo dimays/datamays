@@ -325,11 +325,31 @@ class ChartsView(FinanceView):
             ]
             budget_series.append({"name": budget.name, **series})
 
+        # One entry per top-level category that has its own subcategories and
+        # actually has spend in this window — the "split just this category
+        # by its subcategories" alt view on Spend over time. Bounded to a
+        # handful of categories (the seed's own top-level groups), so this is
+        # a few extra grouped-aggregate queries, not a per-transaction cost.
+        subcategory_series = {}
+        subcategory_options = []
+        top_level_categories = Category.objects.filter(
+            is_active=True, parent__isnull=True, children__isnull=False
+        ).distinct().order_by("name")
+        for category in top_level_categories:
+            drilldown = analytics.spend_by_subcategory_over_time(
+                start, end, category, grain=grain, account_ids=account_ids
+            )
+            if drilldown["has_data"]:
+                subcategory_series[category.pk] = drilldown
+                subcategory_options.append((category.pk, category.name))
+
         return {
             "spend_over_time_json": over_time,
             "spend_by_category_json": by_category,
             "spend_by_category_breakdown_json": by_category_breakdown,
             "spend_by_category_over_time_json": by_category_over_time,
+            "spend_by_subcategory_over_time_json": subcategory_series,
+            "spend_subcategory_options": subcategory_options,
             "spend_total": by_category["total"],
             "budgets": budgets,
             "budget_series_json": budget_series,

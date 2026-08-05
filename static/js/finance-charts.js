@@ -17,14 +17,18 @@
   var GRID = "rgba(46, 58, 73, 0.6)";
   var TEXT = "#9CA3AF";
 
-  function readData(canvas) {
-    var holder = document.getElementById(canvas.dataset.source);
+  function readJSONById(id) {
+    var holder = id && document.getElementById(id);
     if (!holder) return null;
     try {
       return JSON.parse(holder.textContent);
     } catch (error) {
       return null;
     }
+  }
+
+  function readData(canvas) {
+    return readJSONById(canvas.dataset.source);
   }
 
   function money(value) {
@@ -255,38 +259,50 @@
   };
 
   /**
-   * A chart with a "split by category" checkbox: rebuilds in place between
-   * its normal single-series view and a stacked-by-category view sharing
-   * the same canvas, rather than being auto-built by the loop below.
+   * A chart with a "view as" <select>: rebuilds in place between its normal
+   * single-series view, a stacked-by-category view, and (if the select
+   * offers it) a stacked-by-subcategory view scoped to one category —
+   * rather than being auto-built by the loop below.
+   *
+   * Mode values: "" (combined), "category" (stacked by top-level category),
+   * "sub:<id>" (stacked by one category's own subcategories).
    */
-  function initToggles() {
-    document.querySelectorAll("[data-chart-toggle]").forEach(function (toggle) {
+  function initModeSelectors() {
+    document.querySelectorAll("[data-chart-mode]").forEach(function (select) {
       var canvas = document.querySelector(
-        'canvas[data-toggle="' + toggle.dataset.chartToggle + '"]'
+        'canvas[data-mode-select="' + select.dataset.chartMode + '"]'
       );
       if (!canvas) return;
 
       var combined = readData(canvas);
-      var stackedHolder = document.getElementById(canvas.dataset.sourceStacked);
-      var stacked = null;
-      try {
-        stacked = stackedHolder ? JSON.parse(stackedHolder.textContent) : null;
-      } catch (error) {
-        stacked = null;
-      }
+      var byCategory = readJSONById(canvas.dataset.sourceStacked);
+      var bySubcategory = readJSONById(canvas.dataset.sourceSubcategory) || {};
 
       var chart = null;
 
       function render() {
         if (chart) chart.destroy();
-        chart =
-          toggle.checked && stacked
-            ? buildStackedBar(canvas, stacked)
-            : buildBar(canvas, combined);
+
+        var mode = select.value;
+
+        if (mode === "category" && byCategory) {
+          chart = buildStackedBar(canvas, byCategory);
+          return;
+        }
+
+        if (mode.indexOf("sub:") === 0) {
+          var data = bySubcategory[mode.slice(4)];
+          if (data) {
+            chart = buildStackedBar(canvas, data);
+            return;
+          }
+        }
+
+        chart = buildBar(canvas, combined);
       }
 
       if (combined) render();
-      toggle.addEventListener("change", render);
+      select.addEventListener("change", render);
     });
   }
 
@@ -318,14 +334,14 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("canvas[data-chart]").forEach(function (canvas) {
-      if (canvas.dataset.toggle) return; // owned by initToggles() instead
+      if (canvas.dataset.modeSelect) return; // owned by initModeSelectors() instead
       if (canvas.dataset.breakoutTarget) return; // owned by initBreakoutToggles() instead
       var data = readData(canvas);
       var builder = BUILDERS[canvas.dataset.chart];
       if (data && builder) builder(canvas, data);
     });
 
-    initToggles();
+    initModeSelectors();
     initBreakoutToggles();
   });
 })();
