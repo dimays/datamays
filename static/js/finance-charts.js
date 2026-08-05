@@ -62,7 +62,7 @@
    *
    * Deliberately a factory rather than a cloned constant: structured cloning
    * via JSON silently drops functions, which quietly stripped the currency
-   * formatter and tooltips from every line and doughnut chart.
+   * formatter and tooltips from every line chart.
    */
   function makeOptions(options) {
     options = options || {};
@@ -89,9 +89,6 @@
         tooltip: {
           callbacks: {
             label: function (context) {
-              if (options.shape === "doughnut") {
-                return context.label + ": " + money(context.parsed);
-              }
               return context.dataset.label + ": " + money(context.parsed.y);
             },
           },
@@ -99,29 +96,27 @@
       },
     };
 
-    if (options.shape !== "doughnut") {
-      config.scales = {
-        x: {
-          ticks: {
-            color: TEXT,
-            maxRotation: 0,
-            autoSkip: true,
-            // A year of daily points would otherwise run its date labels
-            // together into an unreadable smear.
-            maxTicksLimit: 6,
-            autoSkipPadding: 16,
-          },
-          grid: { color: GRID },
+    config.scales = {
+      x: {
+        ticks: {
+          color: TEXT,
+          maxRotation: 0,
+          autoSkip: true,
+          // A year of daily points would otherwise run its date labels
+          // together into an unreadable smear.
+          maxTicksLimit: 6,
+          autoSkipPadding: 16,
         },
-        y: {
-          ticks: { color: TEXT, callback: money },
-          grid: { color: GRID },
-          // Balances are rarely near zero, so forcing the axis to include it
-          // would flatten every interesting movement.
-          beginAtZero: options.beginAtZero !== false,
-        },
-      };
-    }
+        grid: { color: GRID },
+      },
+      y: {
+        ticks: { color: TEXT, callback: money },
+        grid: { color: GRID },
+        // Balances are rarely near zero, so forcing the axis to include it
+        // would flatten every interesting movement.
+        beginAtZero: options.beginAtZero !== false,
+      },
+    };
 
     return config;
   }
@@ -134,17 +129,6 @@
         datasets: [{ label: canvas.dataset.label || "Spend", data: data.values, backgroundColor: COLORS[0], borderRadius: 4 }],
       },
       options: makeOptions({ links: data.links }),
-    });
-  }
-
-  function buildDoughnut(canvas, data) {
-    return new Chart(canvas, {
-      type: "doughnut",
-      data: {
-        labels: data.labels,
-        datasets: [{ data: data.values, backgroundColor: COLORS, borderWidth: 0 }],
-      },
-      options: makeOptions({ shape: "doughnut", legendPosition: "bottom" }),
     });
   }
 
@@ -198,6 +182,55 @@
     });
   }
 
+  /**
+   * One horizontal bar per top-level category, ranked largest-first. The
+   * "Breakout by subcategory" checkbox next to it (wired in
+   * initBreakoutToggles(), not here) swaps every category's single bar for
+   * one bar per subcategory all at once, without disturbing category-level
+   * rank — a category's subcategories render in exactly the row range its
+   * own bar used to occupy.
+   */
+  function buildCategoryBreakdown(canvas, data, expanded) {
+    var rows = [];
+
+    (data.categories || []).forEach(function (category) {
+      var children = category.subcategories || [];
+
+      if (expanded && children.length) {
+        children.forEach(function (child) {
+          rows.push({ label: category.name + " › " + child.name, value: child.total });
+        });
+      } else {
+        rows.push({ label: category.name, value: category.total });
+      }
+    });
+
+    // Fixed row height so the chart reads consistently whether it's 6
+    // categories or 60 — the scrollable wrapper (set in the template)
+    // handles the rest rather than squeezing bars to fit.
+    canvas.style.height = Math.max(240, rows.length * 32) + "px";
+
+    var options = makeOptions({});
+    options.indexAxis = "y";
+    options.plugins.legend.display = false;
+    options.plugins.tooltip.callbacks.label = function (context) {
+      return money(context.parsed.x);
+    };
+    options.scales = {
+      x: { beginAtZero: true, ticks: { color: TEXT, callback: money }, grid: { color: GRID } },
+      y: { ticks: { color: TEXT, autoSkip: false }, grid: { display: false } },
+    };
+
+    var config = {
+      labels: rows.map(function (row) { return row.label; }),
+      datasets: [
+        { data: rows.map(function (row) { return row.value; }), backgroundColor: COLORS[0], borderRadius: 3 },
+      ],
+    };
+
+    return new Chart(canvas, { type: "bar", data: config, options: options });
+  }
+
   function buildBudgets(canvas, data) {
     var series = (data || []).find(function (entry) {
       return entry.name === canvas.dataset.budget;
@@ -219,10 +252,10 @@
 
   var BUILDERS = {
     bar: buildBar,
-    doughnut: buildDoughnut,
     lines: buildLines,
     line: buildSingleLine,
     budgets: buildBudgets,
+    categoryBreakdown: buildCategoryBreakdown,
   };
 
   /**
@@ -273,14 +306,42 @@
     });
   }
 
+  /**
+   * A category-breakdown chart with a "Breakout by subcategory" checkbox:
+   * rebuilds in place, expanding or collapsing every category at once
+   * (buildCategoryBreakdown's `expanded` flag), rather than being
+   * auto-built by the loop below.
+   */
+  function initBreakoutToggles() {
+    document.querySelectorAll("[data-breakout-toggle]").forEach(function (toggle) {
+      var canvas = document.querySelector(
+        'canvas[data-breakout-target="' + toggle.dataset.breakoutToggle + '"]'
+      );
+      if (!canvas) return;
+
+      var data = readData(canvas);
+      var chart = null;
+
+      function render() {
+        if (chart) chart.destroy();
+        chart = buildCategoryBreakdown(canvas, data, toggle.checked);
+      }
+
+      if (data) render();
+      toggle.addEventListener("change", render);
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("canvas[data-chart]").forEach(function (canvas) {
       if (canvas.dataset.modeSelect) return; // owned by initModeSelectors() instead
+      if (canvas.dataset.breakoutTarget) return; // owned by initBreakoutToggles() instead
       var data = readData(canvas);
       var builder = BUILDERS[canvas.dataset.chart];
       if (data && builder) builder(canvas, data);
     });
 
     initModeSelectors();
+    initBreakoutToggles();
   });
 })();

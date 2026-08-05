@@ -1,12 +1,20 @@
 {% if spend_has_data %}
   <section class="mt-4 rounded-card border border-border bg-surface p-5">
-    <div class="flex items-start justify-between gap-3">
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">By category</h2>
-      {% include "finance/dashboards/_hide_chart_button.html" %}
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Spend by category</h2>
+      <div class="flex items-center gap-3">
+        <label class="flex items-center gap-1.5 whitespace-nowrap text-xs text-text-muted">
+          <input type="checkbox" data-breakout-toggle="spend-by-category-breakdown"
+                 class="h-3.5 w-3.5 rounded border-border bg-background text-primary focus:ring-primary" />
+          Breakout by subcategory
+        </label>
+        {% include "finance/dashboards/_hide_chart_button.html" %}
+      </div>
     </div>
-    <div class="mt-4 h-72">
-      <canvas data-chart="doughnut" data-source="spend-by-category"></canvas>
+    <div class="mt-4 max-h-[28rem] overflow-y-auto">
+      <canvas data-chart="categoryBreakdown" data-source="spend-by-category-breakdown"
+              data-breakout-target="spend-by-category-breakdown"></canvas>
     </div>
-    {{ spend_by_category_json|json_script:"spend-by-category" }}
+    {{ spend_by_category_breakdown_json|json_script:"spend-by-category-breakdown" }}
   </section>
 {% endif %}

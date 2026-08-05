@@ -237,6 +237,74 @@ def spend_by_category(start, end, *, account_ids=None, limit=10):
     }
 
 
+def spend_by_category_breakdown(start, end, *, account_ids=None):
+    """Spend per top-level category, each carrying its own ranked
+    subcategory breakdown — for a bar chart row that can expand from one
+    category-level bar into one bar per subcategory without disturbing
+    where the other, still-collapsed categories rank.
+
+    Unlike spend_by_category(), nothing is capped into an "Everything else"
+    bucket: every category gets its own row, since the chart this feeds is
+    meant to be scrolled through rather than skimmed as a top-N list.
+    """
+    rows = (
+        spend_transactions(start, end, account_ids)
+        .values(
+            "category__id",
+            "category__name",
+            "category__parent__name",
+        )
+        .annotate(total=Sum("amount"))
+    )
+
+    groups = OrderedDict()
+
+    for row in rows:
+        amount = -row["total"]
+        parent_name = row["category__parent__name"]
+        leaf_name = row["category__name"] or "Not yet categorized"
+        group_name = parent_name or leaf_name
+
+        group = groups.setdefault(group_name, {"total": Decimal("0"), "children": {}})
+        group["total"] += amount
+
+        # A category with no parent has no subcategory to attribute this
+        # amount to beneath it — it's already the whole story on one row.
+        if parent_name:
+            group["children"][leaf_name] = (
+                group["children"].get(leaf_name, Decimal("0")) + amount
+            )
+
+    # Floored per row, after rollup, for the same reason spend_by_category
+    # floors each of its own groups: a category refunded more than it spent
+    # in the window would otherwise net negative and read as "making money."
+    for group in groups.values():
+        group["total"] = max(Decimal("0"), group["total"])
+        for child_name, child_total in group["children"].items():
+            group["children"][child_name] = max(Decimal("0"), child_total)
+
+    ranked = sorted(groups.items(), key=lambda item: item[1]["total"], reverse=True)
+
+    categories = [
+        {
+            "name": name,
+            "total": float(group["total"]),
+            "subcategories": [
+                {"name": child_name, "total": float(child_total)}
+                for child_name, child_total in sorted(
+                    group["children"].items(), key=lambda item: item[1], reverse=True
+                )
+            ],
+        }
+        for name, group in ranked
+    ]
+
+    return {
+        "categories": categories,
+        "total": float(sum(group["total"] for _, group in ranked)),
+    }
+
+
 def budget_attainment_over_time(budget, periods=12):
     """Actual versus target for a budget's recent periods, oldest first."""
     rows = list(budget.budget_periods.order_by("-period_start")[:periods])
@@ -454,83 +522,32 @@ def spend_by_subcategory_over_time(start, end, category, *, grain="monthly", acc
     }
 
 
-def largest_transactions(start, end, *, account_ids=None, limit=10):
+def largest_transactions(
+    start, end, *, account_ids=None, category_ids=None, limit=10, offset=0
+):
     """The biggest individual outflows in a window — the one-off expenses
     worth a second look, as distinct from the steady recurring ones.
 
     Only true outflows count (amount < 0): spend_transactions() also matches
     positive refunds against expense categories, which are not "big
     expenses" no matter how large the reimbursement.
+
+    total is the full filtered count, not len(transactions) — the caller
+    needs it to page past `limit` without a second, unpaginated query.
     """
+    queryset = spend_transactions(start, end, account_ids).filter(amount__lt=0)
+
+    if category_ids:
+        queryset = queryset.filter(category_id__in=category_ids)
+
+    total = queryset.count()
     transactions = list(
-        spend_transactions(start, end, account_ids)
-        .filter(amount__lt=0)
-        .select_related("account", "category")
-        .order_by("amount")[:limit]
+        queryset.select_related("account", "category").order_by("amount")[
+            offset : offset + limit
+        ]
     )
 
-    return {"transactions": transactions, "has_data": bool(transactions)}
-
-
-def recurring_expenses_over_time(
-    start, end, *, grain="monthly", account_ids=None, min_occurrences=3, limit=6
-):
-    """Spend per period for merchants that show up again and again — a
-    subscription or a utility creeping up is easy to miss buried in a
-    category total, but obvious once it has its own line.
-
-    "Recurring" is deliberately simple: a merchant qualifies if it has spend
-    in at least `min_occurrences` distinct periods within the window. This is
-    not a subscription-detection model reading amounts or cadence — a
-    grocery store visited every week qualifies too, which is a feature for
-    this chart's purpose (anything reliably recurring is worth watching),
-    not a bug.
-    """
-    bucket_starts = _bucket_starts(start, end, grain)
-    trunc, _ = GRAINS.get(grain, GRAINS["monthly"])
-
-    rows = list(
-        spend_transactions(start, end, account_ids)
-        .filter(amount__lt=0)
-        .annotate(bucket=trunc("posted_on"))
-        .values("bucket", "merchant", "description_raw", "amount")
-    )
-
-    per_merchant = {}
-    grand_totals = {}
-    buckets_seen = {}
-
-    for row in rows:
-        # Merchant when the classifier or an import worked it out, else the
-        # raw description — grouped per row rather than at the database
-        # level, since the fallback key is computed, not a real column.
-        name = (row["merchant"] or row["description_raw"] or "Unknown").strip() or "Unknown"
-
-        per_bucket = per_merchant.setdefault(name, {})
-        per_bucket[row["bucket"]] = per_bucket.get(row["bucket"], Decimal("0")) - row["amount"]
-        grand_totals[name] = grand_totals.get(name, Decimal("0")) - row["amount"]
-        buckets_seen.setdefault(name, set()).add(row["bucket"])
-
-    recurring = [name for name, seen in buckets_seen.items() if len(seen) >= min_occurrences]
-    ranked = sorted(
-        ((name, grand_totals[name]) for name in recurring),
-        key=lambda item: item[1],
-        reverse=True,
-    )[:limit]
-
-    series = [
-        {
-            "label": name,
-            "values": [float(per_merchant[name].get(b, Decimal("0"))) for b in bucket_starts],
-        }
-        for name, _ in ranked
-    ]
-
-    return {
-        "labels": [_bucket_label(b, grain) for b in bucket_starts],
-        "series": series,
-        "has_data": bool(series),
-    }
+    return {"transactions": transactions, "has_data": bool(transactions), "total": total}
 
 
 def net_cash_flow_over_time(start, end, *, grain="monthly", account_ids=None):
