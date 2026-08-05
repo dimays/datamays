@@ -80,7 +80,5 @@ CHART_SECTIONS = [
 
 CHART_SECTIONS_BY_SLUG = {section.slug: section for section in CHART_SECTIONS}
 
-CHART_SECTION_SLUGS = [section.slug for section in CHART_SECTIONS]
-
 # What the Preferences form's checkbox list is built from.
 CHART_SECTION_CHOICES = [(section.slug, section.label) for section in CHART_SECTIONS]
