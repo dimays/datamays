@@ -9,11 +9,9 @@
   </a>
 </div>
 <p class="mt-2 max-w-2xl text-text-secondary">
-  Rules run before the classifier and always win. Ticking “always” when you
-  confirm a category in the review queue creates a simple "contains" rule on
-  the merchant name — for anything more specific (an exact match, a starting
-  fragment, a regular expression, or one scoped to an account or amount
-  range), add it here directly.
+  Rules run before the classifier and always win — a merchant matching one
+  never reaches review at all. Contains, starts-with, exact, or a regular
+  expression, optionally scoped to one account or an amount range.
 </p>
 
 {% include "finance/partials/messages.html" %}
