@@ -176,11 +176,11 @@ class CategorizeNowTests(SettingsTestCase):
     """The button that runs the same pipeline the hourly job does, on
     demand, instead of it being CLI/Heroku-Scheduler only."""
 
-    @patch("finance.views_settings.categorise_transactions")
+    @patch("finance.views_settings.categorize_transactions")
     def test_it_runs_the_pipeline_and_reports_a_summary(self, run):
-        from finance.services.categorize import CategorisationSummary
+        from finance.services.categorize import CategorizationSummary
 
-        run.return_value = CategorisationSummary(
+        run.return_value = CategorizationSummary(
             transfers=1, by_rule=2, by_memo=3, by_classifier=4, needs_review=5, unmatched=0
         )
 

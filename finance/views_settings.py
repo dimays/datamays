@@ -35,7 +35,7 @@ from .models import (
 )
 from .providers.base import ProviderError
 from .providers.simplefin import claim_access_url
-from .services.categorize import categorise_transactions
+from .services.categorize import categorize_transactions
 from .services.sync import record_balance_snapshot, sync_connection
 from .services.widgets import WIDGET_CHOICES
 from .views import FinanceView
@@ -69,7 +69,7 @@ class SettingsHomeView(FinanceView):
                     status__in=[ConnectionStatus.NEEDS_REAUTH, ConnectionStatus.ERROR]
                 ).defer("access_secret"),
                 "recent_runs": SyncRun.objects.select_related("connection")[:5],
-                # Mirrors categorise_transactions()'s own default queryset, so
+                # Mirrors categorize_transactions()'s own default queryset, so
                 # this number is exactly what the button below would act on.
                 "uncategorized_count": Transaction.objects.filter(
                     category__isnull=True, is_transfer=False
@@ -81,7 +81,7 @@ class SettingsHomeView(FinanceView):
 
     def post(self, request, *args, **kwargs):
         if request.POST.get("action") == "categorize":
-            summary = categorise_transactions()
+            summary = categorize_transactions()
             messages.success(
                 request,
                 f"Transfers paired: {summary.transfers} · by rule: {summary.by_rule} · "
