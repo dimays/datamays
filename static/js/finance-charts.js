@@ -58,7 +58,7 @@
    *
    * Deliberately a factory rather than a cloned constant: structured cloning
    * via JSON silently drops functions, which quietly stripped the currency
-   * formatter and tooltips from every line and doughnut chart.
+   * formatter and tooltips from every line chart.
    */
   function makeOptions(options) {
     options = options || {};
@@ -85,9 +85,6 @@
         tooltip: {
           callbacks: {
             label: function (context) {
-              if (options.shape === "doughnut") {
-                return context.label + ": " + money(context.parsed);
-              }
               return context.dataset.label + ": " + money(context.parsed.y);
             },
           },
@@ -95,29 +92,27 @@
       },
     };
 
-    if (options.shape !== "doughnut") {
-      config.scales = {
-        x: {
-          ticks: {
-            color: TEXT,
-            maxRotation: 0,
-            autoSkip: true,
-            // A year of daily points would otherwise run its date labels
-            // together into an unreadable smear.
-            maxTicksLimit: 6,
-            autoSkipPadding: 16,
-          },
-          grid: { color: GRID },
+    config.scales = {
+      x: {
+        ticks: {
+          color: TEXT,
+          maxRotation: 0,
+          autoSkip: true,
+          // A year of daily points would otherwise run its date labels
+          // together into an unreadable smear.
+          maxTicksLimit: 6,
+          autoSkipPadding: 16,
         },
-        y: {
-          ticks: { color: TEXT, callback: money },
-          grid: { color: GRID },
-          // Balances are rarely near zero, so forcing the axis to include it
-          // would flatten every interesting movement.
-          beginAtZero: options.beginAtZero !== false,
-        },
-      };
-    }
+        grid: { color: GRID },
+      },
+      y: {
+        ticks: { color: TEXT, callback: money },
+        grid: { color: GRID },
+        // Balances are rarely near zero, so forcing the axis to include it
+        // would flatten every interesting movement.
+        beginAtZero: options.beginAtZero !== false,
+      },
+    };
 
     return config;
   }
@@ -130,17 +125,6 @@
         datasets: [{ label: canvas.dataset.label || "Spend", data: data.values, backgroundColor: COLORS[0], borderRadius: 4 }],
       },
       options: makeOptions({ links: data.links }),
-    });
-  }
-
-  function buildDoughnut(canvas, data) {
-    return new Chart(canvas, {
-      type: "doughnut",
-      data: {
-        labels: data.labels,
-        datasets: [{ data: data.values, backgroundColor: COLORS, borderWidth: 0 }],
-      },
-      options: makeOptions({ shape: "doughnut", legendPosition: "bottom" }),
     });
   }
 
@@ -194,6 +178,97 @@
     });
   }
 
+  /**
+   * One horizontal bar per top-level category, ranked largest-first.
+   * Clicking a category swaps its single bar for one bar per subcategory,
+   * in place — the still-collapsed categories around it don't move — and
+   * clicking any of those collapses back to the parent's one bar.
+   */
+  function buildCategoryBreakdown(canvas, data) {
+    var expanded = Object.create(null);
+    var chart = null;
+
+    function flatten() {
+      var rows = [];
+
+      (data.categories || []).forEach(function (category) {
+        var children = category.subcategories || [];
+
+        if (expanded[category.name] && children.length) {
+          children.forEach(function (child) {
+            rows.push({
+              label: category.name + " › " + child.name,
+              value: child.total,
+              parent: category.name,
+              expandable: false,
+            });
+          });
+          return;
+        }
+
+        var prefix = children.length ? (expanded[category.name] ? "▾ " : "▸ ") : "";
+        rows.push({
+          label: prefix + category.name,
+          value: category.total,
+          parent: category.name,
+          expandable: children.length > 0,
+        });
+      });
+
+      return rows;
+    }
+
+    function render() {
+      var rows = flatten();
+
+      // Fixed row height so the chart reads consistently whether it's 6
+      // categories or 60 — the scrollable wrapper (set in the template)
+      // handles the rest rather than squeezing bars to fit.
+      canvas.style.height = Math.max(240, rows.length * 32) + "px";
+
+      var options = makeOptions({});
+      options.indexAxis = "y";
+      options.plugins.legend.display = false;
+      options.plugins.tooltip.callbacks.label = function (context) {
+        return money(context.parsed.x);
+      };
+      options.scales = {
+        x: { beginAtZero: true, ticks: { color: TEXT, callback: money }, grid: { color: GRID } },
+        y: { ticks: { color: TEXT, autoSkip: false }, grid: { display: false } },
+      };
+      options.onHover = function (event, elements) {
+        event.native.target.style.cursor = elements.length ? "pointer" : "default";
+      };
+      options.onClick = function (event, elements) {
+        if (!elements.length) return;
+
+        var row = rows[elements[0].index];
+        if (row.expandable) {
+          expanded[row.parent] = true;
+        } else if (expanded[row.parent]) {
+          delete expanded[row.parent];
+        } else {
+          return;
+        }
+
+        render();
+      };
+
+      var config = {
+        labels: rows.map(function (row) { return row.label; }),
+        datasets: [
+          { data: rows.map(function (row) { return row.value; }), backgroundColor: COLORS[0], borderRadius: 3 },
+        ],
+      };
+
+      if (chart) chart.destroy();
+      chart = new Chart(canvas, { type: "bar", data: config, options: options });
+    }
+
+    render();
+    return chart;
+  }
+
   function buildBudgets(canvas, data) {
     var series = (data || []).find(function (entry) {
       return entry.name === canvas.dataset.budget;
@@ -215,10 +290,10 @@
 
   var BUILDERS = {
     bar: buildBar,
-    doughnut: buildDoughnut,
     lines: buildLines,
     line: buildSingleLine,
     budgets: buildBudgets,
+    categoryBreakdown: buildCategoryBreakdown,
   };
 
   /**

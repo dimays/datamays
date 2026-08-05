@@ -4,9 +4,10 @@
       <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">By category</h2>
       {% include "finance/dashboards/_hide_chart_button.html" %}
     </div>
-    <div class="mt-4 h-72">
-      <canvas data-chart="doughnut" data-source="spend-by-category"></canvas>
+    <p class="mt-1 text-xs text-text-muted">Click a category to break it into subcategories.</p>
+    <div class="mt-4 max-h-[28rem] overflow-y-auto">
+      <canvas data-chart="categoryBreakdown" data-source="spend-by-category-breakdown"></canvas>
     </div>
-    {{ spend_by_category_json|json_script:"spend-by-category" }}
+    {{ spend_by_category_breakdown_json|json_script:"spend-by-category-breakdown" }}
   </section>
 {% endif %}

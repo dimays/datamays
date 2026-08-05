@@ -183,6 +183,73 @@ class SpendAnalyticsTests(AnalyticsTestCase):
         self.assertEqual(result["labels"], ["Food", "Everything else"])
         self.assertEqual(result["values"], [100.0, 40.0])
 
+    def test_breakdown_ranks_categories_largest_first_with_no_cap(self):
+        self.spend("-40.00", self.fuel, 7)
+        self.spend("-100.00", self.groceries, 5)
+        self.spend("-60.00", self.restaurants, 6)
+
+        result = analytics.spend_by_category_breakdown(
+            date(2026, 4, 1), date(2026, 4, 30)
+        )
+
+        names = [category["name"] for category in result["categories"]]
+        self.assertEqual(names, ["Food", "Transportation"])
+        self.assertEqual(result["categories"][0]["total"], 160.0)
+
+    def test_breakdown_ranks_subcategories_within_their_parent(self):
+        self.spend("-100.00", self.groceries, 5)
+        self.spend("-160.00", self.restaurants, 6)
+
+        result = analytics.spend_by_category_breakdown(
+            date(2026, 4, 1), date(2026, 4, 30)
+        )
+
+        food = next(c for c in result["categories"] if c["name"] == "Food")
+        self.assertEqual(
+            [sub["name"] for sub in food["subcategories"]],
+            ["Restaurants", "Groceries"],
+        )
+        self.assertEqual(food["subcategories"][0]["total"], 160.0)
+
+    def test_breakdown_a_top_level_category_with_no_children_has_none_listed(self):
+        # Transportation's spend here all lands on the same leaf, but the
+        # point is a category with genuinely no subcategories (e.g. a
+        # standalone top-level leaf) reports an empty list, not a
+        # single-entry list duplicating itself.
+        self.spend("-40.00", self.fuel, 7)
+
+        result = analytics.spend_by_category_breakdown(
+            date(2026, 4, 1), date(2026, 4, 30)
+        )
+
+        transport = next(c for c in result["categories"] if c["name"] == "Transportation")
+        self.assertEqual(transport["subcategories"], [{"name": "Fuel", "total": 40.0}])
+
+    def test_breakdown_floors_a_net_refunded_category_and_subcategory_at_zero(self):
+        self.spend("-20.00", self.groceries, 5)
+        self.spend("50.00", self.groceries, 12)
+        self.spend("-40.00", self.fuel, 7)
+
+        result = analytics.spend_by_category_breakdown(
+            date(2026, 4, 1), date(2026, 4, 30)
+        )
+
+        food = next(c for c in result["categories"] if c["name"] == "Food")
+        self.assertEqual(food["total"], 0.0)
+        self.assertEqual(food["subcategories"], [{"name": "Groceries", "total": 0.0}])
+
+    def test_breakdown_totals_everything_with_nothing_capped_into_a_tail_bucket(self):
+        self.spend("-100.00", self.groceries, 5)
+        self.spend("-40.00", self.fuel, 6)
+
+        result = analytics.spend_by_category_breakdown(
+            date(2026, 4, 1), date(2026, 4, 30)
+        )
+
+        names = [category["name"] for category in result["categories"]]
+        self.assertNotIn("Everything else", names)
+        self.assertEqual(result["total"], 140.0)
+
     def test_an_account_filter_narrows_the_series(self):
         self.spend("-100.00", self.groceries, 5, account=self.checking)
         self.spend("-60.00", self.groceries, 6, account=self.card)
@@ -505,6 +572,22 @@ class ChartsDashboardRenderTests(AnalyticsTestCase):
         self.assertIn('data-chart-toggle="spend-over-time"', body)
         self.assertIn('data-source-stacked="spend-over-time-by-category"', body)
         self.assertIn('id="spend-over-time-by-category"', body)
+
+    def test_by_category_renders_the_breakdown_chart_not_a_doughnut(self):
+        make_transaction(
+            self.checking,
+            posted_on=household_today(),
+            amount=Decimal("-100.00"),
+            description_raw="MARIANOS",
+            category=self.groceries,
+        )
+
+        response = self.client.get(reverse("finance:charts"))
+        body = response.content.decode()
+
+        self.assertIn('data-chart="categoryBreakdown"', body)
+        self.assertIn('id="spend-by-category-breakdown"', body)
+        self.assertNotIn('data-chart="doughnut"', body)
 
     def test_charts_page_handles_no_data(self):
         response = self.client.get(reverse("finance:charts"))
