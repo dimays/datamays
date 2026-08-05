@@ -14,9 +14,16 @@ PRIMARY_NAV = [
 
 # App navigation that isn't daily-use, but still belongs at the top level
 # rather than buried in the account dropdown (which is reserved for
-# user-specific things — preferences, alerts, sign out). Shown on both the
-# desktop header and the mobile tab bar, so the two never drift apart.
+# user-specific things — preferences, alerts, help, sign out). Shown on both
+# the desktop header and the mobile tab bar, so the two never drift apart.
+# Import before Settings, per an explicit "Settings at the far right" ask.
 SECONDARY_NAV = [
+    {
+        "url_name": "imports",
+        "label": "Import data",
+        "icon": "upload",
+        "related": ["import_schemas", "import_upload", "import_map", "import_preview"],
+    },
     {
         "url_name": "settings",
         "label": "Settings",
@@ -27,14 +34,6 @@ SECONDARY_NAV = [
             "account_create", "account_edit", "rules",
         ],
     },
-    {
-        "url_name": "imports",
-        "label": "Import data",
-        "icon": "upload",
-        "related": ["import_schemas", "import_upload", "import_map", "import_preview"],
-        "is_button": True,
-    },
-    {"url_name": "help", "label": "Help", "icon": "help"},
 ]
 
 
@@ -60,5 +59,6 @@ def finance_nav(context):
 
 @register.simple_tag(takes_context=True)
 def finance_secondary_nav(context):
-    """Desktop-header-only nav items (Settings, Import, Help)."""
+    """Secondary nav items (Import, Settings) — shown on both the desktop
+    header and the mobile tab bar, after the primary items."""
     return _resolve(context, SECONDARY_NAV)
