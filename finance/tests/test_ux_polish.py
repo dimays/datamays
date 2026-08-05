@@ -26,7 +26,7 @@ from finance.models import (
 from finance.services.rollups import backfill_budget
 from finance.services.widgets import WIDGET_CHOICES
 
-from .factories import make_account, make_institution
+from .factories import make_account, make_institution, make_transaction
 from .test_access import make_user
 
 
@@ -83,6 +83,65 @@ class ActivityFilterFormTests(TestCase):
             {"account": "", "category": "", "budget": "", "start": "", "end": "", "q": ""},
         )
         self.assertEqual(response.status_code, 200)
+
+
+class ReviewQueueSaveButtonTests(TestCase):
+    """The Save button on each Activity row shouldn't invite a pointless
+    click when nothing has changed."""
+
+    def setUp(self):
+        call_command("seed_finance_categories", verbosity=0)
+        login(self.client)
+
+        self.institution = make_institution()
+        self.checking = make_account(self.institution, name="Checking")
+        self.groceries = Category.objects.get(slug="food-groceries")
+
+    def test_the_button_starts_disabled_for_an_already_categorized_row(self):
+        make_transaction(
+            self.checking,
+            description_raw="MARIANOS",
+            category=self.groceries,
+            needs_review=False,
+        )
+
+        response = self.client.get(reverse("finance:transactions"))
+        body = response.content.decode()
+
+        # Alpine's initial state mirrors the saved category, so the disabled
+        # expression evaluates true (nothing changed) until the person
+        # actually picks something else.
+        self.assertIn(
+            f"initial: '{self.groceries.pk}', selected: '{self.groceries.pk}'", body
+        )
+        self.assertIn(':disabled="selected === initial && !rule"', body)
+
+    def test_the_always_checkbox_still_only_shows_for_rows_needing_review(self):
+        make_transaction(
+            self.checking,
+            description_raw="MARIANOS",
+            category=self.groceries,
+            needs_review=False,
+        )
+
+        response = self.client.get(reverse("finance:transactions"))
+
+        self.assertNotContains(response, 'name="create_rule"')
+
+    def test_checking_always_enables_the_button_even_without_changing_category(self):
+        make_transaction(
+            self.checking,
+            description_raw="MARIANOS",
+            category=self.groceries,
+            needs_review=True,
+        )
+
+        response = self.client.get(reverse("finance:transactions"))
+
+        # The disabled expression is false whenever `rule` is true, which
+        # Alpine's x-model on the "always" checkbox drives -- checking it
+        # must be enough to enable Save, independent of the category value.
+        self.assertContains(response, 'x-model="rule"')
 
 
 class InstitutionManagementTests(TestCase):
