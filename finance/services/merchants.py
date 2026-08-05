@@ -68,7 +68,7 @@ def _strip_trailing_location(tokens):
     return tokens
 
 
-def normalise_merchant(description: str) -> str:
+def normalize_merchant(description: str) -> str:
     """A lowercase, punctuation-free merchant key. Empty if nothing survives."""
     text = (description or "").casefold().strip()
 

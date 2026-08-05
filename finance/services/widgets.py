@@ -5,7 +5,7 @@ separate means a slow or empty one degrades on its own rather than taking the
 page with it, and the homepage stays a composition rather than one enormous
 query.
 
-Everything here reads materialised values — denormalised account balances and
+Everything here reads materialized values — denormalized account balances and
 rolled-up budget periods — so the page a phone loads is a handful of indexed
 lookups rather than aggregates over the whole ledger.
 """

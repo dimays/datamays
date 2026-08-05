@@ -52,7 +52,7 @@ DATE_FORMATS = [
 AMOUNT_CLEAN = re.compile(r"[^\d\-.\(\)]")
 
 
-def normalise_header(header: str) -> str:
+def normalize_header(header: str) -> str:
     return re.sub(r"[^a-z0-9 ]", " ", (header or "").casefold()).strip()
 
 
@@ -113,7 +113,7 @@ def _is_numberish(value):
 
 
 def parse_amount(value):
-    """Read a currency cell, handling $, commas, and (parenthesised) negatives."""
+    """Read a currency cell, handling $, commas, and (parenthesized) negatives."""
     if value is None:
         return None
 
@@ -191,12 +191,12 @@ def suggest_mapping(headers, rows, record_type="transactions"):
         "paycheck": ["pay_date", "employer", "gross", "net"],
     }.get(record_type, [])
 
-    normalised = {header: normalise_header(header) for header in headers}
+    normalized = {header: normalize_header(header) for header in headers}
     suggestion = {}
     claimed = set()
 
     for field in wanted:
-        best = _best_header(field, normalised, claimed)
+        best = _best_header(field, normalized, claimed)
 
         if best:
             header, confidence = best
@@ -208,11 +208,11 @@ def suggest_mapping(headers, rows, record_type="transactions"):
     return suggestion
 
 
-def _best_header(field, normalised, claimed):
+def _best_header(field, normalized, claimed):
     hints = HEADER_HINTS.get(field, [])
 
     for rank, hint in enumerate(hints):
-        for header, normal in normalised.items():
+        for header, normal in normalized.items():
             if header in claimed:
                 continue
 

@@ -25,7 +25,7 @@ class CategoryQuerySet(models.QuerySet):
         Some dropdowns (the budget form) offer a parent category alongside its
         own children, since budgeting "Financial" as a whole is valid. Within
         a group, that parent-as-its-own-entry sorts first rather than being
-        alphabetised against its children — "Financial" reads oddly slotted
+        alphabetized against its children — "Financial" reads oddly slotted
         between "Financial › Bank Fees" and "Financial › Taxes".
         """
         return self.annotate(
@@ -227,7 +227,7 @@ class MerchantCategoryMemo(TimestampedModel):
     merchant_key = models.CharField(
         max_length=160,
         unique=True,
-        help_text="Normalised merchant string (see services.categorize).",
+        help_text="Normalized merchant string (see services.categorize).",
     )
     category = models.ForeignKey(
         Category, on_delete=models.CASCADE, related_name="merchant_memos"

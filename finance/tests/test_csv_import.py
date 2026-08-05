@@ -1,7 +1,7 @@
 """CSV detection and import.
 
 Fixtures imitate the export shapes real institutions actually produce —
-preamble lines, parenthesised negatives, separate debit/credit columns, and
+preamble lines, parenthesized negatives, separate debit/credit columns, and
 statements where every amount is positive.
 """
 
@@ -51,7 +51,7 @@ POSITIVE_ONLY_CSV = b"""Date,Merchant,Amount
 04/16/2026,SHELL OIL,38.10
 """
 
-PARENTHESISED_CSV = b"""Date,Description,Amount
+PARENTHESIZED_CSV = b"""Date,Description,Amount
 04/15/2026,MARIANOS,($42.50)
 04/16/2026,REFUND,"$1,200.00"
 """
@@ -62,7 +62,7 @@ class ParsingTests(TestCase):
         self.assertEqual(parse_amount("$1,234.56"), Decimal("1234.56"))
         self.assertEqual(parse_amount("-42.50"), Decimal("-42.50"))
 
-    def test_parenthesised_amounts_are_negative(self):
+    def test_parenthesized_amounts_are_negative(self):
         # Accounting convention: (42.50) means minus 42.50.
         self.assertEqual(parse_amount("($42.50)"), Decimal("-42.50"))
 
@@ -123,7 +123,7 @@ class SuggestionTests(TestCase):
         claimed = [entry["column"] for entry in suggestion.values()]
         self.assertEqual(len(claimed), len(set(claimed)))
 
-    def test_debit_and_credit_columns_are_recognised(self):
+    def test_debit_and_credit_columns_are_recognized(self):
         headers, rows, _ = sniff(PREAMBLE_CSV)
         suggestion = suggest_mapping(headers, rows)
 
@@ -229,8 +229,8 @@ class StagingTests(ImportBatchTestCase):
 
         self.assertTrue(all(t.amount < 0 for t in Transaction.objects.all()))
 
-    def test_parenthesised_and_comma_amounts_import_correctly(self):
-        batch = self.make_batch(PARENTHESISED_CSV)
+    def test_parenthesized_and_comma_amounts_import_correctly(self):
+        batch = self.make_batch(PARENTHESIZED_CSV)
         batch = parse_batch(batch, column_map=self.columns(batch), date_format="%m/%d/%Y")
         commit_batch(batch)
 

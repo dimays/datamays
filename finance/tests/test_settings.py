@@ -537,7 +537,7 @@ class AccountSettingsTests(SettingsTestCase):
         response = self.client.get(reverse("finance:settings"))
 
         self.assertContains(response, "-$500.00")
-        # Not the old behaviour: the raw amount must not also appear
+        # Not the old behavior: the raw amount must not also appear
         # unsigned, which would mean the minus sign silently got dropped.
         self.assertNotContains(response, ">$500.00<")
 

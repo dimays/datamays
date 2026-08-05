@@ -99,7 +99,7 @@ class Account(TimestampedModel):
         help_text="Whose account this is — doesn't restrict who can see or edit it.",
     )
 
-    # Denormalised from the newest snapshot so account lists and the homepage
+    # Denormalized from the newest snapshot so account lists and the homepage
     # do not need a subquery per account.
     current_balance = money_field(
         null=True,

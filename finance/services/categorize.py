@@ -33,7 +33,7 @@ from ..models import (
     Transaction,
 )
 from .classifier import get_classifier
-from .merchants import normalise_merchant
+from .merchants import normalize_merchant
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +201,7 @@ def categorize_transactions(queryset=None, *, classifier=None, detect_transfers=
             summary.by_rule += 1
             continue
 
-        merchant_key = normalise_merchant(txn.description_raw)
+        merchant_key = normalize_merchant(txn.description_raw)
 
         if merchant_key and merchant_key in memos:
             memo = memos[merchant_key]
@@ -291,7 +291,7 @@ def _assign(txn, category, source, confidence, needs_review=False):
     txn.category_source = source
     txn.category_confidence = confidence
     txn.needs_review = needs_review
-    txn.merchant = txn.merchant or normalise_merchant(txn.description_raw)[:160]
+    txn.merchant = txn.merchant or normalize_merchant(txn.description_raw)[:160]
     txn.save(
         update_fields=[
             "category", "category_source", "category_confidence",
@@ -330,6 +330,6 @@ def confirm_category(transaction, category, user=None, *, remember=True):
     )
 
     if remember:
-        remember_merchant(normalise_merchant(transaction.description_raw), category, user)
+        remember_merchant(normalize_merchant(transaction.description_raw), category, user)
 
     return transaction

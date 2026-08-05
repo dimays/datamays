@@ -26,7 +26,7 @@ from finance.services.categorize import (
     find_transfer_pairs,
 )
 from finance.services.classifier import Classification, Classifier
-from finance.services.merchants import normalise_merchant
+from finance.services.merchants import normalize_merchant
 
 from .factories import make_account, make_institution, make_transaction, make_user
 
@@ -48,33 +48,33 @@ class StubClassifier(Classifier):
         ]
 
 
-class MerchantNormalisationTests(TestCase):
+class MerchantNormalizationTests(TestCase):
     def test_store_numbers_and_locations_collapse_to_one_key(self):
-        first = normalise_merchant("SQ *BLUE BOTTLE COFFEE 4471 CHICAGO IL 04/15")
-        second = normalise_merchant("SQ *BLUE BOTTLE COFFEE 9920 EVANSTON IL 05/02")
+        first = normalize_merchant("SQ *BLUE BOTTLE COFFEE 4471 CHICAGO IL 04/15")
+        second = normalize_merchant("SQ *BLUE BOTTLE COFFEE 9920 EVANSTON IL 05/02")
 
         self.assertEqual(first, second)
         self.assertIn("blue bottle", first)
 
     def test_processor_prefixes_are_stripped(self):
         self.assertEqual(
-            normalise_merchant("TST* MARIANOS"), normalise_merchant("MARIANOS")
+            normalize_merchant("TST* MARIANOS"), normalize_merchant("MARIANOS")
         )
 
     def test_card_masks_and_reference_numbers_are_removed(self):
-        key = normalise_merchant("AMAZON.COM*XX1234 REF:99A8B7")
+        key = normalize_merchant("AMAZON.COM*XX1234 REF:99A8B7")
         self.assertNotIn("1234", key)
         self.assertIn("amazon", key)
 
     def test_different_merchants_stay_different(self):
         self.assertNotEqual(
-            normalise_merchant("MARIANOS #1234"), normalise_merchant("JEWEL OSCO #99")
+            normalize_merchant("MARIANOS #1234"), normalize_merchant("JEWEL OSCO #99")
         )
 
     def test_unusable_descriptions_yield_an_empty_key(self):
         for value in ["", "   ", "12345", None]:
             with self.subTest(value=value):
-                self.assertEqual(normalise_merchant(value), "")
+                self.assertEqual(normalize_merchant(value), "")
 
 
 class PipelineTestCase(TestCase):
@@ -125,7 +125,7 @@ class RuleTests(PipelineTestCase):
 class MemoTests(PipelineTestCase):
     def test_a_remembered_merchant_skips_the_classifier(self):
         MerchantCategoryMemo.objects.create(
-            merchant_key=normalise_merchant("MARIANOS #1234"), category=self.groceries
+            merchant_key=normalize_merchant("MARIANOS #1234"), category=self.groceries
         )
         txn = make_transaction(self.checking, description_raw="MARIANOS #5678 CHICAGO IL")
 
@@ -139,7 +139,7 @@ class MemoTests(PipelineTestCase):
 
     def test_memo_hit_counts_are_tracked(self):
         memo = MerchantCategoryMemo.objects.create(
-            merchant_key=normalise_merchant("MARIANOS"), category=self.groceries
+            merchant_key=normalize_merchant("MARIANOS"), category=self.groceries
         )
         make_transaction(self.checking, description_raw="MARIANOS #1")
 
@@ -153,7 +153,7 @@ class MemoTests(PipelineTestCase):
 class ClassifierTests(PipelineTestCase):
     def test_a_confident_classification_is_applied_and_remembered(self):
         txn = make_transaction(self.checking, description_raw="BLUE BOTTLE COFFEE 4471")
-        key = normalise_merchant(txn.description_raw)
+        key = normalize_merchant(txn.description_raw)
 
         categorize_transactions(classifier=StubClassifier({key: ("food-coffee", 0.95)}))
 
@@ -165,7 +165,7 @@ class ClassifierTests(PipelineTestCase):
 
     def test_a_shaky_classification_is_flagged_and_not_remembered(self):
         txn = make_transaction(self.checking, description_raw="ACME HOLDINGS LLC")
-        key = normalise_merchant(txn.description_raw)
+        key = normalize_merchant(txn.description_raw)
 
         categorize_transactions(
             classifier=StubClassifier({key: ("food-coffee", REVIEW_THRESHOLD - 0.2)})
@@ -358,7 +358,7 @@ class ConfirmationTests(PipelineTestCase):
         self.assertFalse(txn.needs_review)
 
         memo = MerchantCategoryMemo.objects.get(
-            merchant_key=normalise_merchant("BLUE BOTTLE COFFEE 4471")
+            merchant_key=normalize_merchant("BLUE BOTTLE COFFEE 4471")
         )
         self.assertEqual(memo.category, self.coffee)
         self.assertEqual(memo.confirmed_by, user)
