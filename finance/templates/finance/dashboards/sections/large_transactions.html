@@ -1,0 +1,21 @@
+{% load finance_extras %}
+{% if large_transactions_has_data %}
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Largest transactions</h2>
+    <p class="mt-1 text-xs text-text-muted">The biggest one-off outflows in this window — worth a second look.</p>
+    <ul class="mt-4 divide-y divide-border">
+      {% for txn in large_transactions %}
+        <li class="flex items-center justify-between gap-3 py-2.5">
+          <div class="min-w-0">
+            <p class="truncate text-sm">{{ txn.description_raw }}</p>
+            <p class="text-xs text-text-muted">
+              {{ txn.posted_on|date:"j M Y" }} · {{ txn.account.name }}
+              {% if txn.category %}· {{ txn.category.name }}{% endif %}
+            </p>
+          </div>
+          <p class="shrink-0 font-mono text-sm">-${{ txn.amount|abs_money }}</p>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endif %}

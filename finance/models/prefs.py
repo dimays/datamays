@@ -10,14 +10,20 @@ DEFAULT_HOMEPAGE_WIDGETS = ["balances", "budgets", "recent_transactions"]
 
 # Charts tab sections, in the order they render by default — the same
 # arrange-your-own pattern as the homepage widgets above, one level down.
+# The order here is just a starting point: fully up to each person to
+# rearrange (or hide) from there, in Preferences or on the Charts tab itself.
 DEFAULT_CHART_SECTIONS = [
     "spend_over_time",
     "spend_by_category_trend",
     "spend_by_category",
+    "large_transactions",
+    "recurring_expenses",
     "budget_attainment",
     "net_income",
     "net_cash_flow",
-    "savings_debt",
+    "net_worth",
+    "balances_over_time",
+    "accounts_list",
 ]
 
 
