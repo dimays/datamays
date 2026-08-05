@@ -1,6 +1,6 @@
 """Computing budget actuals.
 
-Materialised rather than derived on page load: the homepage shows every active
+Materialized rather than derived on page load: the homepage shows every active
 budget at once, and doing that live would be one aggregate query per budget on
 every request from a phone.
 

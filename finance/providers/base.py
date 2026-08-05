@@ -1,6 +1,6 @@
 """The boundary between an outside financial institution and our data model.
 
-Adapters do one job: turn whatever a provider returns into the normalised
+Adapters do one job: turn whatever a provider returns into the normalized
 payloads below. Everything downstream — sync, categorization, dashboards —
 depends on the conventions in `finance.models.base` already holding, so this is
 the only layer allowed to reason about a provider's sign quirks or date
@@ -47,7 +47,7 @@ class AccountPayload:
     mask: str = ""
     institution_name: str = ""
 
-    # Signed as the provider reported it. Normalising into the household's
+    # Signed as the provider reported it. Normalizing into the household's
     # net-worth convention happens in the sync service, which knows the
     # account type and the household's per-account sign setting.
     raw_balance: Decimal | None = None

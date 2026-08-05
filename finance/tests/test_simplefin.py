@@ -100,7 +100,7 @@ class FetchTests(SimpleTestCase):
         self.adapter = SimpleFINAdapter()
 
     @patch("finance.providers.simplefin.requests.get")
-    def test_accounts_and_transactions_are_normalised(self, get):
+    def test_accounts_and_transactions_are_normalized(self, get):
         get.return_value = response(json_data=ACCOUNTS_PAYLOAD)
 
         result = self.adapter.fetch(access_secret=ACCESS_URL, since=date(2026, 1, 1))

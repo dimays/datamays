@@ -133,7 +133,7 @@ def parse_batch(batch: ImportBatch, *, column_map, date_format="", amount_conven
                 batch=batch,
                 row_number=index,
                 raw=row,
-                parsed=_serialisable(parsed),
+                parsed=_serializable(parsed),
                 status=status,
                 error_message=error or "",
             )
@@ -268,7 +268,7 @@ def _is_duplicate(batch, parsed, occurrences):
     return False
 
 
-def _serialisable(parsed):
+def _serializable(parsed):
     out = {}
 
     for key, value in (parsed or {}).items():

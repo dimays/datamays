@@ -33,7 +33,7 @@ from .factories import (
 class SignConventionTests(TestCase):
     """Assets positive, liabilities negative — so balances sum to net worth."""
 
-    def test_liability_types_are_recognised(self):
+    def test_liability_types_are_recognized(self):
         card = make_account(account_type=AccountType.CREDIT_CARD, name="Chase card")
         checking = make_account(account_type=AccountType.CHECKING, name="Checking")
 

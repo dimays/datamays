@@ -1,4 +1,4 @@
-"""The sync service: idempotency, sign normalisation, and failure isolation."""
+"""The sync service: idempotency, sign normalization, and failure isolation."""
 
 from datetime import date, datetime, timedelta
 from datetime import timezone as dt_timezone
@@ -33,7 +33,7 @@ from finance.services.sync import (
     INITIAL_HISTORY_DAYS,
     default_since,
     guess_account_type,
-    normalise_balance,
+    normalize_balance,
     sync_connection,
 )
 
@@ -207,7 +207,7 @@ class IdempotencyTests(SyncTestCase):
         self.assertEqual(run.transactions_created, 0)
 
 
-class BalanceNormalisationTests(SyncTestCase):
+class BalanceNormalizationTests(SyncTestCase):
     def test_an_asset_balance_passes_through(self):
         self.run_sync()
 
@@ -239,7 +239,7 @@ class BalanceNormalisationTests(SyncTestCase):
             self.institution, name="Card", account_type=AccountType.CREDIT_CARD
         )
 
-        self.assertEqual(normalise_balance(Decimal("-50.00"), card), Decimal("50.00"))
+        self.assertEqual(normalize_balance(Decimal("-50.00"), card), Decimal("50.00"))
 
     def test_an_institution_that_reports_debt_negative_can_be_corrected(self):
         card = make_account(
@@ -249,7 +249,7 @@ class BalanceNormalisationTests(SyncTestCase):
             debt_reported_positive=False,
         )
 
-        self.assertEqual(normalise_balance(Decimal("-1350.00"), card), Decimal("-1350.00"))
+        self.assertEqual(normalize_balance(Decimal("-1350.00"), card), Decimal("-1350.00"))
 
     def test_a_missing_balance_leaves_the_stored_one_alone(self):
         self.run_sync()

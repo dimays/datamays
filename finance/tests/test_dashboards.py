@@ -927,7 +927,7 @@ class ChartHideShowTests(AnalyticsTestCase):
             {"action": "show_section", "section": "spend_over_time"},
         )
         # Re-hide something already visible first, so re-showing it proves
-        # the "goes to the end" behaviour rather than "stayed in place".
+        # the "goes to the end" behavior rather than "stayed in place".
         self.client.post(
             reverse("finance:charts"),
             {"action": "hide_section", "section": "net_cash_flow"},

@@ -65,7 +65,7 @@ class TransactionListView(FinanceAccessMixin, ListView):
         if self.request.GET.get("spend") == "1":
             # Independent of budget — a chart click and a budget click-through
             # can both land here (e.g. a stale link), and both narrowing the
-            # result is the correct, unsurprising behaviour rather than one
+            # result is the correct, unsurprising behavior rather than one
             # silently overriding the other.
             queryset = queryset.filter(spend_filter())
 

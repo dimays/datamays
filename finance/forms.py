@@ -15,7 +15,7 @@ OTP_FIELD_CLASSES = (
 
 
 class FinanceLoginForm(AuthenticationForm):
-    """Styled login form. Authentication behaviour is Django's."""
+    """Styled login form. Authentication behavior is Django's."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

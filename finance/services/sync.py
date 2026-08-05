@@ -117,7 +117,7 @@ def guess_account_type(name: str) -> str:
     return AccountType.OTHER
 
 
-def normalise_balance(raw: Decimal | None, account: Account) -> Decimal | None:
+def normalize_balance(raw: Decimal | None, account: Account) -> Decimal | None:
     """Convert a provider balance into the household's net-worth convention.
 
     Assets pass through. Liabilities are negated, because providers almost
@@ -216,11 +216,11 @@ def upsert_account(connection: AccountConnection, payload) -> Account:
     account.official_name = payload.official_name or account.official_name
     account.currency = payload.currency or account.currency
 
-    balance = normalise_balance(payload.raw_balance, account)
+    balance = normalize_balance(payload.raw_balance, account)
 
     if balance is not None:
         account.current_balance = balance
-        account.available_balance = normalise_balance(
+        account.available_balance = normalize_balance(
             payload.raw_available_balance, account
         )
         account.balance_as_of = timezone.now()

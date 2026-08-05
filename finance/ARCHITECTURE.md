@@ -49,8 +49,8 @@ round-trip actually mattered and was fixed.
 money arriving is positive, on every account type including credit cards.
 Balances follow the same rule: assets positive, liabilities negative, so a
 set of balances sums directly to net worth with no special-casing anywhere.
-Normalising into this convention is the provider adapter's job at the
-boundary (`services/sync.py::normalise_balance`); reporting code never
+Normalizing into this convention is the provider adapter's job at the
+boundary (`services/sync.py::normalize_balance`); reporting code never
 guesses. `Account.display_balance` and `abs_money`/`money` template filters
 handle the presentation side — a debt should read as a positive "amount
 owed," never as a signed figure.
@@ -96,7 +96,7 @@ regression using `TransactionTestCase` and
 ## The provider abstraction
 
 `providers/base.py` defines `ProviderAdapter`: one method, `fetch()`, that
-returns normalised `AccountPayload`/`TransactionPayload` objects. `services/sync.py`
+returns normalized `AccountPayload`/`TransactionPayload` objects. `services/sync.py`
 knows nothing about SimpleFIN specifically — it only knows the adapter
 interface. Adding a second automated source means writing a new adapter and
 registering it in `providers/registry.py`; nothing else changes.

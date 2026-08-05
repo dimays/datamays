@@ -194,7 +194,7 @@ class ConnectionForm(forms.Form):
         widget=forms.TextInput(
             attrs={"class": FIELD_CLASSES, "placeholder": "Byline + Capital One (joint)"}
         ),
-        help_text="However you want to recognise this in Settings — it can cover more than one institution.",
+        help_text="However you want to recognize this in Settings — it can cover more than one institution.",
     )
     setup_token = forms.CharField(
         label="SimpleFIN setup token",
@@ -486,7 +486,7 @@ class AccountUpdateView(FinanceAccessMixin, UpdateView):
         return redirect(self.get_success_url())
 
     def form_valid(self, form):
-        # current_balance is normalised (services.sync.normalise_balance) only
+        # current_balance is normalized (services.sync.normalize_balance) only
         # at sync time, so flipping this checkbox alone leaves the stored
         # balance untouched until the next sync happens to run — which can be
         # up to an hour away, and silently never for a manual account. Since
