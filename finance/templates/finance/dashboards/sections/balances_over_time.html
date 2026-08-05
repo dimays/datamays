@@ -7,11 +7,13 @@
       </div>
 
       <div class="flex items-start gap-2">
-        <details class="rounded-button border border-border bg-background text-sm">
-          <summary class="cursor-pointer select-none px-3 py-2">
+        <div class="relative" x-data="{ open: false }">
+          <button type="button" @click="open = !open" @click.outside="open = false"
+                  class="shrink-0 rounded-button border border-border px-2.5 py-1 text-xs font-medium text-text-secondary transition hover:bg-muted hover:text-text-primary">
             Accounts{% if selected_balances_accounts %} ({{ selected_balances_accounts|length }}){% endif %}
-          </summary>
-          <form method="get" class="max-h-56 space-y-1 overflow-y-auto border-t border-border p-2">
+          </button>
+          <form method="get" x-show="open"
+                class="absolute right-0 z-20 mt-2 max-h-64 w-56 space-y-1 overflow-y-auto rounded-card border border-border bg-surface p-2 shadow-lg">
             <input type="hidden" name="range" value="{{ selected_range }}" />
             <input type="hidden" name="grain" value="{{ selected_grain }}" />
             {% for account in selected_accounts %}<input type="hidden" name="account" value="{{ account }}" />{% endfor %}
@@ -26,7 +28,7 @@
               Apply
             </button>
           </form>
-        </details>
+        </div>
         {% include "finance/dashboards/_hide_chart_button.html" %}
       </div>
     </div>

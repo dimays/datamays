@@ -797,6 +797,17 @@ class BalancesOverTimeFilterTests(AnalyticsTestCase):
         self.assertFalse(response.context["balances_over_time_has_data"])
         self.assertTrue(response.context["balances_over_time_available"])
 
+    def test_the_account_filter_is_a_popover_not_a_details_element(self):
+        AccountBalanceSnapshot.objects.create(
+            account=self.checking, as_of=household_today(), current=Decimal("1000.00")
+        )
+
+        response = self.client.get(reverse("finance:charts"))
+        body = response.content.decode()
+
+        self.assertIn('x-data="{ open: false }"', body)
+        self.assertNotIn("<details", body)
+
 
 class SpendByCategoryOverTimeAnalyticsTests(AnalyticsTestCase):
     def test_each_category_gets_its_own_aligned_series(self):
