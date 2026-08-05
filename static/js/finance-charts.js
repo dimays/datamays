@@ -172,6 +172,28 @@
     });
   }
 
+  function buildStackedBar(canvas, data) {
+    var datasets = (data.series || []).map(function (series, index) {
+      return {
+        label: series.label,
+        data: series.values,
+        backgroundColor: COLORS[index % COLORS.length],
+        stack: "spend",
+        borderRadius: 2,
+      };
+    });
+
+    var options = makeOptions({});
+    options.scales.x.stacked = true;
+    options.scales.y.stacked = true;
+
+    return new Chart(canvas, {
+      type: "bar",
+      data: { labels: data.labels, datasets: datasets },
+      options: options,
+    });
+  }
+
   function buildBudgets(canvas, data) {
     var series = (data || []).find(function (entry) {
       return entry.name === canvas.dataset.budget;
@@ -199,11 +221,50 @@
     budgets: buildBudgets,
   };
 
+  /**
+   * A chart with a "split by category" checkbox: rebuilds in place between
+   * its normal single-series view and a stacked-by-category view sharing
+   * the same canvas, rather than being auto-built by the loop below.
+   */
+  function initToggles() {
+    document.querySelectorAll("[data-chart-toggle]").forEach(function (toggle) {
+      var canvas = document.querySelector(
+        'canvas[data-toggle="' + toggle.dataset.chartToggle + '"]'
+      );
+      if (!canvas) return;
+
+      var combined = readData(canvas);
+      var stackedHolder = document.getElementById(canvas.dataset.sourceStacked);
+      var stacked = null;
+      try {
+        stacked = stackedHolder ? JSON.parse(stackedHolder.textContent) : null;
+      } catch (error) {
+        stacked = null;
+      }
+
+      var chart = null;
+
+      function render() {
+        if (chart) chart.destroy();
+        chart =
+          toggle.checked && stacked
+            ? buildStackedBar(canvas, stacked)
+            : buildBar(canvas, combined);
+      }
+
+      if (combined) render();
+      toggle.addEventListener("change", render);
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("canvas[data-chart]").forEach(function (canvas) {
+      if (canvas.dataset.toggle) return; // owned by initToggles() instead
       var data = readData(canvas);
       var builder = BUILDERS[canvas.dataset.chart];
       if (data && builder) builder(canvas, data);
     });
+
+    initToggles();
   });
 })();

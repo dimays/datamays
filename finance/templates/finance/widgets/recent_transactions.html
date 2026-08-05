@@ -11,7 +11,7 @@
         <div class="min-w-0">
           <p class="truncate text-sm">{{ txn.description_raw }}</p>
           <p class="text-xs text-text-muted">
-            {{ txn.posted_on|date:"j M" }} · {{ txn.account.name }}
+            {{ txn.posted_on|date:"j M Y" }} · {{ txn.account.name }}
             {% if txn.category %}· {{ txn.category.name }}{% endif %}
           </p>
         </div>

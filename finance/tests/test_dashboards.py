@@ -486,6 +486,26 @@ class ChartsDashboardRenderTests(AnalyticsTestCase):
         self.assertContains(response, "spend-over-time")
         self.assertContains(response, "spend-by-category-over-time")
 
+    def test_spend_over_time_offers_a_by_category_toggle_with_its_own_data(self):
+        # The stacked view reuses the same per-category series the "Spend by
+        # category, over time" line chart is built from, but needs its own
+        # json_script id so it renders even when that other section is
+        # deselected (see test_a_deselected_section_does_not_render below).
+        make_transaction(
+            self.checking,
+            posted_on=household_today(),
+            amount=Decimal("-100.00"),
+            description_raw="MARIANOS",
+            category=self.groceries,
+        )
+
+        response = self.client.get(reverse("finance:charts"))
+        body = response.content.decode()
+
+        self.assertIn('data-chart-toggle="spend-over-time"', body)
+        self.assertIn('data-source-stacked="spend-over-time-by-category"', body)
+        self.assertIn('id="spend-over-time-by-category"', body)
+
     def test_charts_page_handles_no_data(self):
         response = self.client.get(reverse("finance:charts"))
 
@@ -630,6 +650,9 @@ class ChartsDashboardRenderTests(AnalyticsTestCase):
 
         self.assertContains(response, "spend-over-time")
         self.assertNotContains(response, "spend-by-category-over-time")
+        # The toggle's own stacked data isn't tied to that other section's
+        # visibility -- it renders as long as spend_over_time itself does.
+        self.assertContains(response, "spend-over-time-by-category")
 
     def test_sections_render_in_the_saved_order(self):
         from finance.models import UserPreference

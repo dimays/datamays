@@ -171,7 +171,7 @@
               <div class="min-w-0">
                 <p class="truncate font-medium">{{ txn.description_raw }}</p>
                 <p class="mt-1 text-xs text-text-muted">
-                  {{ txn.posted_on|date:"j M" }} · {{ txn.account.name }}
+                  {{ txn.posted_on|date:"j M Y" }} · {{ txn.account.name }}
                   {% if txn.is_transfer %}· <span class="text-accent">transfer</span>{% endif %}
                   {% if txn.category_source == 'llm' and txn.category_confidence %}
                     · classified {{ txn.category_confidence|floatformat:2 }}
