@@ -1,0 +1,37 @@
+{% comment %}
+  The card every Charts-tab section is drawn in.
+
+  Sections extend this rather than repeating the scaffold — the card, the
+  header row, the title, the blurb and the Hide chart button were previously
+  copy-pasted into all nine, which is how they drifted into two different
+  header layouts and four different top margins.
+
+  A section supplies only what is its own:
+
+    {% extends "finance/dashboards/_section.html" %}
+    {% block controls %}…optional, sits left of Hide chart…{% endblock %}
+    {% block body %}…the chart…{% endblock %}
+
+  Title and blurb come from `section` (finance/chart_sections.py), and
+  whether the section renders at all is decided by charts.html — not by an
+  `{% if %}` in here, which would be a second copy of the same condition.
+
+  No margin of any kind on this element: the container in charts.html owns
+  the spacing between sections, because these are user-reorderable and a
+  margin declared here changes the rhythm depending on where it lands.
+{% endcomment %}
+<section class="rounded-card border border-border bg-surface p-5">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">{{ section.label }}</h2>
+    <div class="flex flex-wrap items-center gap-3">
+      {% block controls %}{% endblock %}
+      {% include "finance/dashboards/_hide_chart_button.html" %}
+    </div>
+  </div>
+
+  {% if section.blurb %}
+    <p class="mt-1 text-xs text-text-muted">{{ section.blurb }}</p>
+  {% endif %}
+
+  {% block body %}{% endblock %}
+</section>

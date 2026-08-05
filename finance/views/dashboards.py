@@ -26,7 +26,7 @@ from urllib.parse import urlencode
 from django.shortcuts import redirect
 from django.urls import reverse
 
-from ..chart_sections import CHART_SECTION_CHOICES
+from ..chart_sections import CHART_SECTIONS, CHART_SECTIONS_BY_SLUG
 from ..dates import household_today
 from ..models import (
     Account,
@@ -165,12 +165,12 @@ class ChartsView(FinanceView):
         return max(1, page)
 
     def known_sections(self):
-        return {slug for slug, _ in CHART_SECTION_CHOICES}
+        return set(CHART_SECTIONS_BY_SLUG)
 
     def effective_chart_sections(self):
         """The person's chosen sections, filtered to ones that still exist —
-        a section retired from CHART_SECTION_CHOICES should not linger in a
-        saved preference forever."""
+        a section retired from CHART_SECTIONS should not linger in a saved
+        preference forever."""
         known = self.known_sections()
         return [slug for slug in self.get_preference().chart_section_order if slug in known]
 
@@ -213,9 +213,9 @@ class ChartsView(FinanceView):
 
         chart_sections = self.effective_chart_sections()
         hidden_sections = [
-            (slug, label)
-            for slug, label in CHART_SECTION_CHOICES
-            if slug not in chart_sections
+            section
+            for section in CHART_SECTIONS
+            if section.slug not in chart_sections
         ]
 
         context.update(
@@ -258,16 +258,16 @@ class ChartsView(FinanceView):
             "balances_over_time": context["balances_over_time_available"],
         }
 
-        context["has_any_data"] = any(
-            [
-                context["spend_has_data"],
-                context["income_has_data"],
-                context["cash_flow_has_data"],
-                context["large_transactions_available"],
-                context["net_worth_has_data"],
-                context["balances_over_time_available"],
-            ]
-        )
+        # The sections this person has chosen, in their order, filtered to the
+        # ones with something to show — resolved here rather than re-tested in
+        # each section template, which was a second copy of the same condition.
+        context["visible_sections"] = [
+            CHART_SECTIONS_BY_SLUG[slug]
+            for slug in chart_sections
+            if context["section_has_data"].get(slug)
+        ]
+
+        context["has_any_data"] = any(context["section_has_data"].values())
 
         return context
 
