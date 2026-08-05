@@ -114,21 +114,12 @@ class ReviewQueueSaveButtonTests(TestCase):
         self.assertIn(
             f"initial: '{self.groceries.pk}', selected: '{self.groceries.pk}'", body
         )
-        self.assertIn(':disabled="selected === initial && !rule"', body)
+        self.assertIn(':disabled="selected === initial"', body)
 
-    def test_the_always_checkbox_still_only_shows_for_rows_needing_review(self):
-        make_transaction(
-            self.checking,
-            description_raw="MARIANOS",
-            category=self.groceries,
-            needs_review=False,
-        )
-
-        response = self.client.get(reverse("finance:transactions"))
-
-        self.assertNotContains(response, 'name="create_rule"')
-
-    def test_checking_always_enables_the_button_even_without_changing_category(self):
+    def test_picking_a_different_category_is_the_only_way_to_enable_it(self):
+        # No "always"/create-a-rule shortcut folded into this save anymore —
+        # rules are created from Settings > Category rules instead, where the
+        # full pattern-matching system is actually visible.
         make_transaction(
             self.checking,
             description_raw="MARIANOS",
@@ -138,10 +129,8 @@ class ReviewQueueSaveButtonTests(TestCase):
 
         response = self.client.get(reverse("finance:transactions"))
 
-        # The disabled expression is false whenever `rule` is true, which
-        # Alpine's x-model on the "always" checkbox drives -- checking it
-        # must be enough to enable Save, independent of the category value.
-        self.assertContains(response, 'x-model="rule"')
+        self.assertNotContains(response, 'name="create_rule"')
+        self.assertNotContains(response, ">always<")
 
 
 class InstitutionManagementTests(TestCase):

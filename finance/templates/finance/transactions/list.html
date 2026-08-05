@@ -130,7 +130,7 @@
       </div>
 
       <form method="post" class="mt-3 flex flex-wrap items-center gap-2"
-            x-data="{ initial: '{{ txn.category_id|default:'' }}', selected: '{{ txn.category_id|default:'' }}', rule: false }">
+            x-data="{ initial: '{{ txn.category_id|default:'' }}', selected: '{{ txn.category_id|default:'' }}' }">
         {% csrf_token %}
         <input type="hidden" name="transaction" value="{{ txn.pk }}" />
         <input type="hidden" name="next" value="{{ request.get_full_path }}" />
@@ -142,14 +142,7 @@
           {% endfor %}
         </select>
 
-        {% if txn.needs_review %}
-          <label class="flex items-center gap-1.5 text-xs text-text-muted">
-            <input type="checkbox" name="create_rule" x-model="rule" class="h-3.5 w-3.5 rounded border-border bg-background text-primary focus:ring-primary" />
-            always
-          </label>
-        {% endif %}
-
-        <button type="submit" :disabled="selected === initial && !rule"
+        <button type="submit" :disabled="selected === initial"
                 class="rounded-button bg-primary px-3 py-1.5 text-xs font-medium text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary">
           Save
         </button>
