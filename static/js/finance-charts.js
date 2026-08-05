@@ -179,94 +179,52 @@
   }
 
   /**
-   * One horizontal bar per top-level category, ranked largest-first.
-   * Clicking a category swaps its single bar for one bar per subcategory,
-   * in place — the still-collapsed categories around it don't move — and
-   * clicking any of those collapses back to the parent's one bar.
+   * One horizontal bar per top-level category, ranked largest-first. The
+   * "Breakout by subcategory" checkbox next to it (wired in
+   * initBreakoutToggles(), not here) swaps every category's single bar for
+   * one bar per subcategory all at once, without disturbing category-level
+   * rank — a category's subcategories render in exactly the row range its
+   * own bar used to occupy.
    */
-  function buildCategoryBreakdown(canvas, data) {
-    var expanded = Object.create(null);
-    var chart = null;
+  function buildCategoryBreakdown(canvas, data, expanded) {
+    var rows = [];
 
-    function flatten() {
-      var rows = [];
+    (data.categories || []).forEach(function (category) {
+      var children = category.subcategories || [];
 
-      (data.categories || []).forEach(function (category) {
-        var children = category.subcategories || [];
-
-        if (expanded[category.name] && children.length) {
-          children.forEach(function (child) {
-            rows.push({
-              label: category.name + " › " + child.name,
-              value: child.total,
-              parent: category.name,
-              expandable: false,
-            });
-          });
-          return;
-        }
-
-        var prefix = children.length ? (expanded[category.name] ? "▾ " : "▸ ") : "";
-        rows.push({
-          label: prefix + category.name,
-          value: category.total,
-          parent: category.name,
-          expandable: children.length > 0,
+      if (expanded && children.length) {
+        children.forEach(function (child) {
+          rows.push({ label: category.name + " › " + child.name, value: child.total });
         });
-      });
+      } else {
+        rows.push({ label: category.name, value: category.total });
+      }
+    });
 
-      return rows;
-    }
+    // Fixed row height so the chart reads consistently whether it's 6
+    // categories or 60 — the scrollable wrapper (set in the template)
+    // handles the rest rather than squeezing bars to fit.
+    canvas.style.height = Math.max(240, rows.length * 32) + "px";
 
-    function render() {
-      var rows = flatten();
+    var options = makeOptions({});
+    options.indexAxis = "y";
+    options.plugins.legend.display = false;
+    options.plugins.tooltip.callbacks.label = function (context) {
+      return money(context.parsed.x);
+    };
+    options.scales = {
+      x: { beginAtZero: true, ticks: { color: TEXT, callback: money }, grid: { color: GRID } },
+      y: { ticks: { color: TEXT, autoSkip: false }, grid: { display: false } },
+    };
 
-      // Fixed row height so the chart reads consistently whether it's 6
-      // categories or 60 — the scrollable wrapper (set in the template)
-      // handles the rest rather than squeezing bars to fit.
-      canvas.style.height = Math.max(240, rows.length * 32) + "px";
+    var config = {
+      labels: rows.map(function (row) { return row.label; }),
+      datasets: [
+        { data: rows.map(function (row) { return row.value; }), backgroundColor: COLORS[0], borderRadius: 3 },
+      ],
+    };
 
-      var options = makeOptions({});
-      options.indexAxis = "y";
-      options.plugins.legend.display = false;
-      options.plugins.tooltip.callbacks.label = function (context) {
-        return money(context.parsed.x);
-      };
-      options.scales = {
-        x: { beginAtZero: true, ticks: { color: TEXT, callback: money }, grid: { color: GRID } },
-        y: { ticks: { color: TEXT, autoSkip: false }, grid: { display: false } },
-      };
-      options.onHover = function (event, elements) {
-        event.native.target.style.cursor = elements.length ? "pointer" : "default";
-      };
-      options.onClick = function (event, elements) {
-        if (!elements.length) return;
-
-        var row = rows[elements[0].index];
-        if (row.expandable) {
-          expanded[row.parent] = true;
-        } else if (expanded[row.parent]) {
-          delete expanded[row.parent];
-        } else {
-          return;
-        }
-
-        render();
-      };
-
-      var config = {
-        labels: rows.map(function (row) { return row.label; }),
-        datasets: [
-          { data: rows.map(function (row) { return row.value; }), backgroundColor: COLORS[0], borderRadius: 3 },
-        ],
-      };
-
-      if (chart) chart.destroy();
-      chart = new Chart(canvas, { type: "bar", data: config, options: options });
-    }
-
-    render();
-    return chart;
+    return new Chart(canvas, { type: "bar", data: config, options: options });
   }
 
   function buildBudgets(canvas, data) {
@@ -332,14 +290,42 @@
     });
   }
 
+  /**
+   * A category-breakdown chart with a "Breakout by subcategory" checkbox:
+   * rebuilds in place, expanding or collapsing every category at once
+   * (buildCategoryBreakdown's `expanded` flag), rather than being
+   * auto-built by the loop below.
+   */
+  function initBreakoutToggles() {
+    document.querySelectorAll("[data-breakout-toggle]").forEach(function (toggle) {
+      var canvas = document.querySelector(
+        'canvas[data-breakout-target="' + toggle.dataset.breakoutToggle + '"]'
+      );
+      if (!canvas) return;
+
+      var data = readData(canvas);
+      var chart = null;
+
+      function render() {
+        if (chart) chart.destroy();
+        chart = buildCategoryBreakdown(canvas, data, toggle.checked);
+      }
+
+      if (data) render();
+      toggle.addEventListener("change", render);
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("canvas[data-chart]").forEach(function (canvas) {
       if (canvas.dataset.toggle) return; // owned by initToggles() instead
+      if (canvas.dataset.breakoutTarget) return; // owned by initBreakoutToggles() instead
       var data = readData(canvas);
       var builder = BUILDERS[canvas.dataset.chart];
       if (data && builder) builder(canvas, data);
     });
 
     initToggles();
+    initBreakoutToggles();
   });
 })();

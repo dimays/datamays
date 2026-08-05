@@ -589,6 +589,23 @@ class ChartsDashboardRenderTests(AnalyticsTestCase):
         self.assertIn('id="spend-by-category-breakdown"', body)
         self.assertNotIn('data-chart="doughnut"', body)
 
+    def test_spend_by_category_section_is_titled_and_offers_a_breakout_toggle(self):
+        make_transaction(
+            self.checking,
+            posted_on=household_today(),
+            amount=Decimal("-100.00"),
+            description_raw="MARIANOS",
+            category=self.groceries,
+        )
+
+        response = self.client.get(reverse("finance:charts"))
+        body = response.content.decode()
+
+        self.assertContains(response, "Spend by category")
+        self.assertIn('data-breakout-toggle="spend-by-category-breakdown"', body)
+        self.assertIn('data-breakout-target="spend-by-category-breakdown"', body)
+        self.assertContains(response, "Breakout by subcategory")
+
     def test_charts_page_handles_no_data(self):
         response = self.client.get(reverse("finance:charts"))
 
