@@ -28,7 +28,12 @@ You will get a list of merchant descriptions and a list of allowed categories.
 Assign each merchant exactly one category slug from the list.
 
 Rules:
-- Use only slugs from the provided list. Never invent one.
+- Copy the "slug" value character-for-character from the provided category
+  list. Never construct one yourself from a category's name or from what
+  seems like a plausible pattern — a slug that isn't an exact, verbatim match
+  for one in the list is treated as invalid and discarded.
+- If nothing in the list is a good fit, use "uncategorized" exactly as given
+  rather than inventing a slug that isn't there.
 - Judge by the merchant, not the amount.
 - Prefer the most specific category that clearly fits.
 - When genuinely unsure between categories, pick the closest and lower your

@@ -130,7 +130,7 @@
       </div>
 
       <form method="post" class="mt-3 flex flex-wrap items-center gap-2"
-            x-data="{ initial: '{{ txn.category_id|default:'' }}', selected: '{{ txn.category_id|default:'' }}' }">
+            x-data="{ initial: '{{ txn.category_id|default:'' }}', selected: '{{ txn.category_id|default:'' }}', needsReview: {{ txn.needs_review|yesno:'true,false' }} }">
         {% csrf_token %}
         <input type="hidden" name="transaction" value="{{ txn.pk }}" />
         <input type="hidden" name="next" value="{{ request.get_full_path }}" />
@@ -142,7 +142,7 @@
           {% endfor %}
         </select>
 
-        <button type="submit" :disabled="selected === initial"
+        <button type="submit" :disabled="selected === initial && !needsReview"
                 class="rounded-button bg-primary px-3 py-1.5 text-xs font-medium text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary">
           Save
         </button>
