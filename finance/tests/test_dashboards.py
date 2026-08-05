@@ -792,6 +792,74 @@ class ChartsDashboardRenderTests(AnalyticsTestCase):
         self.assertNotContains(response, "debt-series")
 
 
+class LargeTransactionsSectionTests(AnalyticsTestCase):
+    """The section's own account/category filter and pagination — separate
+    from the page's shared account filter, and from every other chart."""
+
+    def setUp(self):
+        super().setUp()
+        self.sign_in()
+
+    def test_the_filter_form_offers_accounts_and_categories(self):
+        self.spend("-900.00", self.groceries, 5)
+
+        response = self.client.get(reverse("finance:charts"))
+
+        self.assertContains(response, 'name="lt_account"')
+        self.assertContains(response, 'name="lt_category"')
+        self.assertContains(response, self.checking.name)
+        self.assertContains(response, self.groceries.full_path)
+
+    def test_an_lt_category_filter_narrows_the_list_independent_of_page_filters(self):
+        self.spend("-900.00", self.groceries, 5)
+        self.spend("-800.00", self.fuel, 6)
+
+        response = self.client.get(
+            reverse("finance:charts"), {"lt_category": self.fuel.pk}
+        )
+
+        self.assertContains(response, "TXN 4-6 -800.00 transport-fuel")
+        self.assertNotContains(response, "TXN 4-5 -900.00 food-groceries")
+
+    def test_a_filter_matching_nothing_shows_an_empty_state_not_the_whole_section_hiding(self):
+        self.spend("-900.00", self.groceries, 5)
+
+        response = self.client.get(
+            reverse("finance:charts"), {"lt_category": self.fuel.pk}
+        )
+
+        self.assertContains(response, "Largest transactions")
+        self.assertContains(response, "No transactions match this filter.")
+
+    def test_pagination_moves_past_the_first_page(self):
+        for day in range(1, 15):
+            self.spend(f"-{day * 10}.00", self.groceries, day)
+
+        first_page = self.client.get(reverse("finance:charts"))
+        self.assertEqual(len(first_page.context["large_transactions"]), 10)
+        self.assertEqual(first_page.context["large_transactions_total"], 14)
+        self.assertEqual(first_page.context["large_transactions_total_pages"], 2)
+        self.assertIsNotNone(first_page.context["large_transactions_next_url"])
+
+        second_page = self.client.get(reverse("finance:charts"), {"lt_page": 2})
+        self.assertEqual(len(second_page.context["large_transactions"]), 4)
+        self.assertIsNone(second_page.context["large_transactions_next_url"])
+        self.assertIsNotNone(second_page.context["large_transactions_previous_url"])
+
+    def test_the_next_page_link_preserves_the_pages_range_and_account_filter(self):
+        for day in range(1, 15):
+            self.spend(f"-{day * 10}.00", self.groceries, day, account=self.checking)
+
+        response = self.client.get(
+            reverse("finance:charts"), {"range": "12m", "account": self.checking.pk}
+        )
+
+        next_url = response.context["large_transactions_next_url"]
+        self.assertIn("range=12m", next_url)
+        self.assertIn(f"account={self.checking.pk}", next_url)
+        self.assertIn("lt_page=2", next_url)
+
+
 class ChartHideShowTests(AnalyticsTestCase):
     def setUp(self):
         super().setUp()
@@ -966,6 +1034,40 @@ class LargestTransactionsAnalyticsTests(AnalyticsTestCase):
 
         self.assertFalse(result["has_data"])
         self.assertEqual(result["transactions"], [])
+
+    def test_a_category_filter_narrows_the_results(self):
+        self.spend("-900.00", self.groceries, 5)
+        self.spend("-800.00", self.fuel, 6)
+
+        result = analytics.largest_transactions(
+            date(2026, 4, 1), date(2026, 4, 30), category_ids=[self.fuel.pk]
+        )
+
+        self.assertEqual(len(result["transactions"]), 1)
+        self.assertEqual(result["transactions"][0].category, self.fuel)
+
+    def test_total_reflects_the_full_filtered_count_not_just_this_page(self):
+        for day in range(1, 6):
+            self.spend(f"-{day * 10}.00", self.groceries, day)
+
+        result = analytics.largest_transactions(
+            date(2026, 4, 1), date(2026, 4, 30), limit=2
+        )
+
+        self.assertEqual(len(result["transactions"]), 2)
+        self.assertEqual(result["total"], 5)
+
+    def test_offset_pages_past_the_first_batch(self):
+        # Descending by amount: -50, -40, -30, -20, -10.
+        for day in range(1, 6):
+            self.spend(f"-{day * 10}.00", self.groceries, day)
+
+        result = analytics.largest_transactions(
+            date(2026, 4, 1), date(2026, 4, 30), limit=2, offset=2
+        )
+
+        amounts = [t.amount for t in result["transactions"]]
+        self.assertEqual(amounts, [Decimal("-30.00"), Decimal("-20.00")])
 
 
 class RecurringExpensesAnalyticsTests(AnalyticsTestCase):

@@ -472,22 +472,32 @@ def spend_by_category_over_time(start, end, *, grain="monthly", account_ids=None
     }
 
 
-def largest_transactions(start, end, *, account_ids=None, limit=10):
+def largest_transactions(
+    start, end, *, account_ids=None, category_ids=None, limit=10, offset=0
+):
     """The biggest individual outflows in a window — the one-off expenses
     worth a second look, as distinct from the steady recurring ones.
 
     Only true outflows count (amount < 0): spend_transactions() also matches
     positive refunds against expense categories, which are not "big
     expenses" no matter how large the reimbursement.
+
+    total is the full filtered count, not len(transactions) — the caller
+    needs it to page past `limit` without a second, unpaginated query.
     """
+    queryset = spend_transactions(start, end, account_ids).filter(amount__lt=0)
+
+    if category_ids:
+        queryset = queryset.filter(category_id__in=category_ids)
+
+    total = queryset.count()
     transactions = list(
-        spend_transactions(start, end, account_ids)
-        .filter(amount__lt=0)
-        .select_related("account", "category")
-        .order_by("amount")[:limit]
+        queryset.select_related("account", "category").order_by("amount")[
+            offset : offset + limit
+        ]
     )
 
-    return {"transactions": transactions, "has_data": bool(transactions)}
+    return {"transactions": transactions, "has_data": bool(transactions), "total": total}
 
 
 def recurring_expenses_over_time(
