@@ -26,7 +26,7 @@ from finance.models import (
 from finance.services.rollups import backfill_budget
 from finance.services.widgets import WIDGET_CHOICES
 
-from .factories import make_account, make_institution
+from .factories import make_account, make_institution, make_transaction
 from .test_access import make_user
 
 
@@ -83,6 +83,54 @@ class ActivityFilterFormTests(TestCase):
             {"account": "", "category": "", "budget": "", "start": "", "end": "", "q": ""},
         )
         self.assertEqual(response.status_code, 200)
+
+
+class ReviewQueueSaveButtonTests(TestCase):
+    """The Save button on each Activity row shouldn't invite a pointless
+    click when nothing has changed."""
+
+    def setUp(self):
+        call_command("seed_finance_categories", verbosity=0)
+        login(self.client)
+
+        self.institution = make_institution()
+        self.checking = make_account(self.institution, name="Checking")
+        self.groceries = Category.objects.get(slug="food-groceries")
+
+    def test_the_button_starts_disabled_for_an_already_categorized_row(self):
+        make_transaction(
+            self.checking,
+            description_raw="MARIANOS",
+            category=self.groceries,
+            needs_review=False,
+        )
+
+        response = self.client.get(reverse("finance:transactions"))
+        body = response.content.decode()
+
+        # Alpine's initial state mirrors the saved category, so the disabled
+        # expression evaluates true (nothing changed) until the person
+        # actually picks something else.
+        self.assertIn(
+            f"initial: '{self.groceries.pk}', selected: '{self.groceries.pk}'", body
+        )
+        self.assertIn(':disabled="selected === initial"', body)
+
+    def test_picking_a_different_category_is_the_only_way_to_enable_it(self):
+        # No "always"/create-a-rule shortcut folded into this save anymore —
+        # rules are created from Settings > Category rules instead, where the
+        # full pattern-matching system is actually visible.
+        make_transaction(
+            self.checking,
+            description_raw="MARIANOS",
+            category=self.groceries,
+            needs_review=True,
+        )
+
+        response = self.client.get(reverse("finance:transactions"))
+
+        self.assertNotContains(response, 'name="create_rule"')
+        self.assertNotContains(response, ">always<")
 
 
 class InstitutionManagementTests(TestCase):
