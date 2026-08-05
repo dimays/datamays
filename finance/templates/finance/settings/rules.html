@@ -1,10 +1,19 @@
 {% extends "finance/base_finance.html" %}
 
 {% block finance_content %}
-<h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Category rules</h1>
+<div class="flex flex-wrap items-center justify-between gap-3">
+  <h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Category rules</h1>
+  <a href="{% url 'finance:rule_create' %}"
+     class="rounded-button bg-primary px-3.5 py-2 text-xs font-medium text-white transition hover:bg-primary-600">
+    Add rule
+  </a>
+</div>
 <p class="mt-2 max-w-2xl text-text-secondary">
-  Rules run before the classifier and always win. Add them from the review queue
-  by ticking “always” when you confirm a category.
+  Rules run before the classifier and always win. Ticking “always” when you
+  confirm a category in the review queue creates a simple "contains" rule on
+  the merchant name — for anything more specific (an exact match, a starting
+  fragment, a regular expression, or one scoped to an account or amount
+  range), add it here directly.
 </p>
 
 {% include "finance/partials/messages.html" %}
