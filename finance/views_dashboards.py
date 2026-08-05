@@ -288,6 +288,9 @@ class ChartsView(FinanceView):
             start, end, grain=grain, account_ids=account_ids
         )
         by_category = analytics.spend_by_category(start, end, account_ids=account_ids)
+        by_category_breakdown = analytics.spend_by_category_breakdown(
+            start, end, account_ids=account_ids
+        )
         by_category_over_time = analytics.spend_by_category_over_time(
             start, end, grain=grain, account_ids=account_ids
         )
@@ -320,6 +323,7 @@ class ChartsView(FinanceView):
         return {
             "spend_over_time_json": over_time,
             "spend_by_category_json": by_category,
+            "spend_by_category_breakdown_json": by_category_breakdown,
             "spend_by_category_over_time_json": by_category_over_time,
             "spend_total": by_category["total"],
             "budgets": budgets,

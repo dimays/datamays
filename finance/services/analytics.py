@@ -237,6 +237,74 @@ def spend_by_category(start, end, *, account_ids=None, limit=10):
     }
 
 
+def spend_by_category_breakdown(start, end, *, account_ids=None):
+    """Spend per top-level category, each carrying its own ranked
+    subcategory breakdown — for a bar chart row that can expand from one
+    category-level bar into one bar per subcategory without disturbing
+    where the other, still-collapsed categories rank.
+
+    Unlike spend_by_category(), nothing is capped into an "Everything else"
+    bucket: every category gets its own row, since the chart this feeds is
+    meant to be scrolled through rather than skimmed as a top-N list.
+    """
+    rows = (
+        spend_transactions(start, end, account_ids)
+        .values(
+            "category__id",
+            "category__name",
+            "category__parent__name",
+        )
+        .annotate(total=Sum("amount"))
+    )
+
+    groups = OrderedDict()
+
+    for row in rows:
+        amount = -row["total"]
+        parent_name = row["category__parent__name"]
+        leaf_name = row["category__name"] or "Not yet categorized"
+        group_name = parent_name or leaf_name
+
+        group = groups.setdefault(group_name, {"total": Decimal("0"), "children": {}})
+        group["total"] += amount
+
+        # A category with no parent has no subcategory to attribute this
+        # amount to beneath it — it's already the whole story on one row.
+        if parent_name:
+            group["children"][leaf_name] = (
+                group["children"].get(leaf_name, Decimal("0")) + amount
+            )
+
+    # Floored per row, after rollup, for the same reason spend_by_category
+    # floors each of its own groups: a category refunded more than it spent
+    # in the window would otherwise net negative and read as "making money."
+    for group in groups.values():
+        group["total"] = max(Decimal("0"), group["total"])
+        for child_name, child_total in group["children"].items():
+            group["children"][child_name] = max(Decimal("0"), child_total)
+
+    ranked = sorted(groups.items(), key=lambda item: item[1]["total"], reverse=True)
+
+    categories = [
+        {
+            "name": name,
+            "total": float(group["total"]),
+            "subcategories": [
+                {"name": child_name, "total": float(child_total)}
+                for child_name, child_total in sorted(
+                    group["children"].items(), key=lambda item: item[1], reverse=True
+                )
+            ],
+        }
+        for name, group in ranked
+    ]
+
+    return {
+        "categories": categories,
+        "total": float(sum(group["total"] for _, group in ranked)),
+    }
+
+
 def budget_attainment_over_time(budget, periods=12):
     """Actual versus target for a budget's recent periods, oldest first."""
     rows = list(budget.budget_periods.order_by("-period_start")[:periods])
