@@ -126,6 +126,27 @@ already-negative rather than as a positive amount owed. Untick
 *"Most institutions report a debt as a positive amount owed"* on that account
 in **Settings → Accounts**. Don't edit data to compensate.
 
+**The Charts tab and the homepage disagree about a balance.** These read from
+two different places, on purpose: charts are built from
+`AccountBalanceSnapshot` (the history), while the homepage, the account list
+and net worth read `Account.current_balance` (a cache of the newest reading,
+so a page load isn't a query per account).
+
+Every path that writes a balance keeps both in step. If they have drifted
+anyway, re-point the cache at the newest snapshot:
+
+```bash
+heroku run python manage.py refresh_account_balances --app datamays
+```
+
+That prints what it would change and writes nothing. Add `--apply` to commit
+it, `--account <id>` to limit it to one, and `--only-empty` to fill gaps
+without ever overriding a figure some other path deliberately set.
+
+This is a repair tool, not a scheduled job — reach for it when something has
+already gone wrong, not routinely. If it finds drift on an account that is
+syncing normally, that is worth understanding rather than just repairing.
+
 **Transactions aren't categorized.** Check `OPENAI_API_KEY` is set. Without it
 everything still runs — rules and remembered merchants apply — and the rest
 queues in **Activity → needs review**. To re-run:

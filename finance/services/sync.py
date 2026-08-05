@@ -228,9 +228,22 @@ def upsert_account(connection: AccountConnection, payload) -> Account:
     account.save()
 
     if balance is not None:
+        # Dated today, not at the provider's own balance_as_of.
+        #
+        # A provider balance is the current balance until the provider says
+        # otherwise — an institution that last updated three days ago is still
+        # telling us what the account holds right now. Dating the snapshot by
+        # the provider's timestamp made the newest snapshot older than the
+        # value cached on the account, so a manual reading entered today
+        # outranked a sync that ran afterwards: the Charts tab showed the
+        # manual figure while the homepage showed the provider's.
+        #
+        # Today's date keeps "newest snapshot" and Account.current_balance in
+        # agreement, which is what makes a sync overwrite a manual entry
+        # immediately rather than at the next daily snapshot_balances run.
         record_balance_snapshot(
             account,
-            as_of=payload.balance_as_of or household_today(),
+            as_of=household_today(),
             current=balance,
             available=account.available_balance,
         )
