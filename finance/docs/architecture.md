@@ -38,8 +38,10 @@ Views live in a `views/` package, one module per screen area, re-exported
 from `views/__init__.py` — check `finance/urls.py` for the full map from URL
 to view. `views/base.py` holds the three things every view shares: the access
 gate, `PageTitleMixin` (set `page_title`, or override `get_page_title()` when
-it depends on the object), and `PersonalObjectMixin` for the alert and report
-views, which must only ever see the signed-in person's own rows.
+it depends on the object), and the personal-object mixins for the alert and
+report views, which must only ever see the signed-in person's own rows —
+`PersonalQuerysetMixin` to scope, `PersonalObjectMixin` to also stamp the
+owner on create.
 
 Forms live in `forms/`, not alongside the views that render them.
 `forms/base.py`'s `StyledFormMixin` applies the app's field styling by widget

@@ -79,10 +79,16 @@ Set `page_title` as a class attribute, or override `get_page_title()` when it
 depends on the object. Do not write a `get_context_data` override whose whole
 body is setting one string — `PageTitleMixin` handles it.
 
-For anything personal to one household member (alerts, scheduled reports),
-use `PersonalObjectMixin`. It covers both halves of the invariant — the
-queryset filter *and* the `form.instance.user` assignment — so a new personal
-view cannot ship with only one of them.
+For anything personal to one household member (alerts, scheduled reports):
+
+- `PersonalQuerysetMixin` scopes the queryset. **Every** personal view needs
+  it, including deletes.
+- `PersonalObjectMixin` adds the owner stamp on create. Only for views that
+  write a new row.
+
+They are separate because a `DeleteView` is confirmed with a plain `Form`
+that has no `.instance` — a single mixin doing both turned every alert
+delete into a 500, and no test noticed until one was written.
 
 ## Queries
 

@@ -99,8 +99,9 @@ cascade table in [`data-model.md`](data-model.md).
 | `reports/new/` | `ReportCreateView` | `alerts/report_form.html` |
 | `reports/<pk>/` | `ReportUpdateView` | `alerts/report_form.html` |
 
-Every one of these uses `PersonalObjectMixin`. Neither person ever sees the
-other's thresholds.
+Every one of these is scoped by `PersonalQuerysetMixin`; the create and
+update views add `PersonalObjectMixin` to stamp the owner. Neither person
+ever sees the other's thresholds.
 
 ## Auth and help
 
