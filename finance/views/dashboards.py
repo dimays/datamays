@@ -26,16 +26,16 @@ from urllib.parse import urlencode
 from django.shortcuts import redirect
 from django.urls import reverse
 
-from .chart_sections import CHART_SECTION_CHOICES
-from .dates import household_today
-from .models import (
+from ..chart_sections import CHART_SECTION_CHOICES
+from ..dates import household_today
+from ..models import (
     Account,
     Budget,
     Category,
     UserPreference,
 )
-from .services import analytics
-from .views import FinanceView
+from ..services import analytics
+from .base import FinanceView
 
 
 def _transactions_url(**params):

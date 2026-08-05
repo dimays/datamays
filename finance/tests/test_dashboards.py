@@ -23,7 +23,7 @@ from finance.models import (
     PaycheckDeduction,
 )
 from finance.services import analytics
-from finance.views_dashboards import RANGE_CHOICES
+from finance.views.dashboards import RANGE_CHOICES
 
 from .factories import make_account, make_institution, make_transaction
 from .test_access import make_user

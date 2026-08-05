@@ -10,9 +10,9 @@ from django.contrib import messages
 from django.shortcuts import redirect
 from django.views.generic import DetailView, FormView, ListView, TemplateView
 
-from .access import FinanceAccessMixin
-from .forms import UploadForm
-from .models import (
+from .base import FinancePageMixin
+from ..forms import UploadForm
+from ..models import (
     AmountConvention,
     ImportBatch,
     ImportMapping,
@@ -20,7 +20,7 @@ from .models import (
     RecordType,
     RowStatus,
 )
-from .services.importer import ImportError_, commit_batch, parse_batch, stage_upload
+from ..services.importer import ImportError_, commit_batch, parse_batch, stage_upload
 
 # Target fields per record type, and whether the import can proceed without them.
 REQUIRED_FIELDS = {
@@ -87,7 +87,7 @@ RECORD_TYPE_GRAIN = {
         "map whichever ones this employer actually itemizes on the stub."
     ),
 }
-class ImportListView(FinanceAccessMixin, ListView):
+class ImportListView(FinancePageMixin, ListView):
     template_name = "finance/imports/list.html"
     context_object_name = "batches"
     paginate_by = 20
@@ -95,13 +95,10 @@ class ImportListView(FinanceAccessMixin, ListView):
     def get_queryset(self):
         return ImportBatch.objects.select_related("institution", "account")
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Imports"
-        return context
+    page_title = "Imports"
 
 
-class ImportSchemaView(FinanceAccessMixin, TemplateView):
+class ImportSchemaView(FinancePageMixin, TemplateView):
     """Read-only reference: what a file needs to look like per record type.
 
     Not an editable schema — the three record types are parsed by fixed logic
@@ -113,11 +110,10 @@ class ImportSchemaView(FinanceAccessMixin, TemplateView):
     """
 
     template_name = "finance/imports/schemas.html"
+    page_title = "Import schemas"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = "Import schemas"
-
         context["record_types"] = [
             {
                 "slug": record_type,
@@ -138,14 +134,11 @@ class ImportSchemaView(FinanceAccessMixin, TemplateView):
         return context
 
 
-class ImportUploadView(FinanceAccessMixin, FormView):
+class ImportUploadView(FinancePageMixin, FormView):
     template_name = "finance/imports/upload.html"
     form_class = UploadForm
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Import a file"
-        return context
+    page_title = "Import a file"
 
     def form_valid(self, form):
         upload = form.cleaned_data["csv_file"]
@@ -168,19 +161,19 @@ class ImportUploadView(FinanceAccessMixin, FormView):
         return redirect("finance:import_map", pk=batch.pk)
 
 
-class ImportMapView(FinanceAccessMixin, DetailView):
+class ImportMapView(FinancePageMixin, DetailView):
     """Confirm which column means what, pre-filled with the detected guess."""
 
     template_name = "finance/imports/map.html"
     model = ImportBatch
     context_object_name = "batch"
+    page_title = "Confirm columns"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         batch = self.object
         suggested = (batch.suggested_map or {}).get("columns", {})
 
-        context["page_title"] = "Confirm columns"
         context["fields"] = [
             {
                 "key": key,
@@ -269,7 +262,7 @@ class ImportMapView(FinanceAccessMixin, DetailView):
         messages.success(request, f"Saved '{mapping.name}' for next time.")
 
 
-class ImportPreviewView(FinanceAccessMixin, DetailView):
+class ImportPreviewView(FinancePageMixin, DetailView):
     """Show what would be written, before anything is."""
 
     template_name = "finance/imports/preview.html"
@@ -278,7 +271,6 @@ class ImportPreviewView(FinanceAccessMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = "Review import"
         context["rows"] = self.object.rows.all()[:100]
         context["problem_rows"] = self.object.rows.filter(status=RowStatus.ERROR)[:25]
         return context

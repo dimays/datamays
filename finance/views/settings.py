@@ -17,10 +17,9 @@ from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views.generic import CreateView, FormView, ListView, TemplateView, UpdateView
 
-from .access import FinanceAccessMixin
-from .categories_seed import UNCATEGORIZED_SLUG
-from .dates import household_today
-from .forms import (
+from ..categories_seed import UNCATEGORIZED_SLUG
+from ..dates import household_today
+from ..forms import (
     AccountForm,
     BalanceUpdateForm,
     CategoryForm,
@@ -30,7 +29,7 @@ from .forms import (
     PreferencesForm,
     RuleForm,
 )
-from .models import (
+from ..models import (
     Account,
     AccountConnection,
     BalanceSource,
@@ -47,11 +46,11 @@ from .models import (
     Transaction,
     UserPreference,
 )
-from .providers.base import ProviderError
-from .providers.simplefin import claim_access_url
-from .services.categorize import categorize_transactions
-from .services.sync import record_balance_snapshot, sync_connection
-from .views import FinanceView
+from ..providers.base import ProviderError
+from ..providers.simplefin import claim_access_url
+from ..services.categorize import categorize_transactions
+from ..services.sync import record_balance_snapshot, sync_connection
+from .base import FinancePageMixin, FinanceView
 
 
 class SettingsHomeView(FinanceView):
@@ -96,28 +95,22 @@ class SettingsHomeView(FinanceView):
         return redirect("finance:settings")
 
 
-class InstitutionListView(FinanceAccessMixin, ListView):
+class InstitutionListView(FinancePageMixin, ListView):
     template_name = "finance/settings/institutions.html"
     context_object_name = "institutions"
 
     def get_queryset(self):
         return Institution.objects.prefetch_related("accounts", "connections")
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Institutions"
-        return context
+    page_title = "Institutions"
 
 
-class InstitutionCreateView(FinanceAccessMixin, CreateView):
+class InstitutionCreateView(FinancePageMixin, CreateView):
     template_name = "finance/settings/institution_form.html"
     form_class = InstitutionForm
     success_url = reverse_lazy("finance:institutions")
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "New institution"
-        return context
+    page_title = "New institution"
 
     def form_valid(self, form):
         response = super().form_valid(form)
@@ -125,16 +118,14 @@ class InstitutionCreateView(FinanceAccessMixin, CreateView):
         return response
 
 
-class InstitutionUpdateView(FinanceAccessMixin, UpdateView):
+class InstitutionUpdateView(FinancePageMixin, UpdateView):
     template_name = "finance/settings/institution_form.html"
     form_class = InstitutionForm
     model = Institution
     success_url = reverse_lazy("finance:institutions")
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Edit {self.object.name}"
-        return context
+    def get_page_title(self):
+        return f"Edit {self.object.name}"
 
     def form_valid(self, form):
         response = super().form_valid(form)
@@ -142,16 +133,13 @@ class InstitutionUpdateView(FinanceAccessMixin, UpdateView):
         return response
 
 
-class ConnectionCreateView(FinanceAccessMixin, FormView):
+class ConnectionCreateView(FinancePageMixin, FormView):
     """Authenticate, exchange the token, then test by syncing immediately."""
 
     template_name = "finance/settings/connection_form.html"
     form_class = ConnectionForm
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Connect an institution"
-        return context
+    page_title = "Connect an institution"
 
     def form_valid(self, form):
         try:
@@ -191,7 +179,7 @@ class ConnectionCreateView(FinanceAccessMixin, FormView):
         return redirect("finance:settings")
 
 
-class ConnectionDetailView(FinanceAccessMixin, TemplateView):
+class ConnectionDetailView(FinancePageMixin, TemplateView):
     template_name = "finance/settings/connection_detail.html"
 
     def get_connection(self, *, with_secret=False):
@@ -254,30 +242,29 @@ class ConnectionDetailView(FinanceAccessMixin, TemplateView):
         return redirect("finance:connection_detail", pk=connection.pk)
 
 
-class AccountCreateView(FinanceAccessMixin, CreateView):
+class AccountCreateView(FinancePageMixin, CreateView):
     template_name = "finance/settings/account_form.html"
     form_class = ManualAccountForm
     success_url = reverse_lazy("finance:settings")
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "New manual account"
-        return context
+    page_title = "New manual account"
 
     def form_valid(self, form):
         messages.success(self.request, f"Added {form.instance.name}.")
         return super().form_valid(form)
 
 
-class AccountUpdateView(FinanceAccessMixin, UpdateView):
+class AccountUpdateView(FinancePageMixin, UpdateView):
     template_name = "finance/settings/account_form.html"
     form_class = AccountForm
     model = Account
     success_url = reverse_lazy("finance:settings")
 
+    def get_page_title(self):
+        return f"Edit {self.object.name}"
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Edit {self.object.name}"
         context.setdefault(
             "balance_form",
             BalanceUpdateForm(initial={"as_of": household_today()}),
@@ -349,17 +336,14 @@ class AccountUpdateView(FinanceAccessMixin, UpdateView):
         return redirect(self.get_success_url())
 
 
-class RuleListView(FinanceAccessMixin, ListView):
+class RuleListView(FinancePageMixin, ListView):
     template_name = "finance/settings/rules.html"
     context_object_name = "rules"
 
     def get_queryset(self):
         return CategoryRule.objects.select_related("category", "account")
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Category rules"
-        return context
+    page_title = "Category rules"
 
     def post(self, request, *args, **kwargs):
         rule = get_object_or_404(CategoryRule, pk=request.POST.get("rule"))
@@ -374,15 +358,12 @@ class RuleListView(FinanceAccessMixin, ListView):
         return redirect("finance:rules")
 
 
-class RuleCreateView(FinanceAccessMixin, CreateView):
+class RuleCreateView(FinancePageMixin, CreateView):
     template_name = "finance/settings/rule_form.html"
     form_class = RuleForm
     success_url = reverse_lazy("finance:rules")
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "New category rule"
-        return context
+    page_title = "New category rule"
 
     def form_valid(self, form):
         rule = form.instance
@@ -394,7 +375,7 @@ class RuleCreateView(FinanceAccessMixin, CreateView):
         return super().form_valid(form)
 
 
-class CategoryListView(FinanceAccessMixin, ListView):
+class CategoryListView(FinancePageMixin, ListView):
     template_name = "finance/settings/categories.html"
     context_object_name = "categories"
 
@@ -405,10 +386,7 @@ class CategoryListView(FinanceAccessMixin, ListView):
             .alphabetical()
         )
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Categories"
-        return context
+    page_title = "Categories"
 
     def post(self, request, *args, **kwargs):
         category = get_object_or_404(Category, pk=request.POST.get("category"))
@@ -427,15 +405,12 @@ class CategoryListView(FinanceAccessMixin, ListView):
         return redirect("finance:categories")
 
 
-class CategoryCreateView(FinanceAccessMixin, CreateView):
+class CategoryCreateView(FinancePageMixin, CreateView):
     template_name = "finance/settings/category_form.html"
     form_class = CategoryForm
     success_url = reverse_lazy("finance:categories")
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "New category"
-        return context
+    page_title = "New category"
 
     def form_valid(self, form):
         response = super().form_valid(form)
@@ -443,16 +418,14 @@ class CategoryCreateView(FinanceAccessMixin, CreateView):
         return response
 
 
-class CategoryUpdateView(FinanceAccessMixin, UpdateView):
+class CategoryUpdateView(FinancePageMixin, UpdateView):
     template_name = "finance/settings/category_form.html"
     form_class = CategoryForm
     model = Category
     success_url = reverse_lazy("finance:categories")
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Edit {self.object.full_path}"
-        return context
+    def get_page_title(self):
+        return f"Edit {self.object.full_path}"
 
     def form_valid(self, form):
         response = super().form_valid(form)
@@ -460,7 +433,7 @@ class CategoryUpdateView(FinanceAccessMixin, UpdateView):
         return response
 
 
-class CategoryDeleteView(FinanceAccessMixin, TemplateView):
+class CategoryDeleteView(FinancePageMixin, TemplateView):
     """Deleting a category cascades to its CategoryRules and
     MerchantCategoryMemos (both FK on_delete=CASCADE), and would otherwise
     silently null out every transaction currently filed under it
@@ -549,7 +522,7 @@ class CategoryDeleteView(FinanceAccessMixin, TemplateView):
         return redirect("finance:categories")
 
 
-class PreferencesView(FinanceAccessMixin, UpdateView):
+class PreferencesView(FinancePageMixin, UpdateView):
     template_name = "finance/settings/preferences.html"
     form_class = PreferencesForm
     success_url = reverse_lazy("finance:preferences")
@@ -558,10 +531,7 @@ class PreferencesView(FinanceAccessMixin, UpdateView):
         # Personal, always — never another person's row, whatever is in the URL.
         return UserPreference.for_user(self.request.user)
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Preferences"
-        return context
+    page_title = "Preferences"
 
     def form_valid(self, form):
         messages.success(self.request, "Preferences saved.")

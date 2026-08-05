@@ -9,16 +9,17 @@ from django.contrib import messages
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
-from .access import FinanceAccessMixin
-from .dates import household_today
-from .forms import BudgetForm
-from .models import Budget
-from .services.rollups import backfill_budget, roll_up_budget
+from .base import FinancePageMixin
+from ..dates import household_today
+from ..forms import BudgetForm
+from ..models import Budget
+from ..services.rollups import backfill_budget, roll_up_budget
 
 
-class BudgetListView(FinanceAccessMixin, ListView):
+class BudgetListView(FinancePageMixin, ListView):
     template_name = "finance/budgets/list.html"
     context_object_name = "budgets"
+    page_title = "Budgets"
 
     def get_queryset(self):
         return Budget.objects.prefetch_related("categories", "accounts")
@@ -42,20 +43,16 @@ class BudgetListView(FinanceAccessMixin, ListView):
                 }
             )
 
-        context["page_title"] = "Budgets"
         context["rows"] = rows
         return context
 
 
-class BudgetCreateView(FinanceAccessMixin, CreateView):
+class BudgetCreateView(FinancePageMixin, CreateView):
     template_name = "finance/budgets/form.html"
     form_class = BudgetForm
     success_url = reverse_lazy("finance:budgets")
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "New budget"
-        return context
+    page_title = "New budget"
 
     def form_valid(self, form):
         response = super().form_valid(form)
@@ -68,16 +65,13 @@ class BudgetCreateView(FinanceAccessMixin, CreateView):
         return response
 
 
-class BudgetUpdateView(FinanceAccessMixin, UpdateView):
+class BudgetUpdateView(FinancePageMixin, UpdateView):
     template_name = "finance/budgets/form.html"
     form_class = BudgetForm
     model = Budget
     success_url = reverse_lazy("finance:budgets")
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Edit budget"
-        return context
+    page_title = "Edit budget"
 
     def form_valid(self, form):
         response = super().form_valid(form)
@@ -90,16 +84,13 @@ class BudgetUpdateView(FinanceAccessMixin, UpdateView):
         return response
 
 
-class BudgetDeleteView(FinanceAccessMixin, DeleteView):
+class BudgetDeleteView(FinancePageMixin, DeleteView):
     template_name = "finance/budgets/confirm_delete.html"
     model = Budget
     success_url = reverse_lazy("finance:budgets")
     context_object_name = "budget"
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Delete budget"
-        return context
+    page_title = "Delete budget"
 
     def form_valid(self, form):
         messages.info(self.request, f"Deleted “{self.object.name}”.")

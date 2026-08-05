@@ -2,7 +2,8 @@
 
 Both are personal — each person gets their own alerts at their own thresholds,
 delivered to their own address — so every queryset is scoped to the signed-in
-user rather than to the household.
+user rather than to the household. `PersonalObjectMixin` is what enforces
+that; see its docstring in base.py.
 """
 
 from django.contrib import messages
@@ -10,99 +11,74 @@ from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
-from .access import FinanceAccessMixin
-from .forms import AlertForm, ReportForm
-from .models import Alert, ScheduledReport
-from .services.reports import send_report
+from ..forms import AlertForm, ReportForm
+from ..models import Alert, ScheduledReport
+from ..services.reports import send_report
+from .base import FinancePageMixin, PersonalObjectMixin
 
 
-class AlertListView(FinanceAccessMixin, ListView):
+class AlertListView(PersonalObjectMixin, FinancePageMixin, ListView):
     template_name = "finance/alerts/list.html"
     context_object_name = "alerts"
+    model = Alert
+    page_title = "Alerts & reports"
 
     def get_queryset(self):
-        # Personal: never surface the other person's thresholds.
-        return Alert.objects.filter(user=self.request.user).select_related(
-            "account", "budget"
-        )
+        return super().get_queryset().select_related("account", "budget")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = "Alerts & reports"
+        # Personal, same as the alerts above — the page shows both.
         context["reports"] = ScheduledReport.objects.filter(user=self.request.user)
         return context
 
 
-class AlertCreateView(FinanceAccessMixin, CreateView):
+class AlertCreateView(PersonalObjectMixin, FinancePageMixin, CreateView):
     template_name = "finance/alerts/form.html"
     form_class = AlertForm
+    model = Alert
     success_url = reverse_lazy("finance:alerts")
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "New alert"
-        return context
+    page_title = "New alert"
 
     def form_valid(self, form):
-        form.instance.user = self.request.user
         messages.success(self.request, f"Created “{form.instance.name}”.")
         return super().form_valid(form)
 
 
-class AlertUpdateView(FinanceAccessMixin, UpdateView):
+class AlertUpdateView(PersonalObjectMixin, FinancePageMixin, UpdateView):
     template_name = "finance/alerts/form.html"
     form_class = AlertForm
+    model = Alert
     success_url = reverse_lazy("finance:alerts")
-
-    def get_queryset(self):
-        return Alert.objects.filter(user=self.request.user)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Edit alert"
-        return context
+    page_title = "Edit alert"
 
 
-class AlertDeleteView(FinanceAccessMixin, DeleteView):
+class AlertDeleteView(PersonalObjectMixin, FinancePageMixin, DeleteView):
     template_name = "finance/alerts/confirm_delete.html"
+    model = Alert
     success_url = reverse_lazy("finance:alerts")
     context_object_name = "alert"
+    page_title = "Delete alert"
 
-    def get_queryset(self):
-        return Alert.objects.filter(user=self.request.user)
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Delete alert"
-        return context
-class ReportCreateView(FinanceAccessMixin, CreateView):
+class ReportCreateView(PersonalObjectMixin, FinancePageMixin, CreateView):
     template_name = "finance/alerts/report_form.html"
     form_class = ReportForm
+    model = ScheduledReport
     success_url = reverse_lazy("finance:alerts")
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "New report"
-        return context
+    page_title = "New report"
 
     def form_valid(self, form):
-        form.instance.user = self.request.user
         messages.success(self.request, f"Created “{form.instance.name}”.")
         return super().form_valid(form)
 
 
-class ReportUpdateView(FinanceAccessMixin, UpdateView):
+class ReportUpdateView(PersonalObjectMixin, FinancePageMixin, UpdateView):
     template_name = "finance/alerts/report_form.html"
     form_class = ReportForm
+    model = ScheduledReport
     success_url = reverse_lazy("finance:alerts")
-
-    def get_queryset(self):
-        return ScheduledReport.objects.filter(user=self.request.user)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Edit report"
-        return context
+    page_title = "Edit report"
 
     def post(self, request, *args, **kwargs):
         if request.POST.get("action") == "send_test":

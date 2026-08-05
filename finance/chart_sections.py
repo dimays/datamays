@@ -3,7 +3,7 @@
 Both the Charts page and the Preferences page need to know what sections
 exist, what to call them, and what order they come in. Keeping the list here
 rather than in either view means neither has to import the other — Preferences
-used to reach into `views_dashboards` for it, which had forms depending on
+used to reach into the dashboards view module for it, which had forms depending on
 views for no reason other than where the constant happened to live.
 
 Each slug maps to a template partial at
