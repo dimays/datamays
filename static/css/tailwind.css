@@ -1847,6 +1847,10 @@ video {
   background-color: rgb(255 255 255 / var(--tw-bg-opacity, 1));
 }
 
+.p-1 {
+  padding: 0.25rem;
+}
+
 .p-10 {
   padding: 2.5rem;
 }
@@ -2230,6 +2234,10 @@ video {
 
 .duration-200 {
   transition-duration: 200ms;
+}
+
+.\[dropdown_start\:dropdown_end\] {
+  dropdown_start: dropdown end;
 }
 
 /* Keeps Alpine-controlled elements hidden until Alpine initialises them,
