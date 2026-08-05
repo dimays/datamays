@@ -33,7 +33,7 @@ from ..models import (
     Transaction,
 )
 from .classifier import get_classifier
-from .merchants import normalise_merchant
+from .merchants import normalize_merchant
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +67,16 @@ def find_transfer_pairs(transactions=None):
 
     paired = 0
 
+    # Looked up once, not per matched pair. Only two categories are ever
+    # assigned here, and this loop runs over every uncategorized outflow on
+    # the hourly chain.
+    transfer_categories = {
+        category.slug: category
+        for category in Category.objects.filter(
+            slug__in=[TRANSFER_SLUG, CARD_PAYMENT_SLUG]
+        )
+    }
+
     for candidate in queryset.filter(amount__lt=0).select_related("account"):
         if candidate.transfer_pair_id or candidate.is_transfer:
             continue
@@ -96,7 +106,7 @@ def find_transfer_pairs(transactions=None):
             if match.account.account_type in LIABILITY_TYPES
             else TRANSFER_SLUG
         )
-        category = Category.objects.filter(slug=slug).first()
+        category = transfer_categories.get(slug)
 
         for leg, other in ((candidate, match), (match, candidate)):
             leg.is_transfer = True
@@ -201,7 +211,7 @@ def categorize_transactions(queryset=None, *, classifier=None, detect_transfers=
             summary.by_rule += 1
             continue
 
-        merchant_key = normalise_merchant(txn.description_raw)
+        merchant_key = normalize_merchant(txn.description_raw)
 
         if merchant_key and merchant_key in memos:
             memo = memos[merchant_key]
@@ -291,7 +301,7 @@ def _assign(txn, category, source, confidence, needs_review=False):
     txn.category_source = source
     txn.category_confidence = confidence
     txn.needs_review = needs_review
-    txn.merchant = txn.merchant or normalise_merchant(txn.description_raw)[:160]
+    txn.merchant = txn.merchant or normalize_merchant(txn.description_raw)[:160]
     txn.save(
         update_fields=[
             "category", "category_source", "category_confidence",
@@ -330,6 +340,6 @@ def confirm_category(transaction, category, user=None, *, remember=True):
     )
 
     if remember:
-        remember_merchant(normalise_merchant(transaction.description_raw), category, user)
+        remember_merchant(normalize_merchant(transaction.description_raw), category, user)
 
     return transaction

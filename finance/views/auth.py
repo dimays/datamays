@@ -12,9 +12,10 @@ from django.views.generic import FormView
 from django_otp import login as otp_login
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
-from .access import HouseholdMemberMixin
-from .redirects import safe_next
-from .forms import FinanceLoginForm, OTPTokenForm
+from ..access import HouseholdMemberMixin
+from ..forms import FinanceLoginForm, OTPTokenForm
+from ..redirects import safe_next
+from .base import PageTitleMixin
 
 
 def _qr_svg(uri: str) -> str:
@@ -40,11 +41,12 @@ class FinanceLogoutView(LogoutView):
     next_page = reverse_lazy("core:home")
 
 
-class OTPSetupView(HouseholdMemberMixin, FormView):
+class OTPSetupView(PageTitleMixin, HouseholdMemberMixin, FormView):
     """One-time enrolment of an authenticator app."""
 
     template_name = "finance/otp_setup.html"
     form_class = OTPTokenForm
+    page_title = "Set up two-factor"
 
     def dispatch(self, request, *args, **kwargs):
         if TOTPDevice.objects.filter(user=request.user, confirmed=True).exists():
@@ -69,7 +71,6 @@ class OTPSetupView(HouseholdMemberMixin, FormView):
         context["qr_svg"] = _qr_svg(device.config_url)
         # Shown so a device that cannot scan can still be enrolled by hand.
         context["secret"] = device.key
-        context["page_title"] = "Set up two-factor"
 
         return context
 
@@ -93,11 +94,12 @@ class OTPSetupView(HouseholdMemberMixin, FormView):
         return redirect("finance:home")
 
 
-class OTPVerifyView(HouseholdMemberMixin, FormView):
+class OTPVerifyView(PageTitleMixin, HouseholdMemberMixin, FormView):
     """Second-factor challenge for a session that has only a password."""
 
     template_name = "finance/otp_verify.html"
     form_class = OTPTokenForm
+    page_title = "Two-factor"
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated and request.user.is_verified():
@@ -112,11 +114,6 @@ class OTPVerifyView(HouseholdMemberMixin, FormView):
 
     def dispatch_no_device(self):
         return redirect("finance:otp_setup")
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Two-factor"
-        return context
 
     def form_valid(self, form):
         device = self.get_device()

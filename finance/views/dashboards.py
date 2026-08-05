@@ -1,5 +1,5 @@
 """Charts: every chart the household uses to understand its money, in one
-customisable page.
+customizable page.
 
 One view resolves a date range, resolution, and account filter from the query
 string, falling back to the person's saved dashboard filters, then hands
@@ -26,15 +26,16 @@ from urllib.parse import urlencode
 from django.shortcuts import redirect
 from django.urls import reverse
 
-from .dates import household_today
-from .models import (
+from ..chart_sections import CHART_SECTIONS, CHART_SECTIONS_BY_SLUG
+from ..dates import household_today
+from ..models import (
     Account,
     Budget,
     Category,
     UserPreference,
 )
-from .services import analytics
-from .views import FinanceView
+from ..services import analytics
+from .base import FinanceView
 
 
 def _transactions_url(**params):
@@ -73,24 +74,6 @@ GRAIN_MIN_RANGE_DAYS = {
     "quarterly": 182,
     "annually": 365,
 }
-
-# Charts tab sections a person can choose to show, hide, and reorder, from
-# Preferences or from the Hide chart / Hidden charts controls on the Charts
-# tab itself — both write to the same UserPreference.chart_sections, so the
-# two are always in sync. Each slug maps to a template partial at
-# finance/dashboards/sections/<slug>.html.
-CHART_SECTION_CHOICES = [
-    ("spend_over_time", "Spend over time"),
-    ("spend_by_category_trend", "Spend by category, over time"),
-    ("spend_by_category", "Spend by category"),
-    ("large_transactions", "Largest transactions"),
-    ("budget_attainment", "Budget attainment"),
-    ("net_income", "Net income"),
-    ("net_cash_flow", "Net cash flow"),
-    ("net_worth", "Net worth"),
-    ("balances_over_time", "Balances over time"),
-]
-
 
 class ChartsView(FinanceView):
     """Shared filter handling: range, resolution, and account selection."""
@@ -182,12 +165,12 @@ class ChartsView(FinanceView):
         return max(1, page)
 
     def known_sections(self):
-        return {slug for slug, _ in CHART_SECTION_CHOICES}
+        return set(CHART_SECTIONS_BY_SLUG)
 
     def effective_chart_sections(self):
         """The person's chosen sections, filtered to ones that still exist —
-        a section retired from CHART_SECTION_CHOICES should not linger in a
-        saved preference forever."""
+        a section retired from CHART_SECTIONS should not linger in a saved
+        preference forever."""
         known = self.known_sections()
         return [slug for slug in self.get_preference().chart_section_order if slug in known]
 
@@ -230,9 +213,9 @@ class ChartsView(FinanceView):
 
         chart_sections = self.effective_chart_sections()
         hidden_sections = [
-            (slug, label)
-            for slug, label in CHART_SECTION_CHOICES
-            if slug not in chart_sections
+            section
+            for section in CHART_SECTIONS
+            if section.slug not in chart_sections
         ]
 
         context.update(
@@ -275,16 +258,16 @@ class ChartsView(FinanceView):
             "balances_over_time": context["balances_over_time_available"],
         }
 
-        context["has_any_data"] = any(
-            [
-                context["spend_has_data"],
-                context["income_has_data"],
-                context["cash_flow_has_data"],
-                context["large_transactions_available"],
-                context["net_worth_has_data"],
-                context["balances_over_time_available"],
-            ]
-        )
+        # The sections this person has chosen, in their order, filtered to the
+        # ones with something to show — resolved here rather than re-tested in
+        # each section template, which was a second copy of the same condition.
+        context["visible_sections"] = [
+            CHART_SECTIONS_BY_SLUG[slug]
+            for slug in chart_sections
+            if context["section_has_data"].get(slug)
+        ]
+
+        context["has_any_data"] = any(context["section_has_data"].values())
 
         return context
 
@@ -490,9 +473,12 @@ class ChartsView(FinanceView):
             # current per-chart account filter — a filter that happens to
             # pick accounts with no history yet must not also hide the
             # filter control itself, or there would be no way back.
-            "balances_over_time_available": bool(
-                analytics.balance_history(start=start, end=end)["series"]
-            ),
+            #
+            # An existence check, not a second full balance_history() build.
+            # The question is only "is there anything to chart", and building
+            # a day-by-day carried-forward series for every account to answer
+            # it was the most expensive thing on this page.
+            "balances_over_time_available": analytics.has_balance_history(end),
             "selected_balances_accounts": selected,
         }
 

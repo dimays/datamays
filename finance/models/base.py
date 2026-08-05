@@ -11,7 +11,7 @@ by a cent a month is worse than useless.
 money arriving is positive — on every account type, including credit cards.
 Balances follow the same rule: assets are positive, liabilities are negative,
 so a set of balances sums directly to net worth without special-casing. It is
-the provider adapter's job to normalise into this convention at the boundary,
+the provider adapter's job to normalize into this convention at the boundary,
 never the reporting code's job to guess.
 """
 

@@ -89,7 +89,7 @@ class Budget(TimestampedModel):
 
 
 class BudgetPeriod(models.Model):
-    """Materialised target-versus-actual for one budget in one window.
+    """Materialized target-versus-actual for one budget in one window.
 
     Recomputed by the rollup job rather than derived on page load: the
     homepage shows every active budget at once, and doing that live would mean

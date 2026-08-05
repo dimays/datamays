@@ -1,21 +1,17 @@
-{% if spend_has_data %}
-  <section class="mt-4 rounded-card border border-border bg-surface p-5">
-    <div class="flex items-start justify-between gap-3">
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Budget attainment over time</h2>
-      {% include "finance/dashboards/_hide_chart_button.html" %}
-    </div>
-    {{ budget_series_json|json_script:"budget-series" }}
-    <div class="mt-4 space-y-6">
-      {% for budget in budgets %}
-        <div>
-          <p class="text-sm font-medium">{{ budget.name }}</p>
-          <div class="mt-2 h-48">
-            <canvas data-chart="budgets" data-source="budget-series" data-budget="{{ budget.name }}"></canvas>
-          </div>
+{% extends "finance/dashboards/_section.html" %}
+
+{% block body %}
+  {{ budget_series_json|json_script:"budget-series" }}
+  <div class="mt-4 space-y-6">
+    {% for budget in budgets %}
+      <div>
+        <p class="text-sm font-medium">{{ budget.name }}</p>
+        <div class="mt-2 h-48">
+          <canvas data-chart="budgets" data-source="budget-series" data-budget="{{ budget.name }}"></canvas>
         </div>
-      {% empty %}
-        <p class="text-sm text-text-muted">No budgets yet.</p>
-      {% endfor %}
-    </div>
-  </section>
-{% endif %}
+      </div>
+    {% empty %}
+      <p class="text-sm text-text-muted">No budgets yet.</p>
+    {% endfor %}
+  </div>
+{% endblock %}

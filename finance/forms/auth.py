@@ -1,28 +1,25 @@
+"""Sign-in and second-factor forms.
+
+Deliberately not using StyledFormMixin: these are the only screens rendered
+signed-out, on an otherwise empty page, and they use the roomier auth sizing
+rather than the app's compact in-app fields.
+"""
+
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 
-FIELD_CLASSES = (
-    "w-full rounded-button border border-border bg-background px-4 py-3 "
-    "text-text-primary placeholder:text-text-muted focus:outline-none "
-    "focus:ring-2 focus:ring-primary"
-)
-
-OTP_FIELD_CLASSES = (
-    "w-full rounded-button border border-border bg-background px-4 py-3 "
-    "text-center font-mono text-2xl tracking-[0.4em] text-text-primary "
-    "focus:outline-none focus:ring-2 focus:ring-primary"
-)
+from .widgets import AUTH_FIELD_CLASSES, OTP_FIELD_CLASSES
 
 
 class FinanceLoginForm(AuthenticationForm):
-    """Styled login form. Authentication behaviour is Django's."""
+    """Styled login form. Authentication behavior is Django's."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.fields["username"].widget.attrs.update(
             {
-                "class": FIELD_CLASSES,
+                "class": AUTH_FIELD_CLASSES,
                 "placeholder": "Username",
                 "autocomplete": "username",
                 "autofocus": True,
@@ -30,7 +27,7 @@ class FinanceLoginForm(AuthenticationForm):
         )
         self.fields["password"].widget.attrs.update(
             {
-                "class": FIELD_CLASSES,
+                "class": AUTH_FIELD_CLASSES,
                 "placeholder": "Password",
                 "autocomplete": "current-password",
             }

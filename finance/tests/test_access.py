@@ -6,7 +6,7 @@ from django_otp.plugins.otp_totp.models import TOTPDevice
 
 from finance.access import FINANCE_GROUP
 from finance.redirects import is_safe_path, safe_next
-from finance.views_auth import OTPVerifyView
+from finance.views.auth import OTPVerifyView
 
 PROTECTED_URL_NAMES = [
     "home",

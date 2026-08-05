@@ -11,7 +11,7 @@ Usage:
 
 import os
 
-# Cleared before the star-import so settings.py never initialises a real
+# Cleared before the star-import so settings.py never initializes a real
 # Sentry client — a test run must not report into production error tracking.
 os.environ["SENTRY_DSN"] = ""
 
@@ -27,7 +27,7 @@ DATABASES = {
     }
 }
 
-# settings.py initialises Sentry at import time; re-initialising with no DSN
+# settings.py initializes Sentry at import time; re-initializing with no DSN
 # stops test failures from being reported as production errors.
 sentry_sdk.init(dsn=None)
 

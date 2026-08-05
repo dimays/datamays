@@ -12,7 +12,7 @@ def is_safe_path(value) -> bool:
 
     Rejects scheme-relative (`//evil.example`), absolute URLs, and anything
     carrying a scheme such as `javascript:`. Backslashes and newlines are
-    rejected too — some browsers normalise the former to forward slashes, and
+    rejected too — some browsers normalize the former to forward slashes, and
     the latter would allow header injection.
     """
     if not value or not isinstance(value, str):

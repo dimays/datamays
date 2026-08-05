@@ -3,7 +3,7 @@
 
 {% block finance_content %}
 <div class="flex flex-wrap items-baseline justify-between gap-3">
-  <h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">{{ report.label }}</h1>
+  <h1 class="page-title">{{ report.label }}</h1>
   <p class="text-sm text-text-muted">{{ report.period_start|date:"j M Y" }} – {{ report.period_end|date:"j M Y" }}</p>
 </div>
 

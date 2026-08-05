@@ -2,13 +2,13 @@
 
 {% block finance_content %}
 <div class="flex flex-wrap items-center justify-between gap-3">
-  <h1 class="text-2xl font-extrabold tracking-tight md:text-3xl">Category rules</h1>
+  <h1 class="page-title">Category rules</h1>
   <a href="{% url 'finance:rule_create' %}"
      class="rounded-button bg-primary px-3.5 py-2 text-xs font-medium text-white transition hover:bg-primary-600">
     Add rule
   </a>
 </div>
-<p class="mt-2 max-w-2xl text-text-secondary">
+<p class="page-subtitle">
   Rules run before the classifier and always win — a merchant matching one
   never reaches review at all. Contains, starts-with, exact, or a regular
   expression, optionally scoped to one account or an amount range.
@@ -49,7 +49,7 @@
       </div>
     </div>
   {% empty %}
-    <div class="rounded-card border border-dashed border-border bg-surface/50 p-8 text-center">
+    <div class="empty-state">
       <p class="text-text-secondary">No rules yet — the classifier is handling everything.</p>
     </div>
   {% endfor %}

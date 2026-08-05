@@ -111,7 +111,7 @@ class SimpleFINAdapter:
                 result.errors.append("Skipped an account with no identifier.")
                 continue
 
-            organisation = raw_account.get("org") or {}
+            organization = raw_account.get("org") or {}
 
             result.accounts.append(
                 AccountPayload(
@@ -119,7 +119,7 @@ class SimpleFINAdapter:
                     name=str(raw_account.get("name") or "Account").strip(),
                     currency=str(raw_account.get("currency") or "USD")[:3],
                     official_name=str(raw_account.get("name") or "").strip(),
-                    institution_name=str(organisation.get("name") or "").strip(),
+                    institution_name=str(organization.get("name") or "").strip(),
                     raw_balance=_to_decimal(raw_account.get("balance"), "balance"),
                     raw_available_balance=_to_decimal(
                         raw_account.get("available-balance"), "available balance"
