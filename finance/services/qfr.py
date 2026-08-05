@@ -37,7 +37,7 @@ from ..models import (
     QuarterlyReport,
     Transaction,
 )
-from ..periods import previous_quarter, quarter_bounds, quarter_containing
+from ..periods import previous_quarter, quarter_bounds, quarter_containing, quarters_between
 from . import analytics
 
 logger = logging.getLogger(__name__)
@@ -65,6 +65,45 @@ already know their own finances — skip generic budgeting advice."""
 def quarter_is_complete(year: int, quarter: int, *, today=None) -> bool:
     _, end = quarter_bounds(year, quarter)
     return end < (today or household_today())
+
+
+def available_quarters_for_generation(*, today=None) -> list[tuple[int, int, str]]:
+    """Complete quarters worth offering to generate a QFR for, oldest first.
+
+    Bounded on both ends: never the currently-open quarter (it isn't
+    complete yet), and never a quarter the transaction history only
+    partially covers. The earliest transaction's own quarter is, by
+    definition, missing whatever happened before it started, so the first
+    quarter offered is the next one after that — the first with a genuinely
+    full quarter of history behind it.
+    """
+    earliest = Transaction.objects.order_by("posted_on").values_list(
+        "posted_on", flat=True
+    ).first()
+
+    if earliest is None:
+        return []
+
+    earliest_year, earliest_quarter = quarter_containing(earliest)
+
+    if earliest > quarter_bounds(earliest_year, earliest_quarter)[0]:
+        earliest_year, earliest_quarter = (
+            (earliest_year + 1, 1)
+            if earliest_quarter == 4
+            else (earliest_year, earliest_quarter + 1)
+        )
+
+    latest_year, latest_quarter = previous_quarter(*quarter_containing(today or household_today()))
+
+    if (earliest_year, earliest_quarter) > (latest_year, latest_quarter):
+        return []
+
+    return [
+        (year, quarter, f"Q{quarter} {year}")
+        for year, quarter in quarters_between(
+            earliest_year, earliest_quarter, latest_year, latest_quarter
+        )
+    ]
 
 
 def compute_metrics(start: date, end: date) -> dict:
