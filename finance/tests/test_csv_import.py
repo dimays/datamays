@@ -486,3 +486,62 @@ class ColumnMapTests(TestCase):
             column_map, {"posted_on": "Transaction Date", "description": "Payee"}
         )
         self.assertNotIn("amount_convention", column_map)
+
+
+class SourceOfTruthTests(ImportBatchTestCase):
+    """The rule both write paths follow.
+
+    **Within one source, trust it.** A CSV file listing three identical $4.75
+    coffees is asserting three coffees happened. A sync payload carrying three
+    with distinct provider ids is asserting the same. Neither gets second-
+    guessed — collapsing them would silently delete real spending.
+
+    **Across sources, deduplicate.** Two exports covering the same week, or a
+    CSV import the provider later reports, describe the same money twice.
+
+    The two halves are enforced by different mechanisms — the importer counts
+    occurrences, the sync only claims rows with no provider id — so this
+    states the shared rule in one place. Neither mechanism names it alone.
+    """
+
+    THREE_IDENTICAL = b"""Date,Description,Amount
+04/15/2026,STARBUCKS,-4.75
+04/15/2026,STARBUCKS,-4.75
+04/15/2026,STARBUCKS,-4.75
+"""
+    ONE_ROW = b"""Date,Description,Amount
+04/15/2026,STARBUCKS,-4.75
+"""
+
+    def load(self, content):
+        batch = self.make_batch(content)
+        batch = parse_batch(
+            batch, column_map=self.columns(batch), date_format="%m/%d/%Y"
+        )
+        return commit_batch(batch)
+
+    def test_one_file_listing_three_identical_rows_creates_three(self):
+        self.load(self.THREE_IDENTICAL)
+
+        self.assertEqual(Transaction.objects.count(), 3)
+
+    def test_re_importing_the_same_file_adds_nothing(self):
+        self.load(self.THREE_IDENTICAL)
+        self.load(self.THREE_IDENTICAL)
+
+        self.assertEqual(Transaction.objects.count(), 3)
+
+    def test_two_files_each_listing_one_row_describe_one_transaction(self):
+        self.load(self.ONE_ROW)
+        self.load(self.ONE_ROW)
+
+        self.assertEqual(Transaction.objects.count(), 1)
+
+    def test_a_later_cumulative_export_only_adds_what_is_new(self):
+        """The case that makes counting necessary rather than a plain
+        "does a match exist" check: one coffee was already imported, a later
+        export lists three, so two of them are genuinely new."""
+        self.load(self.ONE_ROW)
+        self.load(self.THREE_IDENTICAL)
+
+        self.assertEqual(Transaction.objects.count(), 3)

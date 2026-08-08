@@ -22,6 +22,7 @@ from ..models import (
     RowStatus,
     Transaction,
     TransactionSource,
+    same_transaction,
 )
 from .detection import parse_amount, parse_date, sniff
 from .sync import (
@@ -238,11 +239,14 @@ def _is_duplicate(batch, parsed, occurrences):
         index_in_file = occurrences.get(key, 0)
         occurrences[key] = index_in_file + 1
 
-        already_in_ledger = Transaction.objects.filter(
-            account_id=batch.account_id,
-            posted_on=parsed["posted_on"],
-            amount=parsed["amount"],
-            description_raw__iexact=parsed["description"],
+        # The same predicate the sync uses to recognize an already-present
+        # transaction. Shared deliberately: these two drifting apart is what
+        # let a CSV row and a provider row for one purchase both exist.
+        already_in_ledger = same_transaction(
+            batch.account_id,
+            parsed["posted_on"],
+            parsed["amount"],
+            parsed["description"],
         ).count()
 
         return index_in_file < already_in_ledger
