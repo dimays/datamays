@@ -19,6 +19,45 @@ where the provider supplies one, and by a content fingerprint where it does
 not. Re-running a sync immediately must not change the transaction count —
 there is a test for exactly that.
 
+### The deduplication rule
+
+**Within one source, trust it. Across sources, deduplicate.**
+
+A CSV file listing three identical $4.75 coffees is asserting three coffees
+happened. A sync payload carrying three with distinct provider ids is
+asserting the same. Neither gets second-guessed — collapsing them would
+silently delete real spending.
+
+Two exports covering the same week, or a CSV import the provider later
+reports, are the same money described twice. Those collapse.
+
+| Situation | Result |
+|---|---|
+| One file, three identical rows | 3 transactions |
+| The same file imported twice | 3 transactions |
+| Two files, one identical row each | 1 transaction |
+| A file with one row, then a cumulative export with three | 3 transactions |
+| One sync payload, three identical (distinct provider ids) | 3 transactions |
+| A CSV row the provider later reports | 1 transaction |
+
+Two mechanisms enforce it, and they must agree:
+
+- The importer counts *occurrences* — the row's index within the file against
+  how many matching rows already exist. A plain "does a match exist" check
+  would drop the genuinely-new coffees in the cumulative-export case.
+- The sync only claims rows with **no** `provider_txn_id`, which is exactly
+  the CSV-imported case. A row another payload already claimed is invisible
+  to it.
+
+Both use `models.transactions.same_transaction()` for "is this the same
+movement of money". They previously did not, and the gap created a duplicate
+of every CSV-imported transaction the provider later reported — the sync had
+no ledger check at all, and `next_fingerprint()` stepped past the fingerprint
+collision that would otherwise have caught it.
+
+Stated in tests as `test_csv_import.SourceOfTruthTests` and
+`test_sync.SyncTrustsItsOwnPayloadTests`.
+
 **Sign normalization** happens here, at the boundary
 (`normalize_balance()`). Nothing downstream guesses. See
 [ADR 0003](../../docs/architecture/decisions/0003-household-sign-convention.md).

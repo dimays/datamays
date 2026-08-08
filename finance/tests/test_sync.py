@@ -875,3 +875,68 @@ class CrossSourceDuplicateTests(SyncTestCase):
         self.run_sync(payload)
 
         self.assertEqual(Transaction.objects.count(), 1)
+
+
+class SyncTrustsItsOwnPayloadTests(SyncTestCase):
+    """The other half of the rule in test_csv_import.SourceOfTruthTests.
+
+    A sync payload carrying three identical transactions with distinct
+    provider ids is asserting three transactions happened. Claiming must
+    never collapse them — it only ever consumes rows that no provider has
+    claimed, which is exactly the CSV-imported case.
+    """
+
+    def three_identical(self):
+        return fetch_result(
+            transactions={
+                "ACT-1": [
+                    transaction_payload(
+                        provider_txn_id=f"TRN-{n}",
+                        amount=Decimal("-4.75"),
+                        description="STARBUCKS",
+                    )
+                    for n in ("a", "b", "c")
+                ]
+            }
+        )
+
+    def test_one_payload_with_three_identical_transactions_creates_three(self):
+        self.run_sync(self.three_identical())
+
+        self.assertEqual(Transaction.objects.count(), 3)
+
+    def test_re_syncing_the_same_payload_adds_nothing(self):
+        self.run_sync(self.three_identical())
+        self.run_sync(self.three_identical())
+
+        self.assertEqual(Transaction.objects.count(), 3)
+
+    def test_claiming_never_consumes_a_row_another_payload_already_claimed(self):
+        """Three provider transactions and one prior CSV row is four assertions
+        about reality minus one overlap — three transactions, not one."""
+        self.run_sync(fetch_result(transactions={}))
+        account = Account.objects.get()
+
+        from finance.models import TransactionSource
+        from finance.services.sync import next_fingerprint
+
+        Transaction.objects.create(
+            account=account,
+            provider_txn_id="",
+            source=TransactionSource.CSV,
+            posted_on=date(2026, 4, 15),
+            amount=Decimal("-4.75"),
+            description_raw="STARBUCKS",
+            fingerprint=next_fingerprint(
+                account.id, date(2026, 4, 15), Decimal("-4.75"), "STARBUCKS"
+            ),
+        )
+
+        self.run_sync(self.three_identical())
+
+        self.assertEqual(Transaction.objects.count(), 3)
+        self.assertEqual(
+            Transaction.objects.filter(provider_txn_id="").count(),
+            0,
+            "the CSV row should have been claimed, not left orphaned alongside a new one",
+        )
