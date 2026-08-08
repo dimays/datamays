@@ -38,11 +38,35 @@ from ..services.categorize import confirm_category
 from ..services.rollups import expand_categories
 
 
+# Newest first is the default everywhere transactions are listed by date —
+# it is `Transaction.Meta.ordering`, so the homepage widgets and the review
+# queue get it for free. This page is the one place worth being able to flip,
+# because it is the only one you actually read through.
+#
+# `id` is the tiebreaker in both directions. Several transactions can share a
+# posted_on, and a paginated list whose order is not total will show the same
+# row on two pages and skip another.
+SORT_ORDERS = {
+    "newest": ["-posted_on", "-id"],
+    "oldest": ["posted_on", "id"],
+}
+
+DEFAULT_SORT = "newest"
+
+
 class TransactionListView(FinancePageMixin, ListView):
     template_name = "finance/transactions/list.html"
     context_object_name = "transactions"
     paginate_by = 50
     page_title = "Activity"
+
+    @property
+    def sort(self):
+        """Which direction the list is in. Anything unrecognized falls back to
+        the default rather than erroring — this is a query param on a list
+        view, not a resource lookup."""
+        requested = self.request.GET.get("sort")
+        return requested if requested in SORT_ORDERS else DEFAULT_SORT
 
     def get_queryset(self):
         queryset = Transaction.objects.select_related("account", "category")
@@ -84,7 +108,7 @@ class TransactionListView(FinancePageMixin, ListView):
                 Q(description_raw__icontains=search) | Q(merchant__icontains=search)
             )
 
-        return queryset
+        return queryset.order_by(*SORT_ORDERS[self.sort])
 
     @staticmethod
     def _budgets_q(budgets):
@@ -185,6 +209,8 @@ class TransactionListView(FinancePageMixin, ListView):
             c.full_path for c in all_categories if str(c.pk) in self.selected_categories
         ]
         context["selected_budget_names"] = [budget.name for budget in filtered_budgets]
+        context["sort"] = self.sort
+        context["sort_toggle_url"] = self._sort_toggle_url()
         context["filters"] = {
             "accounts": self.selected_accounts,
             "categories": self.selected_categories,
@@ -215,6 +241,18 @@ class TransactionListView(FinancePageMixin, ListView):
     def _page_url(self, page_number):
         query = self.request.GET.copy()
         query["page"] = page_number
+        return f"{self.request.path}?{query.urlencode()}"
+
+    def _sort_toggle_url(self):
+        """The same list, read the other way round.
+
+        Drops `page`: flipping the order while on page 7 would land you in
+        the middle of a list you have not seen the start of. Reversing means
+        "start again from the other end", so it returns to page one.
+        """
+        query = self.request.GET.copy()
+        query["sort"] = "oldest" if self.sort == "newest" else "newest"
+        query.pop("page", None)
         return f"{self.request.path}?{query.urlencode()}"
 
     def post(self, request, *args, **kwargs):
