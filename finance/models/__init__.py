@@ -66,6 +66,7 @@ from .transactions import (
     Transaction,
     TransactionSource,
     build_fingerprint,
+    same_transaction,
 )
 
 __all__ = [
@@ -121,5 +122,6 @@ __all__ = [
     "UNIT_HOURS",
     "UserPreference",
     "build_fingerprint",
+    "same_transaction",
     "money_field",
 ]

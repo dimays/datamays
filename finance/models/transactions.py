@@ -41,6 +41,28 @@ def build_fingerprint(*, account_id, posted_on, amount, description, sequence=0)
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
+def same_transaction(account_id, posted_on, amount, description):
+    """Rows that represent the same real-world movement of money.
+
+    The one definition of "we already have this", shared by both paths that
+    write transactions. It has to be shared: the CSV importer had this check
+    and the provider sync did not, so a transaction imported by CSV and later
+    reported by the provider was created twice. The sync matched only on
+    `provider_txn_id`, which a CSV row does not have, and then `next_fingerprint`
+    politely stepped around the fingerprint collision that would otherwise
+    have caught it.
+
+    Deliberately not matching on source or provider id — the whole point is to
+    recognize the same transaction arriving by a different route.
+    """
+    return Transaction.objects.filter(
+        account_id=account_id,
+        posted_on=posted_on,
+        amount=amount,
+        description_raw__iexact=(description or "").strip(),
+    )
+
+
 class Transaction(TimestampedModel):
     """One posted movement of money.
 

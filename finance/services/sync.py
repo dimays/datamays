@@ -35,6 +35,7 @@ from ..models import (
     Transaction,
     TransactionSource,
     build_fingerprint,
+    same_transaction,
 )
 from ..providers.base import ProviderAuthError, ProviderError, redact
 from ..providers.registry import get_adapter
@@ -338,6 +339,42 @@ def upsert_transaction(account: Account, payload) -> str:
             return "updated"
 
         return "unchanged"
+
+    # Before creating: is this transaction already here under a different
+    # route? A CSV import writes no provider_txn_id, so the lookup above
+    # cannot see its rows — and next_fingerprint() would step *past* the
+    # fingerprint collision rather than treating it as the duplicate signal
+    # it is. That combination created a second copy of every transaction the
+    # household imported by CSV and the provider later reported.
+    #
+    # Claiming the existing row instead is strictly better than skipping it:
+    # the row gains the provider's stable id, so every future sync updates it
+    # rather than reconsidering it, and any category already confirmed on it
+    # survives.
+    unclaimed = (
+        same_transaction(
+            account.id, payload.posted_on, payload.amount, payload.description
+        )
+        .filter(provider_txn_id="")
+        .order_by("id")
+        .first()
+    )
+
+    if unclaimed is not None:
+        unclaimed.provider_txn_id = payload.provider_txn_id
+        unclaimed.source = TransactionSource.PROVIDER
+        unclaimed.is_pending = payload.is_pending
+        unclaimed.merchant = unclaimed.merchant or payload.merchant
+        unclaimed.save(
+            update_fields=[
+                "provider_txn_id",
+                "source",
+                "is_pending",
+                "merchant",
+                "updated_at",
+            ]
+        )
+        return "updated"
 
     Transaction.objects.create(
         account=account,

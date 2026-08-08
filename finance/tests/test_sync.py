@@ -684,3 +684,194 @@ class CredentialRedactionTests(TestCase):
         connection.refresh_from_db()
         self.assertNotIn("p4ssw0rd", connection.last_error)
         self.assertIn("<redacted>", connection.last_error)
+
+
+class CrossSourceDuplicateTests(SyncTestCase):
+    """A transaction imported by CSV and later reported by the provider is one
+    transaction, not two.
+
+    This is the bug that produced ten duplicates in production on a single
+    day. upsert_transaction only looked up by provider_txn_id, which a CSV row
+    does not have — and next_fingerprint() then stepped *past* the fingerprint
+    collision that would otherwise have caught it, because its job is to allow
+    genuinely repeated transactions through.
+    """
+
+    def csv_row(self, **kwargs):
+        """A row shaped the way the CSV importer writes one: no provider id."""
+        from finance.models import TransactionSource
+        from finance.services.sync import next_fingerprint
+
+        account = kwargs.pop("account")
+        defaults = {
+            "posted_on": date(2026, 4, 15),
+            "amount": Decimal("-78.00"),
+            "description_raw": "TST*THE BURROW TC",
+        }
+        defaults.update(kwargs)
+
+        return Transaction.objects.create(
+            account=account,
+            provider_txn_id="",
+            source=TransactionSource.CSV,
+            # next_fingerprint, not build_fingerprint — this mirrors what
+            # the CSV importer actually does, including walking the sequence
+            # so two identical rows can coexist.
+            fingerprint=next_fingerprint(
+                account.id,
+                defaults["posted_on"],
+                defaults["amount"],
+                defaults["description_raw"],
+            ),
+            **defaults,
+        )
+
+    def test_a_sync_claims_the_csv_row_instead_of_duplicating_it(self):
+        self.run_sync(fetch_result(transactions={}))
+        account = Account.objects.get()
+
+        self.csv_row(account=account)
+
+        self.run_sync(
+            fetch_result(
+                transactions={
+                    "ACT-1": [
+                        transaction_payload(
+                            provider_txn_id="TRN-abc",
+                            posted_on=date(2026, 4, 15),
+                            amount=Decimal("-78.00"),
+                            description="TST*THE BURROW TC",
+                        )
+                    ]
+                }
+            )
+        )
+
+        self.assertEqual(Transaction.objects.count(), 1)
+
+        claimed = Transaction.objects.get()
+        self.assertEqual(claimed.provider_txn_id, "TRN-abc")
+        self.assertEqual(claimed.source, "provider")
+
+    def test_claiming_keeps_a_category_already_confirmed_on_the_csv_row(self):
+        """The reason to claim rather than skip: work done on the CSV row —
+        a confirmed category — must not be thrown away."""
+        from django.core.management import call_command
+
+        call_command("seed_finance_categories", verbosity=0)
+        from finance.models import Category, CategorySource
+
+        self.run_sync(fetch_result(transactions={}))
+        account = Account.objects.get()
+
+        groceries = Category.objects.get(slug="food-groceries")
+        row = self.csv_row(account=account)
+        row.category = groceries
+        row.category_source = CategorySource.MANUAL
+        row.needs_review = False
+        row.save()
+
+        self.run_sync(
+            fetch_result(
+                transactions={
+                    "ACT-1": [
+                        transaction_payload(
+                            provider_txn_id="TRN-abc",
+                            posted_on=date(2026, 4, 15),
+                            amount=Decimal("-78.00"),
+                            description="TST*THE BURROW TC",
+                        )
+                    ]
+                }
+            )
+        )
+
+        claimed = Transaction.objects.get()
+        self.assertEqual(claimed.category, groceries)
+        self.assertEqual(claimed.category_source, CategorySource.MANUAL)
+
+    def test_two_genuine_repeats_still_produce_two_rows(self):
+        """The behavior claiming must not break: two identical coffees on one
+        day are two transactions, and the provider reporting both must leave
+        two rows, not one."""
+        self.run_sync(fetch_result(transactions={}))
+        account = Account.objects.get()
+
+        self.csv_row(account=account, amount=Decimal("-4.75"), description_raw="STARBUCKS")
+        self.csv_row(account=account, amount=Decimal("-4.75"), description_raw="STARBUCKS")
+
+        self.assertEqual(Transaction.objects.count(), 2)
+
+        self.run_sync(
+            fetch_result(
+                transactions={
+                    "ACT-1": [
+                        transaction_payload(
+                            provider_txn_id=f"TRN-{n}",
+                            posted_on=date(2026, 4, 15),
+                            amount=Decimal("-4.75"),
+                            description="STARBUCKS",
+                        )
+                        for n in ("a", "b")
+                    ]
+                }
+            )
+        )
+
+        self.assertEqual(Transaction.objects.count(), 2)
+        self.assertEqual(
+            sorted(Transaction.objects.values_list("provider_txn_id", flat=True)),
+            ["TRN-a", "TRN-b"],
+        )
+
+    def test_a_third_provider_copy_is_still_created(self):
+        """Claiming consumes one unclaimed row per payload. If the provider
+        reports three and only two were imported, the third is genuinely new."""
+        self.run_sync(fetch_result(transactions={}))
+        account = Account.objects.get()
+
+        self.csv_row(account=account, amount=Decimal("-4.75"), description_raw="STARBUCKS")
+
+        self.run_sync(
+            fetch_result(
+                transactions={
+                    "ACT-1": [
+                        transaction_payload(
+                            provider_txn_id=f"TRN-{n}",
+                            posted_on=date(2026, 4, 15),
+                            amount=Decimal("-4.75"),
+                            description="STARBUCKS",
+                        )
+                        for n in ("a", "b")
+                    ]
+                }
+            )
+        )
+
+        self.assertEqual(Transaction.objects.count(), 2)
+
+    def test_a_re_sync_after_claiming_does_not_duplicate(self):
+        """The claimed row now carries the provider id, so the ordinary
+        lookup finds it on every subsequent run."""
+        self.run_sync(fetch_result(transactions={}))
+        account = Account.objects.get()
+        self.csv_row(account=account)
+
+        payload = fetch_result(
+            transactions={
+                "ACT-1": [
+                    transaction_payload(
+                        provider_txn_id="TRN-abc",
+                        posted_on=date(2026, 4, 15),
+                        amount=Decimal("-78.00"),
+                        description="TST*THE BURROW TC",
+                    )
+                ]
+            }
+        )
+
+        self.run_sync(payload)
+        self.run_sync(payload)
+        self.run_sync(payload)
+
+        self.assertEqual(Transaction.objects.count(), 1)
