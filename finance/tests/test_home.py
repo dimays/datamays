@@ -301,3 +301,45 @@ class HomepageRenderTests(HomepageTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(UserPreference.objects.filter(user=maddie).exists())
+
+
+class TransactionOrderingAcrossWidgetsTests(HomepageTestCase):
+    """Every widget that lists transactions by date shows newest first.
+
+    None of them set an ordering: they inherit Transaction.Meta.ordering, so
+    this is really a test that the model default is what the UI wants. If
+    someone changes that default, this is what says which screens it moved.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        for day in (10, 1, 20, 5):
+            make_transaction(
+                self.checking,
+                category=self.groceries,
+                description_raw=f"DAY {day:02d}",
+                posted_on=date(2026, 4, day),
+                needs_review=True,
+            )
+
+    def test_the_recent_transactions_widget_is_newest_first(self):
+        from finance.services.widgets import recent_transactions_widget
+
+        widget = recent_transactions_widget(UserPreference.for_user(self.user))
+        dates = [txn.posted_on for txn in widget["transactions"]]
+
+        self.assertEqual(dates, sorted(dates, reverse=True))
+
+    def test_the_review_queue_widget_is_newest_first(self):
+        from finance.services.widgets import review_queue_widget
+
+        widget = review_queue_widget(UserPreference.for_user(self.user))
+        dates = [txn.posted_on for txn in widget["transactions"]]
+
+        self.assertEqual(dates, sorted(dates, reverse=True))
+
+    def test_the_model_default_is_newest_first(self):
+        from finance.models import Transaction
+
+        self.assertEqual(Transaction._meta.ordering, ["-posted_on", "-id"])
