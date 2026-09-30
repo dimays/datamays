@@ -45,6 +45,11 @@ Counted two ways, because a project may have either:
   repeating task whose run has ended. A repeating task still running is not
   done.
 
+The project page lists every task exactly once: open ones as checklist
+rows, the rest as **done**, **skipped**, or **paused** — by the same rule
+the progress count uses, so a skipped task never reads "done" while the bar
+leaves it out.
+
 The bar shows milestones when there are any (they are the plan), tasks
 otherwise. Both counts are computed in the same query as the project list
 (`services/projects.py::with_progress`), so the list and Today cost the same

@@ -137,13 +137,30 @@ def timeline(project, today):
 
 
 def tasks(project, user, today):
-    """Open tasks as checklist rows, and finished ones, for a project's page."""
+    """Open tasks as checklist rows, and every other task with its state.
+
+    Every task lands in exactly one of the two lists. The states match
+    `with_progress`: a task is "done" only when nothing is left open and one
+    was done — so a skipped one-off reads "skipped" here, and doesn't count
+    as done in the progress bar either. A paused task is "paused" whether
+    or not it still holds an open occurrence (a paused one-off does).
+    """
+    done_occurrence = Occurrence.objects.filter(chore=OuterRef("pk"), status=OccurrenceStatus.DONE)
     chores = list(
         occurrences.with_open_occurrence(
             project.tasks.select_related("owner", "assignee", "milestone", "maintenance_item")
+            .annotate(has_done=Exists(done_occurrence))
         )
     )
     occurrences.refresh(chores, today)
-    open_rows = checklist.rows_for(user, [c for c in chores if c.is_active and c.open_occurrences], today)
-    finished = [c for c in chores if not c.open_occurrences]
-    return open_rows, finished
+
+    active_open = [c for c in chores if c.is_active and c.open_occurrences]
+    others = [c for c in chores if c not in active_open]
+    for chore in others:
+        if not chore.is_active:
+            chore.state = "paused"
+        elif chore.has_done:
+            chore.state = "done"
+        else:
+            chore.state = "skipped"
+    return checklist.rows_for(user, active_open, today), others

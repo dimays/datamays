@@ -4,11 +4,13 @@ from datetime import date, datetime, timedelta
 from unittest.mock import call, patch
 from zoneinfo import ZoneInfo
 
+from django.contrib.auth.models import Group
 from django.core import mail
 from django.core.management import call_command
 from django.db import transaction as db_transaction
 from django.test import TestCase, TransactionTestCase, override_settings
 
+from household.access import HOUSEHOLD_GROUP
 from household.models import HouseholdPreference, Milestone, Project, ProjectStatus
 from household.services import digest
 
@@ -118,6 +120,19 @@ class SendingTests(TestCase):
 
         digest.send_due_digests(MORNING + timedelta(hours=1))
         self.assertEqual(len(mail.outbox), 1)
+
+    def test_someone_no_longer_in_the_household_gets_nothing(self):
+        """Found in review: the digest ignored membership, and a removed
+        member couldn't reach the preference to turn it off."""
+        subscribe(self.david)
+        self.david.groups.clear()
+        self.assertEqual(digest.send_due_digests(MORNING), 0)
+
+        self.david.groups.add(Group.objects.get(name=HOUSEHOLD_GROUP))
+        self.david.is_active = False
+        self.david.save()
+        self.assertEqual(digest.send_due_digests(MORNING), 0)
+        self.assertEqual(mail.outbox, [])
 
     def test_no_address_no_digest(self):
         self.david.email = ""

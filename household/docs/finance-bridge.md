@@ -15,7 +15,7 @@ imports finance (tested). It offers:
 |---|---|
 | `budget_glance(user)` | Finance's own budget widget, on Today |
 | `spent(txn)`, `total_spent(txns)` | The **one place** a signed amount becomes "spent" |
-| `get_transaction(pk)` | Validating a posted link — `None` for a missing or non-numeric id |
+| `get_transaction(pk)` | Validating a posted link — `None` for a missing or non-numeric id, and for anything that isn't spending (a transfer, a paycheck), so no posted id can put one on a project |
 | `spending_candidates(start=, end=, query=, exclude_ids=)` | Purchases that could be linked |
 
 **"Spent" is always `-amount`.** Finance stores money leaving as negative
@@ -75,5 +75,5 @@ days and the next 12 months. For each active item **with a usual cost**:
 the current occurrence counts once if due inside the window (overdue
 included — it'll be done soon), then every later due date: the fixed
 schedule's dates, or for an after-completion schedule, one interval at a
-time assuming each is done when due. Items without a usual cost are left
-out rather than guessed at.
+time assuming each is done when due, and never beyond an "N times" limit.
+Items without a usual cost are left out rather than guessed at.

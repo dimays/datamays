@@ -315,3 +315,37 @@ class PageTests(TestCase):
         self.assertEqual(count(reverse("household:projects")), baseline["list"])
         self.assertEqual(count(reverse("household:today")), baseline["today"])
         self.assertEqual(count(reverse("household:project_detail", args=[project.pk])), baseline["detail"])
+
+
+class TaskStateTests(TestCase):
+    """Found in review: a paused one-off vanished from its project page, and a
+    skipped task read "done" while the progress bar didn't count it."""
+
+    def test_every_task_appears_once_with_a_state_matching_progress(self):
+        david = make_member("david")
+        project = make_project()
+        done = make_task(project, "Done", starts_on=TODAY)
+        occurrences.complete(done.occurrences.get(status=OccurrenceStatus.OPEN), by=david)
+        skipped = make_task(project, "Skipped", starts_on=TODAY)
+        occurrences.skip(skipped.occurrences.get(status=OccurrenceStatus.OPEN), by=david)
+        make_task(project, "Open", starts_on=TODAY)
+        paused = make_task(project, "Paused one-off", starts_on=TODAY)
+        paused.is_active = False
+        paused.save()
+        occurrences.reschedule(paused, today=TODAY)  # a paused one-off keeps its open occurrence
+
+        open_rows, others = projects.tasks(project, david, TODAY)
+
+        self.assertEqual([row.chore.title for row in open_rows], ["Open"])
+        self.assertEqual({c.title: c.state for c in others},
+                         {"Done": "done", "Skipped": "skipped", "Paused one-off": "paused"})
+        progress = projects.progress(projects.with_progress(Project.objects.filter(pk=project.pk)).get())
+        self.assertEqual((progress.tasks_done, progress.task_count), (1, 4))
+
+    def test_a_non_numeric_milestone_in_the_url_is_ignored(self):
+        sign_in(self.client, make_member("david"))
+        project = make_project()
+
+        response = self.client.get(reverse("household:project_task_create", args=[project.pk]) + "?milestone=abc")
+
+        self.assertEqual(response.status_code, 200)

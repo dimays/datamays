@@ -60,6 +60,8 @@ A morning with nothing to report records the day and sends nothing.
 **"I didn't get one."**
 
 - Is it switched on? `HouseholdPreference.morning_digest` in the admin.
+- Is the user still an active member of the `household` group? Only current
+  members get one.
 - Does the user have an email address? Without one it is skipped (logged).
 - Did the hourly run fail? `heroku logs --app datamays --source app | grep -i "household_hourly\|digest"`.
 - A failed send is **not** recorded as sent, so the next hour retries.

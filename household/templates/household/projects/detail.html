@@ -59,12 +59,12 @@
       <p class="mt-3 text-sm text-text-muted">No tasks yet. Each task lands on the checklist of whoever you give it to.</p>
     {% endif %}
     {% if finished_tasks %}
-      <p class="mt-5 text-xs font-semibold uppercase tracking-wide text-text-muted">Finished or paused</p>
+      <p class="mt-5 text-xs font-semibold uppercase tracking-wide text-text-muted">Done, skipped, or paused</p>
       <ul class="mt-2 space-y-1.5 text-sm">
         {% for task in finished_tasks %}
           <li class="flex items-baseline justify-between gap-3">
-            <a href="{% url 'household:project_task_edit' project.pk task.pk %}" class="truncate text-text-muted line-through hover:underline">{{ task.title }}</a>
-            <span class="shrink-0 text-xs text-text-muted">{% if not task.is_active %}paused{% else %}done{% endif %}</span>
+            <a href="{% url 'household:project_task_edit' project.pk task.pk %}" class="truncate text-text-muted {% if task.state == 'done' %}line-through{% endif %} hover:underline">{{ task.title }}</a>
+            <span class="shrink-0 text-xs {% if task.state == 'done' %}text-success{% else %}text-text-muted{% endif %}">{{ task.state }}</span>
           </li>
         {% endfor %}
       </ul>

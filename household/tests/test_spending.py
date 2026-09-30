@@ -298,3 +298,63 @@ class ProjectedCostTests(TestCase):
         self.assertContains(response, "Next 90 days")
         self.assertContains(response, "Next 12 months")
         self.assertContains(response, "$100")
+
+
+class ReviewFindingTests(SpendingTestCase):
+    def setUp(self):
+        super().setUp()
+        sign_in(self.client, self.david)
+        self.project = Project.objects.create(name="Kitchen", status=ProjectStatus.ACTIVE)
+
+    def test_only_spending_can_be_linked(self):
+        """Found in review: a posted transfer or paycheck id was accepted."""
+        transfer = self.txn("-500.00", is_transfer=True)
+        paycheck = self.txn("3150.00", slug="income-salary")
+
+        self.assertIsNone(spending.link_expense(self.project, transfer.pk))
+        self.assertIsNone(spending.link_expense(self.project, paycheck.pk))
+        self.assertFalse(ProjectExpense.objects.exists())
+
+    def test_non_numeric_ids_are_not_found_rather_than_a_500(self):
+        purchase = self.txn("-45.00")
+        url = reverse("household:project_spending", args=[self.project.pk])
+
+        response = self.client.post(url, {"transaction": purchase.pk, "budget_line": "abc"})
+        self.assertEqual(response.status_code, 302)
+        expense = ProjectExpense.objects.get()
+        self.assertIsNone(expense.budget_line)
+
+        response = self.client.post(
+            reverse("household:expense_edit", args=[self.project.pk, expense.pk]), {"budget_line": "abc"}
+        )
+        self.assertEqual(response.status_code, 302)
+
+    def test_undo_forgets_the_purchase_link_too(self):
+        chore = Chore.objects.create(title="Filter", frequency=Frequency.DAILY, interval=90,
+                                     anchor=Anchor.AFTER_COMPLETION, starts_on=household_today())
+        MaintenanceItem.objects.create(chore=chore)
+        occurrences.reschedule(chore)
+        job = chore.occurrences.get(status=OccurrenceStatus.OPEN)
+        occurrences.complete(job, by=self.david)
+        job.refresh_from_db()
+        spending.link_job(job, self.txn("-27.49", slug="housing-maintenance").pk)
+
+        occurrences.reopen(job)
+
+        job.refresh_from_db()
+        self.assertIsNone(job.transaction)
+        self.assertIsNone(job.cost)
+
+
+class ProjectionCountTests(TestCase):
+    def test_an_after_completion_count_limit_caps_the_projection(self):
+        """Found in review: "3 times" was projected every 90 days forever."""
+        chore = Chore.objects.create(title="x", frequency=Frequency.DAILY, interval=30,
+                                     anchor=Anchor.AFTER_COMPLETION, starts_on=TODAY, max_occurrences=3)
+        MaintenanceItem.objects.create(chore=chore, estimated_cost=Decimal("10.00"))
+        occurrences.reschedule(chore, today=TODAY)
+
+        projection = spending.projected_costs(maintenance.items_with_state(TODAY), TODAY, 365)
+
+        # The open one plus the two the count still allows — not 12.
+        self.assertEqual(projection["total"], Decimal("30.00"))

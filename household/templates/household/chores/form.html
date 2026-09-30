@@ -13,7 +13,7 @@
   choice makes irrelevant — the server, not the show/hide, is what decides.
 {% endcomment %}
 <form method="post" class="mt-8 max-w-2xl space-y-6"
-      x-data="{ whose: '{{ form.whose.value|default:'personal' }}', frequency: '{{ form.frequency.value|default:'once' }}', anchor: '{{ form.anchor.value|default:'fixed' }}' }">
+      x-data="{ whose: '{{ form.whose.value|default:'personal'|escapejs }}', frequency: '{{ form.frequency.value|default:'once'|escapejs }}', anchor: '{{ form.anchor.value|default:'fixed'|escapejs }}' }">
   {% csrf_token %}
 
   {% if form.non_field_errors %}

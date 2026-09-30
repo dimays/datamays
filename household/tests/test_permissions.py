@@ -66,13 +66,49 @@ class PermissionMatrixTests(TestCase):
                     actor, chore = self.case(name)
                     sign_in(self.client, actor)
 
+                    current = chore.occurrences.get(status=OccurrenceStatus.OPEN)
                     response = self.attempt(action, chore)
 
                     if name in allowed:
                         self.assertIn(response.status_code, (200, 302), response.status_code)
+                        self.assertEffect(action, chore, current)
                     else:
                         self.assertEqual(response.status_code, 403)
+                        self.assertNoEffect(chore, current)
                     Chore.objects.all().delete()
+
+    def assertEffect(self, action, chore, current):
+        """An allowed action must actually have happened, not just return 200."""
+        if action == "delete":
+            self.assertFalse(Chore.objects.filter(pk=chore.pk).exists())
+            return
+        current.refresh_from_db()
+        expected = {"complete": OccurrenceStatus.DONE, "skip": OccurrenceStatus.SKIPPED}
+        self.assertEqual(current.status, expected.get(action, OccurrenceStatus.OPEN))
+
+    def assertNoEffect(self, chore, current):
+        self.assertTrue(Chore.objects.filter(pk=chore.pk).exists())
+        current.refresh_from_db()
+        self.assertEqual(current.status, OccurrenceStatus.OPEN)
+
+    def test_undo_through_the_endpoint(self):
+        """Whoever did it may undo it; the other person may not, on a chore
+        they can't manage."""
+        _, chore = self.case(PARTNER)  # David's, no grant
+        current = chore.occurrences.get(status=OccurrenceStatus.OPEN)
+        url = reverse("household:occurrence_action", args=[current.pk, "undo"])
+
+        occurrences.complete(current, by=self.david)
+        sign_in(self.client, self.maddie)
+        self.assertEqual(self.client.post(url).status_code, 403)
+        current.refresh_from_db()
+        self.assertEqual(current.status, OccurrenceStatus.DONE)
+
+        occurrences.reopen(current)
+        occurrences.complete(current, by=self.maddie)
+        self.assertEqual(self.client.post(url).status_code, 302)
+        current.refresh_from_db()
+        self.assertEqual(current.status, OccurrenceStatus.OPEN)
 
     def test_a_refused_skip_changes_nothing(self):
         actor, chore = self.case(PARTNER)

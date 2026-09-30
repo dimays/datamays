@@ -8,7 +8,7 @@
 {% include "household/partials/messages.html" %}
 
 <form method="post" class="mt-8 max-w-2xl space-y-6"
-      x-data="{ frequency: '{{ chore_form.frequency.value|default:'yearly' }}', anchor: '{{ chore_form.anchor.value|default:'fixed' }}' }">
+      x-data="{ frequency: '{{ chore_form.frequency.value|default:'yearly'|escapejs }}', anchor: '{{ chore_form.anchor.value|default:'fixed'|escapejs }}' }">
   {% csrf_token %}
 
   {% if chore_form.non_field_errors or item_form.non_field_errors %}
