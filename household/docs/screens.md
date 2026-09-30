@@ -56,6 +56,29 @@ the other person's overdue and due-today items when the toggle is on, then
 finance's **budget widget**. The Chores section's nav item carries the
 overdue count on every page, finance included.
 
+## Projects
+
+All behind the full gate, and open to both members.
+
+| Path | View | Template |
+|---|---|---|
+| `projects/` | `ProjectListView` | `projects/list.html` — grouped by status |
+| `projects/new/` | `ProjectCreateView` | `projects/form.html` |
+| `projects/<pk>/` | `ProjectDetailView` | `projects/detail.html` — progress, timeline, tasks, links, notes |
+| `projects/<pk>/edit/` | `ProjectUpdateView` | `projects/form.html` |
+| `projects/<pk>/delete/` | `ProjectDeleteView` | `projects/confirm_delete.html` — takes its tasks off every list |
+| `projects/<pk>/milestones/new/` | `MilestoneCreateView` | — POST from the timeline's inline form |
+| `projects/<pk>/milestones/<id>/` | `MilestoneUpdateView` | `projects/milestone_form.html` |
+| `projects/<pk>/milestones/<id>/toggle/` | `MilestoneToggleView` | — POST, done today / not done |
+| `projects/<pk>/milestones/<id>/delete/` | `MilestoneDeleteView` | — POST; its tasks stay |
+| `projects/<pk>/links/new/`, `…/links/<id>/delete/` | `LinkCreateView`, `LinkDeleteView` | — POST |
+| `projects/<pk>/notes/new/`, `…/notes/<id>/delete/` | `NoteCreateView`, `NoteDeleteView` | — POST; delete is author-only |
+| `projects/<pk>/tasks/new/` | `TaskCreateView` | `projects/task_form.html` — `?milestone=<id>` preselects |
+| `projects/<pk>/tasks/<id>/edit/` | `TaskUpdateView` | `projects/task_form.html` |
+
+Every child row is looked up scoped to its project, so an id from another
+project is a 404.
+
 ## Upkeep
 
 Everything here is behind the full gate, and — maintenance being shared

@@ -19,7 +19,7 @@ with each phase and describe only what has actually been built.
 | 2 — Scheduling | `household/scheduling` | Schedule arithmetic, `Chore` / `Occurrence`, the occurrence lifecycle, `sweep_chores` |
 | 3 — Chores | `household/chores` | Checklists, the chore form with live preview, one-tap done/skip/undo, permissions, Today's chore sections, overdue badge |
 | 4 — Maintenance | `household/maintenance` | Upkeep items owning household chores, cost and note log, spend by year, starter list |
-| 5 — Projects | `household/projects` | Not started |
+| 5 — Projects | `household/projects` | Projects with milestones, timeline, links, notes, and tasks that are chores; projects on Today |
 | 6 — Finance bridge | `household/finance-bridge` | Not started |
 | 7 — Notifications | `household/notifications` | Not started |
 | 8 — Polish | `household/polish` | Not started |
@@ -75,6 +75,7 @@ against anything but SQLite.
 | [`scheduling.md`](scheduling.md) | How chores repeat: fixed vs. after-completion, missed vs. overdue, the lifecycle, worked examples |
 | [`permissions.md`](permissions.md) | Who may see, complete, and manage a chore |
 | [`maintenance.md`](maintenance.md) | How maintenance reuses chores, the cost log, the starter list |
+| [`projects.md`](projects.md) | Projects, milestones, the timeline, and tasks as chores |
 | [`data-model.md`](data-model.md) | Every model and the relationships that matter |
 | [`screens.md`](screens.md) | Every URL, its view, and its template |
 
