@@ -134,7 +134,7 @@ repeatedly, once per branch.
 Before opening a PR:
 
 ```bash
-uv run python manage.py test finance --settings=datamays.settings_test
+uv run python manage.py test --settings=datamays.settings_test
 ```
 
 ```bash

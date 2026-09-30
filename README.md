@@ -76,10 +76,23 @@ You should see `.venv/` created and `uv.lock` generated if it doesn’t exist ye
 ### Django Server
 
 ```bash
-uv run python manage.py runserver 0.0.0.0:8000
+uv run python manage.py migrate --settings=datamays.settings_local
+```
+
+```bash
+uv run python manage.py seed_household_demo --settings=datamays.settings_local
+```
+
+```bash
+uv run python manage.py runserver --settings=datamays.settings_local
 ```
 
 Visit [http://localhost:8000](http://localhost:8000) in your browser.
+
+> Always pass `--settings=datamays.settings_local` to `runserver`. The default
+> settings read `DATABASE_URL` from `.env`, which points at production. The
+> local settings use a file-based SQLite database filled with a fictional
+> household — see [`household/docs/`](household/docs/README.md) for signing in.
 
 ### Running Tests
 

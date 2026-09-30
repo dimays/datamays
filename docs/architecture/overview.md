@@ -10,17 +10,19 @@ Django 6 · Tailwind 3 · Postgres · Heroku (gunicorn + whitenoise) · Sentry
 Python deps via uv · frontend built with Node, committed as artifacts
 ```
 
-## Three apps
+## Four apps
 
 | App | Size | Public? | What it does |
 |---|---|---|---|
 | `core` | ~530 LOC | Yes | Projects, writing, styleguide. The portfolio. |
 | `contact` | ~100 LOC | Yes | One form, one model, sends an email. |
-| `finance` | ~19k LOC | **No** | The household finance tool at `/finance`. |
+| `household` | new | **No** | Mays Household: the private shell and the chores, projects, and maintenance sections at `/household`. Being built — see [the plan](../plans/household.md). |
+| `finance` | ~19k LOC | **No** | The household finance tool at `/finance`, a section of Mays Household. |
 
 `finance` is the overwhelming majority of the codebase and has its own
-[documentation set](../../finance/docs/README.md). `core` and `contact` are
-small enough to read directly.
+[documentation set](../../finance/docs/README.md). `household` has its own
+[docs](../../household/docs/README.md) too. `core` and `contact` are small
+enough to read directly.
 
 ## Project layout
 
@@ -28,8 +30,10 @@ small enough to read directly.
 datamays/            settings, root urls, wsgi/asgi
   settings.py        the real one — reads .env, initializes Sentry
   settings_test.py   in-memory SQLite, Sentry disabled. Use for every test run.
+  settings_local.py  file-based SQLite for runserver, with a demo seed.
 core/                public site
 contact/             contact form
+household/           Mays Household shell and sections (see household/docs/)
 finance/             the finance app (see finance/docs/)
 assets/css/input.css Tailwind source
 static/              committed build output — css/, js/, img/

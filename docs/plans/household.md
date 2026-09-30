@@ -72,7 +72,8 @@ Dependency rules, enforced by a test that parses imports:
   shell's templates. It never learns chores or projects exist.
 - `household` reaches finance only through `household/integrations/finance.py`,
   and only reads (plus writing its *own* link rows that point at finance
-  transactions). It never writes a finance model.
+  transactions). It never writes a finance model. The local demo seed is
+  the one exception — it exists to build finance data, and only on SQLite.
 
 Why one new app rather than three: chores, maintenance, and project tasks all
 share one schedulable unit and one permission model. Splitting them into
