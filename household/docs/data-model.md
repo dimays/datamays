@@ -41,6 +41,7 @@ One dated instance of a chore.
 | `completed_at` | Aware datetime; its *household* date is what after-completion schedules count from |
 | `note` | |
 | `cost` | What doing it cost, positive `Decimal`, or null — mostly logged for maintenance |
+| `transaction` → finance.Transaction | The purchase behind a maintenance job; cleared if the transaction is deleted |
 
 **Constraint:** `one_open_occurrence_per_chore` — a partial unique index on
 `chore` where `status = 'open'`. The lifecycle depends on it.
@@ -78,6 +79,15 @@ as finance's (ADR 0002) — restated rather than imported (ADR 0009).
 | `ProjectLink` | `project`, `title`, `url` (a `URLField`: http, https, ftp only) |
 | `ProjectNote` | `project`, `author`, `body` — newest first |
 
+## BudgetLine, ProjectExpense
+
+`household/models/budgets.py`; see [finance-bridge.md](finance-bridge.md).
+
+| Model | Fields |
+|---|---|
+| `BudgetLine` | `project`, `label`, `estimated` (positive `Decimal`) |
+| `ProjectExpense` | `project`, `budget_line` (optional; nulled if the line is removed), `transaction` → finance.Transaction (deleted with it). Unique per project and transaction |
+
 ## HouseholdPreference
 
 Per-person settings for the household sections; finance keeps its own.
@@ -100,4 +110,6 @@ Chore ─── MaintenanceItem        one-to-one, for shared upkeep
 Project ─< Chore (tasks)          a task is a household chore
 Project ─< Milestone ─< Chore     optional
 Project ─< ProjectLink, ProjectNote
+Project ─< BudgetLine ─< ProjectExpense ─> finance.Transaction
+Occurrence ─> finance.Transaction      optional, maintenance jobs
 ```
