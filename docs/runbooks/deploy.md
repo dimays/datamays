@@ -107,8 +107,15 @@ Two Heroku Scheduler entries, and only two:
 
 | Frequency | Command |
 |---|---|
-| Hourly | `python manage.py finance_hourly` |
-| Daily (early-morning UTC) | `python manage.py finance_daily` |
+| Hourly | `python manage.py household_hourly` |
+| Daily (early-morning UTC) | `python manage.py household_daily` |
 
-Both exit non-zero if any step failed, so a broken run shows in
-`heroku logs --app datamays`.
+`household_hourly` runs finance's hourly chain, then rolls missed chores
+forward and sends any morning digests now due; `household_daily` runs
+finance's daily chain, then rolls chores forward. Both exit non-zero if any
+step failed, so a broken run shows in `heroku logs --app datamays`.
+
+These replaced `finance_hourly` / `finance_daily` when Mays Household
+shipped — see [`household/docs/runbook.md`](../../household/docs/runbook.md)
+for the switch. The finance commands still exist and still work; they are
+just no longer what the scheduler calls.

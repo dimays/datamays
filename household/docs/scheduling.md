@@ -110,7 +110,7 @@ Twice, deliberately:
   scheduler skipped a run.
 - **Hourly.** `manage.py sweep_chores` applies it to every chore, so a missed
   week is recorded on the day it happened even if nobody opened the app. It
-  joins the hourly scheduler chain in the notifications phase.
+  runs in both scheduler chains, `household_hourly` and `household_daily`.
 
 ## Worked examples
 

@@ -97,6 +97,8 @@ Per-person settings for the household sections; finance keeps its own.
 | `user` → User | One-to-one |
 | `show_partner_chores` | The "Show Maddie's chores" switch on Today and the checklist |
 | `share_new_chores` | Default for a new chore's "let the other person manage it" |
+| `morning_digest` | Opt-in to the morning email |
+| `last_digest_on` | Household date of the last digest (or empty morning) — one per day |
 
 ## Relationships at a glance
 
