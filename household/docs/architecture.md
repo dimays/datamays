@@ -63,6 +63,15 @@ outsider. Adding a view that forgets the gate fails that test without anyone
 having to add the view to a list. (It found one bug on its first run: the
 authenticator setup screen returned a 500, not a 403, to an anonymous visitor.)
 
+**Never look anything up before the gate.** The gate runs in `dispatch()`.
+A view that fetches its object in `dispatch()` or `setup()` ahead of it —
+or a mixin placed left of the gate in the bases — answers a stranger
+differently for a real id (a redirect, a 403) than a missing one (a 404),
+which tells them what exists. Fetch lazily (`get_object()`, a
+`cached_property`) and put redirecting mixins after `HouseholdPageMixin`.
+This happened twice while building maintenance; both are pinned by tests in
+`tests/test_maintenance.py`.
+
 The group was called `finance` before the shell existed.
 `migrations/0001_rename_member_group.py` renames it in place on deploy, so
 both members keep their access, passwords, and authenticators. It merges
