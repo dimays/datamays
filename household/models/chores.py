@@ -207,6 +207,14 @@ class Occurrence(TimestampedModel):
         validators=[MinValueValidator(0)],
         help_text="What doing it cost, as a positive number — mostly for maintenance.",
     )
+    transaction = models.ForeignKey(
+        "finance.Transaction",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text="The purchase this job's cost came from, when linked.",
+    )
 
     class Meta:
         # Explicit about undated one-offs: SQLite sorts NULL first and

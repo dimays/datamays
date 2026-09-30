@@ -1,4 +1,5 @@
 {% extends "household/base.html" %}
+{% load household_extras %}
 
 {% block section_nav %}{% include "household/upkeep/_section_nav.html" %}{% endblock %}
 
@@ -22,6 +23,18 @@
     </a>
   </div>
 {% else %}
+  {% if costs.1.total %}
+    <section class="mt-6 grid grid-cols-2 gap-3" aria-label="Expected maintenance costs">
+      {% for projection in costs %}
+        <div class="rounded-card border border-border bg-surface p-4">
+          <p class="text-xs uppercase tracking-wide text-text-muted">Next {% if projection.days == 365 %}12 months{% else %}{{ projection.days }} days{% endif %}</p>
+          <p class="mt-1 font-mono text-xl font-bold">${{ projection.total|money:0 }}</p>
+          <p class="mt-0.5 text-xs text-text-muted">expected, from usual costs</p>
+        </div>
+      {% endfor %}
+    </section>
+  {% endif %}
+
   {% if needs_attention %}
     <section class="mt-8" aria-labelledby="attention-heading">
       <h2 id="attention-heading" class="text-sm font-semibold uppercase tracking-wide text-text-muted">Overdue and next 30 days</h2>

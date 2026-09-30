@@ -39,7 +39,7 @@ SECTIONS = [
         "namespace": "household",
         "url_names": {
             "projects", "project_create", "project_detail", "project_edit", "project_delete",
-            "milestone_edit", "project_task_create", "project_task_edit",
+            "milestone_edit", "project_task_create", "project_task_edit", "project_spending",
         },
     },
     {
@@ -49,7 +49,7 @@ SECTIONS = [
         "namespace": "household",
         "url_names": {
             "upkeep", "upkeep_create", "upkeep_detail", "upkeep_edit", "upkeep_delete",
-            "upkeep_library",
+            "upkeep_library", "job_link",
         },
     },
     {

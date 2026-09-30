@@ -34,6 +34,11 @@ urlpatterns = [
     path("projects/<int:pk>/links/<int:link_pk>/delete/", views.LinkDeleteView.as_view(), name="link_delete"),
     path("projects/<int:pk>/notes/new/", views.NoteCreateView.as_view(), name="note_create"),
     path("projects/<int:pk>/notes/<int:note_pk>/delete/", views.NoteDeleteView.as_view(), name="note_delete"),
+    path("projects/<int:pk>/budget/lines/new/", views.BudgetLineCreateView.as_view(), name="budget_line_create"),
+    path("projects/<int:pk>/budget/lines/<int:line_pk>/delete/", views.BudgetLineDeleteView.as_view(), name="budget_line_delete"),
+    path("projects/<int:pk>/spending/", views.ProjectSpendingView.as_view(), name="project_spending"),
+    path("projects/<int:pk>/spending/<int:expense_pk>/", views.ExpenseUpdateView.as_view(), name="expense_edit"),
+    path("projects/<int:pk>/spending/<int:expense_pk>/delete/", views.ExpenseDeleteView.as_view(), name="expense_delete"),
     path("projects/<int:pk>/tasks/new/", views.TaskCreateView.as_view(), name="project_task_create"),
     path("projects/<int:pk>/tasks/<int:task_pk>/edit/", views.TaskUpdateView.as_view(), name="project_task_edit"),
     # Upkeep (maintenance)
@@ -43,6 +48,7 @@ urlpatterns = [
     path("upkeep/starter/<slug:key>/", views.LibraryAdoptView.as_view(), name="upkeep_adopt"),
     path("upkeep/<int:pk>/", views.UpkeepDetailView.as_view(), name="upkeep_detail"),
     path("upkeep/<int:pk>/edit/", views.UpkeepUpdateView.as_view(), name="upkeep_edit"),
+    path("upkeep/<int:pk>/jobs/<int:occurrence_pk>/purchase/", views.JobLinkView.as_view(), name="job_link"),
     path("upkeep/<int:pk>/delete/", views.UpkeepDeleteView.as_view(), name="upkeep_delete"),
     path("preferences/", views.HouseholdPreferencesView.as_view(), name="preferences"),
     # Sign-in

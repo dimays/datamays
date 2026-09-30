@@ -14,6 +14,7 @@ from .chores import (
     SchedulePreviewView,
 )
 from .maintenance import (
+    JobLinkView,
     LibraryAdoptView,
     LibraryView,
     UpkeepCreateView,
@@ -24,6 +25,11 @@ from .maintenance import (
 )
 from .prefs import HouseholdPreferencesView
 from .projects import (
+    BudgetLineCreateView,
+    BudgetLineDeleteView,
+    ExpenseDeleteView,
+    ExpenseUpdateView,
+    ProjectSpendingView,
     LinkCreateView,
     LinkDeleteView,
     MilestoneCreateView,
@@ -43,17 +49,22 @@ from .projects import (
 from .today import TodayView
 
 __all__ = [
+    "BudgetLineCreateView",
+    "BudgetLineDeleteView",
     "ChecklistView",
     "ChoreCreateView",
     "ChoreDeleteView",
     "ChoreDetailView",
     "ChoreListView",
     "ChoreUpdateView",
+    "ExpenseDeleteView",
+    "ExpenseUpdateView",
     "HouseholdLoginView",
     "HouseholdLogoutView",
     "HouseholdPageMixin",
     "HouseholdPreferencesView",
     "HouseholdView",
+    "JobLinkView",
     "LibraryAdoptView",
     "LibraryView",
     "LinkCreateView",
@@ -73,6 +84,7 @@ __all__ = [
     "ProjectDeleteView",
     "ProjectDetailView",
     "ProjectListView",
+    "ProjectSpendingView",
     "ProjectUpdateView",
     "SchedulePreviewView",
     "TaskCreateView",

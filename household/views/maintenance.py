@@ -21,8 +21,8 @@ from ..dates import household_today
 from ..forms.chores import ChoreForm
 from ..forms.maintenance import LogCompletionForm, MaintenanceItemForm
 from ..maintenance_library import BY_KEY
-from ..models import Chore, MaintenanceItem, OccurrenceStatus
-from ..services import checklist, maintenance, occurrences
+from ..models import Chore, MaintenanceItem, Occurrence, OccurrenceStatus
+from ..services import checklist, maintenance, occurrences, spending
 from .base import HouseholdPageMixin, HouseholdView
 
 UPCOMING_PREVIEW = 3
@@ -34,7 +34,12 @@ class UpkeepListView(HouseholdView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context.update(maintenance.overview())
+        overview = maintenance.overview()
+        context.update(overview)
+        items = [item for _, area_items in overview["areas"] for item in area_items]
+        context["costs"] = [
+            spending.projected_costs(items, overview["today"], days) for days in (90, 365)
+        ]
         context["library_count"] = len(maintenance.available_library_entries())
         return context
 
@@ -140,7 +145,7 @@ class UpkeepDetailView(HouseholdView):
             upcoming=upcoming,
             log_form=LogCompletionForm(initial={"cost": item.estimated_cost}),
             history=chore.occurrences.exclude(status=OccurrenceStatus.OPEN)
-            .select_related("completed_by")
+            .select_related("completed_by", "transaction")
             .order_by("-completed_at", "-due_on", "-id")[:20],
             cost_by_year=maintenance.cost_by_year(item),
         )
@@ -189,3 +194,41 @@ class LibraryAdoptView(HouseholdPageMixin, View):
             "Edit it to set whose list it lands on, the location, or the supplies.",
         )
         return redirect(reverse("household:upkeep_library"))
+
+
+class JobLinkView(HouseholdView):
+    """Tie a done maintenance job to the purchase behind it."""
+
+    template_name = "household/upkeep/link.html"
+    page_title = "Link a purchase"
+
+    @cached_property
+    def occurrence(self):
+        return get_object_or_404(
+            Occurrence.objects.select_related("chore", "transaction"),
+            pk=self.kwargs["occurrence_pk"],
+            chore__maintenance_item__pk=self.kwargs["pk"],
+            status=OccurrenceStatus.DONE,
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        query = self.request.GET.get("q", "").strip()[:100]
+        context.update(
+            item_pk=self.kwargs["pk"],
+            occurrence=self.occurrence,
+            query=query,
+            candidates=spending.job_candidates(self.occurrence, household_today(), query),
+        )
+        return context
+
+    def post(self, request, pk, occurrence_pk):
+        if request.POST.get("unlink"):
+            spending.unlink_job(self.occurrence)
+            messages.success(request, "Unlinked the purchase.")
+        elif spending.link_job(self.occurrence, request.POST.get("transaction")):
+            cost = self.occurrence.cost
+            messages.success(request, "Linked the purchase." + (f" The cost is now ${cost:,.2f}." if cost is not None else ""))
+        else:
+            messages.error(request, "That transaction couldn't be found.")
+        return redirect("household:upkeep_detail", pk)
