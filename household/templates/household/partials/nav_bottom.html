@@ -14,8 +14,13 @@
         <a href="{{ section.href }}"
            class="flex flex-col items-center gap-1 px-1 py-2.5 text-[11px] font-medium transition {% if section.is_active %}text-accent{% else %}text-text-muted hover:text-text-secondary{% endif %}"
            {% if section.is_active %}aria-current="page"{% endif %}>
-          {% include "household/icons/"|add:section.icon|add:".html" %}
-          <span>{{ section.label }}</span>
+          <span class="relative">
+            {% include "household/icons/"|add:section.icon|add:".html" %}
+            {% if section.badge_count %}
+              <span class="absolute -right-2.5 -top-1.5 inline-flex min-w-[1.125rem] items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold leading-[1.125rem] text-white">{{ section.badge_count }}</span>
+            {% endif %}
+          </span>
+          <span>{{ section.label }}{% if section.badge_count %}<span class="sr-only">, {{ section.badge_count }} overdue</span>{% endif %}</span>
         </a>
       </li>
     {% endfor %}

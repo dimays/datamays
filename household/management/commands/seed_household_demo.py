@@ -33,8 +33,9 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f"Seeded {summary['accounts']} accounts, "
-                f"{summary['transactions']} transactions, and "
-                f"{summary['budgets']} budgets."
+                f"{summary['transactions']} transactions, "
+                f"{summary['budgets']} budgets, and "
+                f"{summary['chores']} chores."
             )
         )
         self.stdout.write(

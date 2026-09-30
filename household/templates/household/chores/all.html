@@ -1,0 +1,52 @@
+{% extends "household/base.html" %}
+{% load household_extras %}
+
+{% block section_nav %}{% include "household/chores/_section_nav.html" %}{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3">
+  <h1 class="page-title">All chores</h1>
+  <a href="{% url 'household:chore_create' %}"
+     class="rounded-button bg-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600">
+    New chore
+  </a>
+</div>
+<p class="page-subtitle">Every chore, including paused ones and one-offs already done.</p>
+
+{% include "household/partials/messages.html" %}
+
+{% for section in sections %}
+  {% if section.chores %}
+    <section class="mt-8">
+      <h2 class="text-lg font-bold">{{ section.title }}</h2>
+      <ul class="mt-3 divide-y divide-border overflow-hidden rounded-card border border-border bg-surface">
+        {% for chore in section.chores %}
+          <li>
+            <a href="{% url 'household:chore_detail' chore.pk %}"
+               class="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-muted">
+              <div class="min-w-0">
+                <p class="truncate font-medium {% if not chore.is_active %}text-text-muted{% endif %}">{{ chore.title }}</p>
+                <p class="mt-0.5 truncate text-xs text-text-muted">
+                  {{ chore.describe_schedule }}
+                  {% if not chore.is_active %}· paused{% endif %}
+                </p>
+              </div>
+              <p class="shrink-0 text-right text-xs text-text-muted">
+                {% if chore.open_occurrences %}{% due_words chore.open_occurrences.0 today %}{% elif chore.is_active %}Finished{% endif %}
+              </p>
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+{% empty %}
+{% endfor %}
+
+{% if not sections.0.chores and not sections.1.chores and not sections.2.chores %}
+  <div class="empty-state mt-8">
+    <p class="text-text-secondary">No chores yet.</p>
+    <a href="{% url 'household:chore_create' %}" class="mt-2 inline-block text-primary hover:underline">Add the first one →</a>
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,52 @@
+{% load household_extras %}
+{% comment %}
+  One open occurrence on a checklist. The circle marks it done in one tap;
+  htmx swaps this whole <li> for the result. Completing someone else's chore
+  asks first (hx-confirm, drawn by the dialog in household/base.html) — a
+  courtesy, not a guard. Without JavaScript the forms still POST and redirect
+  back to this page.
+{% endcomment %}
+<li id="occurrence-{{ row.occurrence.pk }}"
+    class="flex items-start gap-3 rounded-card border bg-surface p-3.5 {% if row.bucket == 'overdue' %}border-error/50 border-l-4 border-l-error{% else %}border-border{% endif %}">
+  <form method="post"
+        action="{% url 'household:occurrence_action' row.occurrence.pk 'complete' %}"
+        hx-post="{% url 'household:occurrence_action' row.occurrence.pk 'complete' %}"
+        hx-target="#occurrence-{{ row.occurrence.pk }}"
+        hx-swap="outerHTML"
+        {% if row.needs_confirmation %}hx-confirm="Mark {{ row.assignee_name }}’s “{{ row.chore.title }}” as done?"{% endif %}>
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next_url|default:request.get_full_path }}" />
+      {% if show_assignee %}<input type="hidden" name="show_assignee" value="1" />{% endif %}
+    <button type="submit"
+            class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 transition {% if row.bucket == 'overdue' %}border-error hover:bg-error/20{% else %}border-text-muted hover:border-accent hover:bg-accent/20{% endif %}">
+      <span class="sr-only">Mark “{{ row.chore.title }}” done</span>
+    </button>
+  </form>
+
+  <div class="min-w-0 flex-1">
+    <a href="{% url 'household:chore_detail' row.chore.pk %}" class="block truncate font-medium hover:underline">
+      {{ row.chore.title }}
+    </a>
+    <p class="mt-0.5 text-xs {% if row.bucket == 'overdue' %}font-semibold text-error{% else %}text-text-muted{% endif %}">
+      {% due_words row.occurrence today %}
+    </p>
+    <p class="mt-0.5 truncate text-xs text-text-muted">
+      {{ row.schedule_words }}{% if show_assignee %} · {{ row.assignee_name }}{% endif %}
+    </p>
+  </div>
+
+  {% if row.can_manage and row.chore.repeats %}
+    <form method="post"
+          action="{% url 'household:occurrence_action' row.occurrence.pk 'skip' %}"
+          hx-post="{% url 'household:occurrence_action' row.occurrence.pk 'skip' %}"
+          hx-target="#occurrence-{{ row.occurrence.pk }}"
+          hx-swap="outerHTML">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next_url|default:request.get_full_path }}" />
+      {% if show_assignee %}<input type="hidden" name="show_assignee" value="1" />{% endif %}
+      <button type="submit" class="rounded-button px-2 py-1 text-xs text-text-muted transition hover:bg-muted hover:text-text-secondary">
+        Skip<span class="sr-only"> “{{ row.chore.title }}” this time</span>
+      </button>
+    </form>
+  {% endif %}
+</li>

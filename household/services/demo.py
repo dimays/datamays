@@ -128,12 +128,14 @@ def seed(*, rng=None):
     transactions = _transactions(accounts, rng)
     _balance_history(accounts)
     budgets = _budgets()
+    chores = _chores(members)
 
     return {
         "members": [member.username for member in members],
         "accounts": len(accounts),
         "transactions": transactions,
         "budgets": len(budgets),
+        "chores": chores,
     }
 
 
@@ -273,3 +275,63 @@ def _budgets():
         budgets.append(budget)
 
     return budgets
+
+
+def _chores(members):
+    """A spread of chores that exercises every state a screen can show:
+    overdue, due today, coming up this week, later, whenever, shared, one
+    person's, the other's, paused, and some done history."""
+    from datetime import datetime, time
+
+    from household.dates import household_timezone
+    from household.models import Chore
+    from household.scheduling import Anchor, Frequency, MonthlyMode
+    from household.services import occurrences
+
+    david, maddie = members
+    today = household_today()
+    days = lambda n: today + timedelta(days=n)  # noqa: E731
+
+    def chore(owner, title, *, assignee="owner", start_today=None, **fields):
+        assignee = owner if assignee == "owner" else assignee
+        made = Chore.objects.create(owner=owner, assignee=assignee, title=title, **fields)
+        occurrences.reschedule(made, today=start_today or today)
+        return made
+
+    # David's
+    chore(david, "Take out trash and recycling", frequency=Frequency.WEEKLY, starts_on=days(-2 - today.weekday() % 7 + 7))
+    chore(david, "Unload the dishwasher", frequency=Frequency.DAILY, starts_on=today)
+    chore(david, "Call the plumber about the slow drain", starts_on=days(-3))
+    chore(david, "Water the plants", frequency=Frequency.WEEKLY, weekdays=[0, 3], starts_on=days(-14), others_can_manage=True)
+    chore(david, "Organize the garage", starts_on=None)
+
+    # Maddie's
+    chore(maddie, "Walk the dog", frequency=Frequency.DAILY, starts_on=today)
+    chore(maddie, "Renew car registration", starts_on=days(4), deadline=days(20))
+    chore(maddie, "Book dentist appointments", starts_on=days(6))
+    chore(maddie, "Plan the holiday card list", starts_on=days(25))
+
+    # Shared household chores
+    chore(None, "Replace the furnace filter", frequency=Frequency.DAILY, interval=90,
+          anchor=Anchor.AFTER_COMPLETION, starts_on=days(-12))
+    chore(None, "Clean the gutters", frequency=Frequency.YEARLY, starts_on=days(5), deadline_offset_days=14)
+    chore(None, "Mow the lawn", assignee=david, frequency=Frequency.WEEKLY,
+          anchor=Anchor.AFTER_COMPLETION, starts_on=days(2), season_start_month=4, season_end_month=10)
+    paused = chore(None, "Wash the windows", frequency=Frequency.MONTHLY, starts_on=days(10))
+    paused.is_active = False
+    paused.save()
+    occurrences.reschedule(paused, today=today)
+
+    # Some history: a monthly fridge clean done for the last three months,
+    # by alternating people, before the current one.
+    fridge = chore(
+        None, "Deep clean the fridge", frequency=Frequency.MONTHLY,
+        monthly_mode=MonthlyMode.DAY, starts_on=days(-90), start_today=days(-90),
+    )
+    for index in range(3):
+        current = fridge.occurrences.get(status="open")
+        done_on = current.due_on + timedelta(days=1)
+        when = datetime.combine(done_on, time(19), tzinfo=household_timezone())
+        occurrences.complete(current, by=(david, maddie)[index % 2], now=when, today=done_on)
+
+    return Chore.objects.count()

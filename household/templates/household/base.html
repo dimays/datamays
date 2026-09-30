@@ -26,6 +26,40 @@
 
   {% include 'household/partials/nav_bottom.html' %}
 
+  {% comment %}
+    One confirmation dialog for the whole app, in place of the browser's
+    native confirm() — which draws a light-mode system box over this dark
+    page. Anything with hx-confirm routes through it; see the script below.
+  {% endcomment %}
+  <dialog id="confirm-dialog"
+          class="w-[min(24rem,calc(100vw-2rem))] rounded-card border border-border bg-surface p-0 text-text-primary shadow-2xl backdrop:bg-black/60">
+    <form method="dialog" class="p-5">
+      <p data-message class="text-base"></p>
+      <div class="mt-5 flex justify-end gap-2">
+        <button value="cancel" class="rounded-button border border-border px-4 py-2 text-sm font-medium text-text-secondary transition hover:bg-muted">
+          Cancel
+        </button>
+        <button value="confirm" autofocus class="rounded-button bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-600">
+          Yes, mark it done
+        </button>
+      </div>
+    </form>
+  </dialog>
+  <script>
+    document.addEventListener("htmx:confirm", function (event) {
+      if (!event.detail.question) return;
+      event.preventDefault();
+
+      var dialog = document.getElementById("confirm-dialog");
+      dialog.querySelector("[data-message]").textContent = event.detail.question;
+      dialog.returnValue = "";
+      dialog.addEventListener("close", function () {
+        if (dialog.returnValue === "confirm") event.detail.issueRequest(true);
+      }, { once: true });
+      dialog.showModal();
+    });
+  </script>
+
   {% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -92,4 +92,4 @@ class BoundaryTests(SimpleTestCase):
         sample = REPO_ROOT / "household" / "views" / "today.py"
 
         self.assertIn("household.integrations.finance", imported_modules(sample))
-        self.assertIn("household.dates", imported_modules(sample))
+        self.assertIn("household.models", imported_modules(sample))

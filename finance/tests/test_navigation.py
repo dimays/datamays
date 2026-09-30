@@ -83,7 +83,8 @@ class SectionNavTests(TestCase):
         dropdown = body[dropdown_start:body.index("</header>", dropdown_start)]
 
         self.assertIn("Alerts", dropdown)
-        self.assertIn("Preferences", dropdown)
+        self.assertIn("Household preferences", dropdown)
+        self.assertIn("Finance preferences", dropdown)
         self.assertIn(">Help<", dropdown)
         self.assertIn("Back to datamays.com", dropdown)
         self.assertIn("Sign out", dropdown)
