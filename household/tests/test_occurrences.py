@@ -1,0 +1,343 @@
+"""The occurrence lifecycle: open, done, skipped, missed, undone."""
+
+from datetime import date, datetime, time
+from unittest.mock import patch
+from zoneinfo import ZoneInfo
+
+from django.core.management import call_command
+from django.db import IntegrityError, transaction
+from django.test import TestCase
+
+from household.models import Occurrence, OccurrenceStatus
+from household.scheduling import Anchor, Frequency
+from household.services import occurrences
+
+from .factories import make_chore, make_member
+
+CHICAGO = ZoneInfo("America/Chicago")
+TODAY = date(2026, 9, 30)  # a Wednesday
+
+
+def at(day, hour=12):
+    """An aware datetime at `hour` o'clock Chicago time on `day`."""
+    return datetime.combine(day, time(hour), tzinfo=CHICAGO)
+
+
+def open_ones(chore):
+    return list(chore.occurrences.filter(status=OccurrenceStatus.OPEN))
+
+
+class StartTests(TestCase):
+    def setUp(self):
+        self.david = make_member("david")
+
+    def test_a_one_off_opens_with_its_due_date_and_deadline(self):
+        chore = make_chore(self.david, starts_on=date(2026, 10, 3), deadline=date(2026, 10, 10), today=TODAY)
+
+        [current] = open_ones(chore)
+        self.assertEqual((current.due_on, current.deadline), (date(2026, 10, 3), date(2026, 10, 10)))
+
+    def test_a_one_off_can_be_due_whenever(self):
+        chore = make_chore(self.david, starts_on=None, today=TODAY)
+
+        [current] = open_ones(chore)
+        self.assertIsNone(current.due_on)
+        self.assertFalse(current.is_overdue(TODAY))
+
+    def test_a_repeating_chore_opens_its_next_due_date(self):
+        chore = make_chore(
+            self.david, frequency=Frequency.WEEKLY, starts_on=date(2026, 8, 3),
+            deadline_offset_days=1, today=TODAY,
+        )
+
+        [current] = open_ones(chore)
+        self.assertEqual((current.due_on, current.deadline), (date(2026, 10, 5), date(2026, 10, 6)))
+
+
+class CompleteTests(TestCase):
+    def setUp(self):
+        self.david = make_member("david")
+        self.maddie = make_member("maddie")
+        self.weekly = make_chore(
+            self.david, frequency=Frequency.WEEKLY, starts_on=date(2026, 10, 5), today=TODAY
+        )
+
+    def test_done_records_who_when_and_why_and_opens_the_next(self):
+        [current] = open_ones(self.weekly)
+
+        following = occurrences.complete(
+            current, by=self.maddie, note="Did it on my way out", now=at(date(2026, 10, 5)), today=date(2026, 10, 5)
+        )
+
+        current.refresh_from_db()
+        self.assertEqual(current.status, OccurrenceStatus.DONE)
+        self.assertEqual(current.completed_by, self.maddie)
+        self.assertEqual(current.note, "Did it on my way out")
+        self.assertEqual(following.due_on, date(2026, 10, 12))
+        self.assertEqual(open_ones(self.weekly), [following])
+
+    def test_a_double_tap_completes_once(self):
+        [current] = open_ones(self.weekly)
+
+        occurrences.complete(current, by=self.david, now=at(date(2026, 10, 5)), today=date(2026, 10, 5))
+        again = occurrences.complete(current, by=self.david, now=at(date(2026, 10, 5)), today=date(2026, 10, 5))
+
+        self.assertIsNone(again)
+        self.assertEqual(len(open_ones(self.weekly)), 1)
+        self.assertEqual(self.weekly.occurrences.count(), 2)
+
+    def test_the_database_refuses_a_second_open_occurrence(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Occurrence.objects.create(chore=self.weekly, due_on=date(2026, 10, 12))
+
+    def test_a_one_off_is_finished_once_done(self):
+        chore = make_chore(self.david, starts_on=date(2026, 10, 3), today=TODAY)
+        [current] = open_ones(chore)
+
+        self.assertIsNone(occurrences.complete(current, by=self.david, now=at(TODAY), today=TODAY))
+        self.assertEqual(open_ones(chore), [])
+
+    def test_a_finished_series_opens_nothing(self):
+        chore = make_chore(
+            self.david, frequency=Frequency.WEEKLY, starts_on=date(2026, 10, 5),
+            ends_on=date(2026, 10, 5), today=TODAY,
+        )
+        [current] = open_ones(chore)
+
+        self.assertIsNone(occurrences.complete(current, by=self.david, now=at(date(2026, 10, 5)), today=date(2026, 10, 5)))
+
+    def test_done_very_late_opens_the_newest_arrived_date(self):
+        daily = make_chore(self.david, frequency=Frequency.DAILY, starts_on=date(2026, 10, 1), today=date(2026, 10, 1))
+        [current] = open_ones(daily)
+
+        following = occurrences.complete(current, by=self.david, now=at(date(2026, 10, 8)), today=date(2026, 10, 8))
+
+        self.assertEqual(following.due_on, date(2026, 10, 8))
+
+
+class AfterCompletionTests(TestCase):
+    def setUp(self):
+        self.david = make_member("david")
+        self.filter = make_chore(
+            None, title="Replace furnace filter", frequency=Frequency.DAILY, interval=90,
+            anchor=Anchor.AFTER_COMPLETION, starts_on=date(2026, 9, 1), today=TODAY,
+        )
+
+    def test_the_clock_restarts_on_the_day_it_was_done(self):
+        [current] = open_ones(self.filter)
+        self.assertTrue(current.is_overdue(TODAY))
+
+        following = occurrences.complete(current, by=self.david, now=at(TODAY), today=TODAY)
+
+        self.assertEqual(following.due_on, date(2026, 12, 29))
+
+    def test_done_late_in_the_evening_counts_for_that_household_day(self):
+        """10:30pm in Chicago is already tomorrow in UTC — it must not count as tomorrow."""
+        [current] = open_ones(self.filter)
+        late_evening = at(TODAY, hour=22).replace(minute=30)
+        self.assertEqual(late_evening.astimezone(ZoneInfo("UTC")).date(), date(2026, 10, 1))
+
+        following = occurrences.complete(current, by=self.david, now=late_evening, today=TODAY)
+
+        self.assertEqual(following.due_on, date(2026, 12, 29))
+
+    def test_a_skip_restarts_the_clock_too(self):
+        [current] = open_ones(self.filter)
+
+        following = occurrences.skip(current, by=self.david, now=at(TODAY), today=TODAY)
+
+        current.refresh_from_db()
+        self.assertEqual(current.status, OccurrenceStatus.SKIPPED)
+        self.assertEqual(following.due_on, date(2026, 12, 29))
+
+    def test_it_is_never_missed_only_overdue(self):
+        chores = occurrences.with_open_occurrence(type(self.filter).objects.all())
+        occurrences.refresh(chores, today=date(2027, 6, 1))
+
+        [current] = open_ones(self.filter)
+        self.assertEqual(current.due_on, date(2026, 9, 1))
+        self.assertEqual(current.days_overdue(date(2026, 9, 30)), 29)
+
+    def test_a_count_limit_ends_the_series(self):
+        chore = make_chore(
+            None, frequency=Frequency.WEEKLY, anchor=Anchor.AFTER_COMPLETION,
+            starts_on=TODAY, max_occurrences=2, today=TODAY,
+        )
+
+        second = occurrences.complete(open_ones(chore)[0], by=self.david, now=at(TODAY), today=TODAY)
+        third = occurrences.complete(second, by=self.david, now=at(date(2026, 10, 7)), today=date(2026, 10, 7))
+
+        self.assertIsNotNone(second)
+        self.assertIsNone(third)
+
+
+class CollapseTests(TestCase):
+    def setUp(self):
+        self.david = make_member("david")
+        self.weekly = make_chore(
+            self.david, frequency=Frequency.WEEKLY, starts_on=date(2026, 10, 5), today=TODAY
+        )
+
+    def refreshed(self, today):
+        chores = occurrences.with_open_occurrence(type(self.weekly).objects.all())
+        return occurrences.refresh(chores, today=today)
+
+    def test_nothing_changes_before_the_next_due_date(self):
+        self.refreshed(date(2026, 10, 11))
+
+        [current] = open_ones(self.weekly)
+        self.assertEqual(current.due_on, date(2026, 10, 5))
+        self.assertTrue(current.is_overdue(date(2026, 10, 11)))
+
+    def test_an_arrived_due_date_misses_the_old_one(self):
+        [chore] = self.refreshed(date(2026, 10, 20))
+
+        statuses = list(self.weekly.occurrences.values_list("due_on", "status"))
+        self.assertEqual(
+            statuses,
+            [(date(2026, 10, 5), OccurrenceStatus.MISSED), (date(2026, 10, 19), OccurrenceStatus.OPEN)],
+        )
+        # The caller's copy is updated in place, ready to render.
+        self.assertEqual(chore.open_occurrences[0].due_on, date(2026, 10, 19))
+
+    def test_the_query_count_does_not_grow_with_the_number_of_chores(self):
+        for index in range(10):
+            make_chore(self.david, title=f"Chore {index}", frequency=Frequency.DAILY, starts_on=TODAY, today=TODAY)
+
+        with self.assertNumQueries(2):
+            self.refreshed(TODAY)
+
+    def test_the_sweep_command_applies_the_same_rule(self):
+        with patch("household.services.occurrences.household_today", return_value=date(2026, 10, 20)):
+            call_command("sweep_chores", verbosity=0)
+
+        [current] = open_ones(self.weekly)
+        self.assertEqual(current.due_on, date(2026, 10, 19))
+
+
+class ReopenTests(TestCase):
+    def setUp(self):
+        self.david = make_member("david")
+        self.weekly = make_chore(
+            self.david, frequency=Frequency.WEEKLY, starts_on=date(2026, 10, 5), today=TODAY
+        )
+
+    def test_an_accidental_tap_can_be_undone(self):
+        [current] = open_ones(self.weekly)
+        occurrences.complete(current, by=self.david, now=at(date(2026, 10, 5)), today=date(2026, 10, 5))
+
+        self.assertTrue(occurrences.reopen(current))
+
+        current.refresh_from_db()
+        self.assertTrue(current.is_open)
+        self.assertIsNone(current.completed_by)
+        self.assertEqual(open_ones(self.weekly), [current])
+
+    def test_older_history_stands(self):
+        [first] = open_ones(self.weekly)
+        second = occurrences.complete(first, by=self.david, now=at(date(2026, 10, 5)), today=date(2026, 10, 5))
+        occurrences.complete(second, by=self.david, now=at(date(2026, 10, 12)), today=date(2026, 10, 12))
+
+        self.assertFalse(occurrences.reopen(first))
+        self.assertFalse(occurrences.reopen(open_ones(self.weekly)[0]))
+
+
+class RescheduleTests(TestCase):
+    def setUp(self):
+        self.david = make_member("david")
+
+    def test_a_new_weekday_replaces_the_open_occurrence(self):
+        chore = make_chore(self.david, frequency=Frequency.WEEKLY, starts_on=date(2026, 10, 5), today=TODAY)
+
+        chore.starts_on = date(2026, 10, 8)
+        chore.save()
+        occurrences.reschedule(chore, today=TODAY)
+
+        [current] = open_ones(chore)
+        self.assertEqual(current.due_on, date(2026, 10, 8))
+        self.assertEqual(chore.occurrences.count(), 1)
+
+    def test_pausing_takes_it_off_the_list_and_resuming_starts_afresh(self):
+        chore = make_chore(self.david, frequency=Frequency.WEEKLY, starts_on=date(2026, 9, 7), today=date(2026, 9, 7))
+
+        chore.is_active = False
+        occurrences.reschedule(chore, today=TODAY)
+        self.assertEqual(open_ones(chore), [])
+
+        chore.is_active = True
+        occurrences.reschedule(chore, today=TODAY)
+        [current] = open_ones(chore)
+        self.assertEqual(current.due_on, date(2026, 10, 5))
+
+    def test_after_completion_remembers_when_it_was_last_done(self):
+        chore = make_chore(
+            None, frequency=Frequency.DAILY, interval=90, anchor=Anchor.AFTER_COMPLETION,
+            starts_on=date(2026, 9, 1), today=TODAY,
+        )
+        occurrences.complete(open_ones(chore)[0], by=self.david, now=at(TODAY), today=TODAY)
+
+        chore.interval = 60
+        occurrences.reschedule(chore, today=TODAY)
+
+        [current] = open_ones(chore)
+        self.assertEqual(current.due_on, date(2026, 11, 29))
+
+    def test_a_one_off_moves_its_date_but_a_done_one_stays_done(self):
+        chore = make_chore(self.david, starts_on=date(2026, 10, 3), today=TODAY)
+
+        chore.starts_on = date(2026, 10, 4)
+        occurrences.reschedule(chore, today=TODAY)
+        [current] = open_ones(chore)
+        self.assertEqual(current.due_on, date(2026, 10, 4))
+
+        occurrences.complete(current, by=self.david, now=at(TODAY), today=TODAY)
+        chore.starts_on = date(2026, 10, 5)
+        occurrences.reschedule(chore, today=TODAY)
+        self.assertEqual(open_ones(chore), [])
+
+
+class OverdueTests(TestCase):
+    def test_due_today_is_not_overdue_and_a_deadline_extends_it(self):
+        david = make_member("david")
+        plain = make_chore(david, starts_on=TODAY, today=TODAY)
+        with_deadline = make_chore(david, title="Renew plates", starts_on=date(2026, 9, 20),
+                                   deadline=date(2026, 9, 30), today=TODAY)
+
+        [plain_one] = open_ones(plain)
+        [deadline_one] = open_ones(with_deadline)
+
+        self.assertFalse(plain_one.is_overdue(TODAY))
+        self.assertTrue(plain_one.is_overdue(date(2026, 10, 1)))
+        self.assertEqual(plain_one.days_overdue(date(2026, 10, 3)), 3)
+        self.assertFalse(deadline_one.is_overdue(TODAY))
+        self.assertTrue(deadline_one.is_overdue(date(2026, 10, 1)))
+
+
+class ChoreValidationTests(TestCase):
+    def assertInvalid(self, field, **kwargs):
+        from django.core.exceptions import ValidationError
+
+        from household.models import Chore
+
+        with self.assertRaises(ValidationError) as caught:
+            Chore(title="x", **kwargs).clean()
+        self.assertIn(field, caught.exception.message_dict)
+
+    def test_the_combinations_that_make_no_sense(self):
+        cases = [
+            ("season_start_month", {"frequency": Frequency.MONTHLY, "starts_on": TODAY, "season_start_month": 4}),
+            ("deadline", {"frequency": Frequency.WEEKLY, "starts_on": TODAY, "deadline": TODAY}),
+            ("deadline_offset_days", {"starts_on": TODAY, "deadline_offset_days": 2}),
+            ("deadline", {"starts_on": TODAY, "deadline": date(2026, 9, 1)}),
+            ("starts_on", {"frequency": Frequency.DAILY, "starts_on": None}),
+        ]
+        for field, kwargs in cases:
+            with self.subTest(field=field, **{k: str(v) for k, v in kwargs.items()}):
+                self.assertInvalid(field, **kwargs)
+
+    def test_the_describe_shortcut(self):
+        from household.models import Chore
+
+        chore = Chore(title="x", frequency=Frequency.MONTHLY, starts_on=date(2026, 4, 1),
+                      season_start_month=4, season_end_month=10)
+        self.assertEqual(chore.describe_schedule(), "Monthly on day 1, Apr–Oct")
