@@ -18,3 +18,4 @@ until you know why it was rejected.
 | [0007](0007-committed-frontend-build-artifacts.md) | Commit the built CSS and JS | Heroku runs no Node |
 | [0008](0008-household-shell-owns-sign-in.md) | A household shell owns sign-in | Finance becomes a section; its URLs stay put |
 | [0009](0009-one-household-app-one-finance-bridge.md) | One household app, one bridge to finance | Chores, maintenance, projects share one app; finance is read through one module |
+| [0010](0010-structured-schedules-one-open-occurrence.md) | Structured schedules, one open occurrence | Columns not RRULEs; the next occurrence opens when this one closes; misses collapse |
