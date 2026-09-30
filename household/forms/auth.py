@@ -11,7 +11,7 @@ from django.contrib.auth.forms import AuthenticationForm
 from .widgets import AUTH_FIELD_CLASSES, OTP_FIELD_CLASSES
 
 
-class FinanceLoginForm(AuthenticationForm):
+class LoginForm(AuthenticationForm):
     """Styled login form. Authentication behavior is Django's."""
 
     def __init__(self, *args, **kwargs):

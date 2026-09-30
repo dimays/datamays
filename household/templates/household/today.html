@@ -1,0 +1,16 @@
+{% extends "household/base.html" %}
+
+{% block content %}
+<div>
+  <h1 class="page-title">
+    {% if request.user.first_name %}Hi, {{ request.user.first_name }}{% else %}Today{% endif %}
+  </h1>
+  <p class="page-subtitle">{{ today|date:"l, F j" }}</p>
+</div>
+
+{% include "household/partials/messages.html" %}
+
+<div class="mt-6 space-y-4">
+  {% include budgets.template with data=budgets.data label=budgets.label %}
+</div>
+{% endblock %}

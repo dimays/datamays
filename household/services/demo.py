@@ -25,8 +25,6 @@ from django.utils import timezone
 from django_otp.oath import TOTP
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
-from finance.access import FINANCE_GROUP
-from finance.dates import household_today
 from finance.models import (
     Account,
     AccountBalanceSnapshot,
@@ -39,6 +37,8 @@ from finance.models import (
     Transaction,
 )
 from finance.services.rollups import backfill_budget
+from household.access import HOUSEHOLD_GROUP
+from household.dates import household_today
 
 # Local-only sign-in for the demo members. Deliberately written down: the
 # seed refuses to run against anything but a local SQLite file, so these can
@@ -139,7 +139,7 @@ def seed(*, rng=None):
 
 def _members():
     User = get_user_model()
-    group, _ = Group.objects.get_or_create(name=FINANCE_GROUP)
+    group, _ = Group.objects.get_or_create(name=HOUSEHOLD_GROUP)
     members = []
 
     for spec in DEMO_MEMBERS:

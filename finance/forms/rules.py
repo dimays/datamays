@@ -3,7 +3,7 @@
 from django import forms
 
 from ..models import Account, Category, CategoryRule
-from .base import StyledFormMixin
+from household.forms.base import StyledFormMixin
 
 
 class RuleForm(StyledFormMixin, forms.ModelForm):

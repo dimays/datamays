@@ -1,4 +1,4 @@
-{% extends "finance/base_auth.html" %}
+{% extends "household/base_auth.html" %}
 {% block title %}Nothing to see here{% endblock %}
 
 {% block auth_content %}
@@ -18,7 +18,7 @@
   </a>
 
   <p class="mt-10 text-xs text-text-muted">
-    <a href="{% url 'finance:login' %}" class="underline underline-offset-4 transition hover:text-text-secondary">
+    <a href="{% url 'household:login' %}" class="underline underline-offset-4 transition hover:text-text-secondary">
       …unless you live here
     </a>
   </p>

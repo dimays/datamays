@@ -42,6 +42,27 @@
   .empty-state {
     @apply rounded-card border border-dashed border-border bg-surface/50 p-8 text-center;
   }
+
+  /* A section's own screens, as one row of pills under the header. On a phone
+     it scrolls sideways rather than wrapping, so it never costs more than one
+     row: the scrollbar is hidden, and the right edge fades out so a cut-off
+     pill reads as "there is more" rather than as a clipping bug. The fade
+     stops at desktop widths, where every pill fits. */
+  .section-nav {
+    @apply relative -mx-4 mb-6 overflow-x-auto px-4 md:mx-0 md:px-0;
+    scrollbar-width: none;
+    mask-image: linear-gradient(to right, black 85%, transparent);
+  }
+
+  .section-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (min-width: 768px) {
+    .section-nav {
+      mask-image: none;
+    }
+  }
 }
 
 /* Keeps Alpine-controlled elements hidden until Alpine initializes them,

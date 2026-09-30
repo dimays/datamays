@@ -1,6 +1,6 @@
 """Shared form behavior.
 
-The one thing every form in this app had in common was restating the same
+The one thing every form in the household apps had in common was restating the same
 Tailwind class string on every single widget. `StyledFormMixin` does it once,
 by widget type, so a form's `widgets` declaration is left saying only what is
 actually specific to it — a step size, a min/max, a rows count, a date picker.

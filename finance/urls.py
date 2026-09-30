@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import views
 
@@ -44,9 +45,17 @@ urlpatterns = [
     path("imports/new/", views.ImportUploadView.as_view(), name="import_upload"),
     path("imports/<int:pk>/columns/", views.ImportMapView.as_view(), name="import_map"),
     path("imports/<int:pk>/review/", views.ImportPreviewView.as_view(), name="import_preview"),
-    # Auth
-    path("login/", views.FinanceLoginView.as_view(), name="login"),
-    path("logout/", views.FinanceLogoutView.as_view(), name="logout"),
-    path("two-factor/setup/", views.OTPSetupView.as_view(), name="otp_setup"),
-    path("two-factor/", views.OTPVerifyView.as_view(), name="otp_verify"),
+    # Sign-in moved to the household shell (ADR 0008). These keep old
+    # bookmarks working, and query_string keeps a ?next= intact. Logout is
+    # deliberately absent: it is POST-only, and a redirect would turn the
+    # POST into a GET that Django's LogoutView refuses.
+    path("login/", RedirectView.as_view(pattern_name="household:login", query_string=True)),
+    path(
+        "two-factor/setup/",
+        RedirectView.as_view(pattern_name="household:otp_setup", query_string=True),
+    ),
+    path(
+        "two-factor/",
+        RedirectView.as_view(pattern_name="household:otp_verify", query_string=True),
+    ),
 ]

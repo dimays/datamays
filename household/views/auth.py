@@ -1,4 +1,9 @@
-"""Login, TOTP enrolment, and TOTP verification for the finance app."""
+"""Sign-in, authenticator setup, and the second-factor challenge.
+
+One sign-in for every section of Mays Household, finance included. These
+moved here from `finance/views/auth.py` (ADR 0008); the old finance URLs
+redirect to them.
+"""
 
 from io import BytesIO
 
@@ -12,8 +17,8 @@ from django.views.generic import FormView
 from django_otp import login as otp_login
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
-from ..access import HouseholdMemberMixin
-from ..forms import FinanceLoginForm, OTPTokenForm
+from ..access import HouseholdMemberMixin, is_household_member
+from ..forms import LoginForm, OTPTokenForm
 from ..redirects import safe_next
 from .base import PageTitleMixin
 
@@ -31,26 +36,32 @@ def _qr_svg(uri: str) -> str:
     return mark_safe(buffer.getvalue().decode())
 
 
-class FinanceLoginView(LoginView):
-    template_name = "finance/login.html"
-    form_class = FinanceLoginForm
+class HouseholdLoginView(LoginView):
+    template_name = "household/login.html"
+    form_class = LoginForm
     redirect_authenticated_user = True
 
 
-class FinanceLogoutView(LogoutView):
+class HouseholdLogoutView(LogoutView):
     next_page = reverse_lazy("core:home")
 
 
 class OTPSetupView(PageTitleMixin, HouseholdMemberMixin, FormView):
-    """One-time enrolment of an authenticator app."""
+    """One-time enrollment of an authenticator app."""
 
-    template_name = "finance/otp_setup.html"
+    template_name = "household/otp_setup.html"
     form_class = OTPTokenForm
     page_title = "Set up two-factor"
 
     def dispatch(self, request, *args, **kwargs):
-        if TOTPDevice.objects.filter(user=request.user, confirmed=True).exists():
-            return redirect("finance:otp_verify")
+        # Membership first. This check used to run before the gate, so an
+        # anonymous visitor made it query devices for AnonymousUser and got a
+        # 500 instead of the 403 every stranger is meant to see.
+        if (
+            is_household_member(request.user)
+            and TOTPDevice.objects.filter(user=request.user, confirmed=True).exists()
+        ):
+            return redirect("household:otp_verify")
 
         return super().dispatch(request, *args, **kwargs)
 
@@ -91,19 +102,19 @@ class OTPSetupView(PageTitleMixin, HouseholdMemberMixin, FormView):
 
         otp_login(self.request, device)
 
-        return redirect("finance:home")
+        return redirect("household:today")
 
 
 class OTPVerifyView(PageTitleMixin, HouseholdMemberMixin, FormView):
     """Second-factor challenge for a session that has only a password."""
 
-    template_name = "finance/otp_verify.html"
+    template_name = "household/otp_verify.html"
     form_class = OTPTokenForm
     page_title = "Two-factor"
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated and request.user.is_verified():
-            return redirect("finance:home")
+            return redirect("household:today")
 
         return super().dispatch(request, *args, **kwargs)
 
@@ -113,7 +124,7 @@ class OTPVerifyView(PageTitleMixin, HouseholdMemberMixin, FormView):
         ).first()
 
     def dispatch_no_device(self):
-        return redirect("finance:otp_setup")
+        return redirect("household:otp_setup")
 
     def form_valid(self, form):
         device = self.get_device()
@@ -143,4 +154,4 @@ class OTPVerifyView(PageTitleMixin, HouseholdMemberMixin, FormView):
     def get_success_url(self):
         # Shared validator rather than an inline check, so every place that
         # honours a caller-supplied destination rejects the same things.
-        return safe_next(self.request, default=reverse("finance:home"))
+        return safe_next(self.request, default=reverse("household:today"))
