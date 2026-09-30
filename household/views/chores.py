@@ -18,7 +18,8 @@ from django.views.generic import CreateView, DeleteView, DetailView, UpdateView
 from .. import scheduling
 from ..dates import household_today
 from ..forms.chores import SCHEDULE_FIELDS, ChoreForm
-from ..models import Chore, HouseholdPreference, Occurrence, OccurrenceStatus
+from ..forms.maintenance import LogCompletionForm
+from ..models import Chore, HouseholdPreference, MaintenanceItem, Occurrence, OccurrenceStatus
 from ..redirects import is_safe_path, safe_next
 from ..services import checklist, occurrences, permissions
 from ..services.members import display_name, partner_of
@@ -63,7 +64,9 @@ class ChoreListView(HouseholdView):
         user = self.request.user
         partner = partner_of(user)
         chores = list(
-            occurrences.with_open_occurrence(Chore.objects.select_related("owner", "assignee"))
+            occurrences.with_open_occurrence(
+                Chore.objects.select_related("owner", "assignee", "maintenance_item")
+            )
         )
 
         def section(title, rows):
@@ -111,6 +114,24 @@ class ChoreCreateView(ChoreFormMixin, CreateView):
         return response
 
 
+class MaintenanceRedirectMixin:
+    """A maintenance item's chore is viewed and edited on the Upkeep pages,
+    where its instructions, supplies, and costs live alongside the schedule.
+
+    Must come *after* the access gate in a view's bases, so it only ever
+    runs for a verified member: before the gate, a stranger could tell an
+    existing maintenance item (a redirect) from anything else (a 403).
+    """
+
+    upkeep_url_name = "household:upkeep_detail"
+
+    def dispatch(self, request, *args, **kwargs):
+        item = MaintenanceItem.objects.filter(chore_id=kwargs["pk"]).first()
+        if item is not None:
+            return redirect(self.upkeep_url_name, item.pk)
+        return super().dispatch(request, *args, **kwargs)
+
+
 class ManagedChoreMixin:
     """Refuses anyone who can't manage the chore. For edit and delete."""
 
@@ -121,7 +142,9 @@ class ManagedChoreMixin:
         return chore
 
 
-class ChoreUpdateView(ManagedChoreMixin, ChoreFormMixin, UpdateView):
+class ChoreUpdateView(ManagedChoreMixin, ChoreFormMixin, MaintenanceRedirectMixin, UpdateView):
+    upkeep_url_name = "household:upkeep_edit"
+
     def get_page_title(self):
         return f"Edit {self.object.title}"
 
@@ -142,7 +165,9 @@ class ChoreUpdateView(ManagedChoreMixin, ChoreFormMixin, UpdateView):
         return response
 
 
-class ChoreDeleteView(ManagedChoreMixin, HouseholdPageMixin, DeleteView):
+class ChoreDeleteView(ManagedChoreMixin, HouseholdPageMixin, MaintenanceRedirectMixin, DeleteView):
+    upkeep_url_name = "household:upkeep_delete"
+
     model = Chore
     template_name = "household/chores/confirm_delete.html"
     success_url = reverse_lazy("household:chore_list")
@@ -153,7 +178,7 @@ class ChoreDeleteView(ManagedChoreMixin, HouseholdPageMixin, DeleteView):
         return super().form_valid(form)
 
 
-class ChoreDetailView(HouseholdPageMixin, DetailView):
+class ChoreDetailView(HouseholdPageMixin, MaintenanceRedirectMixin, DetailView):
     model = Chore
     template_name = "household/chores/detail.html"
     context_object_name = "chore"
@@ -217,9 +242,18 @@ class OccurrenceActionView(HouseholdPageMixin, View):
         if not self.CHECKS[action](request.user, occurrence):
             raise PermissionDenied
 
-        note = request.POST.get("note", "").strip()[:1000]
+        # Note and cost come from the same small form maintenance uses to log
+        # a job, so a cost is validated as money wherever it is posted from.
+        details = LogCompletionForm(request.POST)
+        if not details.is_valid():
+            messages.error(request, "That cost doesn't look like an amount — nothing was changed.")
+            return redirect(safe_next(request, default=reverse("household:chores")))
+        note = details.cleaned_data["note"].strip()
+
         if action == "complete":
-            following = occurrences.complete(occurrence, by=request.user, note=note)
+            following = occurrences.complete(
+                occurrence, by=request.user, note=note, cost=details.cleaned_data["cost"]
+            )
         elif action == "skip":
             following = occurrences.skip(occurrence, by=request.user, note=note)
         else:
@@ -227,6 +261,12 @@ class OccurrenceActionView(HouseholdPageMixin, View):
             following = None
 
         if not is_htmx(request):
+            # A full-page post (maintenance's "Mark done", or no JavaScript)
+            # gets no swapped row, so say what happened.
+            if action != "undo":
+                done = "Marked done" if action == "complete" else "Skipped"
+                upcoming = f" — next due {following.due_on:%b} {following.due_on.day}" if following and following.due_on else ""
+                messages.success(request, f"{done}: “{occurrence.chore.title}”{upcoming}.")
             return redirect(safe_next(request, default=reverse("household:chores")))
 
         occurrence.refresh_from_db()
@@ -271,7 +311,9 @@ class SchedulePreviewView(HouseholdPageMixin, View):
     http_method_names = ["get"]
 
     def get(self, request):
-        form = ChoreForm(data=request.GET, user=request.user)
+        # The maintenance form prefixes its chore fields ("chore-frequency").
+        prefix = request.GET.get("_prefix") or None
+        form = ChoreForm(data=request.GET, user=request.user, prefix=prefix)
         form.is_valid()  # runs the schedule validation; unrelated errors are ignored
 
         errors = [

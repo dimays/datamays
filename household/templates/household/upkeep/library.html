@@ -1,0 +1,36 @@
+{% extends "household/base.html" %}
+{% load household_extras %}
+
+{% block section_nav %}{% include "household/upkeep/_section_nav.html" %}{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Starter list</h1>
+<p class="page-subtitle">Common home maintenance, to add with one tap and adjust afterwards. Anything missing is a new item away.</p>
+
+{% include "household/partials/messages.html" %}
+
+{% if entries %}
+  <ul class="mt-8 space-y-2">
+    {% for entry in entries %}
+      <li class="flex items-center justify-between gap-3 rounded-card border border-border bg-surface p-4">
+        <div class="min-w-0">
+          <p class="font-medium">{{ entry.title }}</p>
+          <p class="mt-0.5 text-xs text-text-muted">
+            {% if entry.anchor == "after_completion" %}Every {{ entry.interval }} {% if entry.frequency == "daily" %}days{% elif entry.frequency == "monthly" %}months{% else %}{{ entry.frequency }}{% endif %} after it's done{% elif entry.month_day %}{% if entry.frequency == "monthly" %}Every {{ entry.interval }} months{% else %}Yearly{% endif %}{% else %}{{ entry.frequency|capfirst }}{% endif %}{% if entry.estimated_cost %} · usually ${{ entry.estimated_cost|money }}{% endif %}
+          </p>
+        </div>
+        <form method="post" action="{% url 'household:upkeep_adopt' entry.key %}">
+          {% csrf_token %}
+          <button type="submit" class="shrink-0 rounded-button border border-border px-3 py-2 text-sm font-medium text-text-secondary transition hover:bg-muted hover:text-text-primary">
+            Add<span class="sr-only"> “{{ entry.title }}”</span>
+          </button>
+        </form>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <div class="empty-state mt-8">
+    <p class="text-text-secondary">Everything on the starter list is already on yours.</p>
+  </div>
+{% endif %}
+{% endblock %}

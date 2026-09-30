@@ -141,7 +141,7 @@ def _advance(closed, today):
     return _open(chore, due)
 
 
-def _close(occurrence, status, *, by, note, now, today):
+def _close(occurrence, status, *, by, note, now, today, cost=None):
     with transaction.atomic():
         # Locked and re-read, so a double tap closes it once and opens one
         # next occurrence, not two.
@@ -153,18 +153,20 @@ def _close(occurrence, status, *, by, note, now, today):
         locked.completed_by = by
         locked.completed_at = now or timezone.now()
         locked.note = note
-        locked.save(update_fields=["status", "completed_by", "completed_at", "note", "updated_at"])
+        locked.cost = cost
+        locked.save(update_fields=["status", "completed_by", "completed_at", "note", "cost", "updated_at"])
 
         return _advance(locked, today or household_today())
 
 
-def complete(occurrence, *, by, note="", now=None, today=None):
+def complete(occurrence, *, by, note="", cost=None, now=None, today=None):
     """Mark it done by `by` — who may not be the assignee — and open the next.
 
-    Returns the next open occurrence, or None if the series is finished or
-    this occurrence was no longer open.
+    `cost`, when given, is what doing it cost (maintenance, mostly), as a
+    positive Decimal. Returns the next open occurrence, or None if the series
+    is finished or this occurrence was no longer open.
     """
-    return _close(occurrence, OccurrenceStatus.DONE, by=by, note=note, now=now, today=today)
+    return _close(occurrence, OccurrenceStatus.DONE, by=by, note=note, now=now, today=today, cost=cost)
 
 
 def skip(occurrence, *, by, note="", now=None, today=None):
@@ -197,7 +199,8 @@ def reopen(occurrence):
     locked.status = OccurrenceStatus.OPEN
     locked.completed_by = None
     locked.completed_at = None
-    locked.save(update_fields=["status", "completed_by", "completed_at", "updated_at"])
+    locked.cost = None
+    locked.save(update_fields=["status", "completed_by", "completed_at", "cost", "updated_at"])
     return True
 
 

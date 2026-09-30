@@ -33,6 +33,16 @@ SECTIONS = [
         "badge": "overdue_chores",
     },
     {
+        "label": "Upkeep",
+        "url": "household:upkeep",
+        "icon": "upkeep",
+        "namespace": "household",
+        "url_names": {
+            "upkeep", "upkeep_create", "upkeep_detail", "upkeep_edit", "upkeep_delete",
+            "upkeep_library",
+        },
+    },
+    {
         "label": "Finance",
         "url": "finance:home",
         "icon": "finance",
@@ -88,8 +98,7 @@ CHORES_NAV = [
 ]
 
 
-@register.simple_tag(takes_context=True)
-def chores_section_nav(context):
+def _section_items(context, items):
     request = context.get("request")
     current = getattr(getattr(request, "resolver_match", None), "url_name", None)
 
@@ -99,5 +108,21 @@ def chores_section_nav(context):
             "href": reverse(f"household:{item['url_name']}"),
             "is_active": current == item["url_name"] or current in item["related"],
         }
-        for item in CHORES_NAV
+        for item in items
     ]
+
+
+@register.simple_tag(takes_context=True)
+def chores_section_nav(context):
+    return _section_items(context, CHORES_NAV)
+
+
+UPKEEP_NAV = [
+    {"url_name": "upkeep", "label": "Items", "related": {"upkeep_create", "upkeep_detail", "upkeep_edit", "upkeep_delete"}},
+    {"url_name": "upkeep_library", "label": "Starter list", "related": set()},
+]
+
+
+@register.simple_tag(takes_context=True)
+def upkeep_section_nav(context):
+    return _section_items(context, UPKEEP_NAV)

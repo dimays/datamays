@@ -24,7 +24,7 @@
   </form>
 
   <div class="min-w-0 flex-1">
-    <a href="{% url 'household:chore_detail' row.chore.pk %}" class="block truncate font-medium hover:underline">
+    <a href="{{ row.chore.get_absolute_url }}" class="block truncate font-medium hover:underline">
       {{ row.chore.title }}
     </a>
     <p class="mt-0.5 text-xs {% if row.bucket == 'overdue' %}font-semibold text-error{% else %}text-text-muted{% endif %}">

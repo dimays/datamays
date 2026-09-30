@@ -1,0 +1,112 @@
+{% extends "household/base.html" %}
+{% load household_extras %}
+
+{% block section_nav %}{% include "household/upkeep/_section_nav.html" %}{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-start justify-between gap-3">
+  <div class="min-w-0">
+    <h1 class="page-title">{{ item.name }}</h1>
+    <p class="page-subtitle">
+      {{ item.get_area_display }}{% if item.location %} · {{ item.location }}{% endif %}
+      · {{ chore.describe_schedule }}
+      {% if not chore.is_active %}· <span class="text-warning">paused</span>{% endif %}
+    </p>
+  </div>
+  <a href="{% url 'household:upkeep_edit' item.pk %}"
+     class="rounded-button border border-border px-4 py-2.5 text-sm font-medium text-text-secondary transition hover:bg-muted">
+    Edit
+  </a>
+</div>
+
+{% include "household/partials/messages.html" %}
+
+<section class="mt-8">
+  <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Now</h2>
+  {% if row %}
+    <div class="mt-2 rounded-card border {% if row.bucket == 'overdue' %}border-error/50{% else %}border-border{% endif %} bg-surface p-4">
+      <p class="{% if row.bucket == 'overdue' %}font-semibold text-error{% else %}text-text-secondary{% endif %}">
+        {% due_words row.occurrence today %}
+        <span class="text-text-muted">· on {{ row.assignee_name }}’s list</span>
+      </p>
+
+      <form method="post" action="{% url 'household:occurrence_action' row.occurrence.pk 'complete' %}"
+            class="mt-4 grid gap-3 sm:grid-cols-[8rem_1fr_auto] sm:items-end">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+        {% include "household/partials/field.html" with field=log_form.cost %}
+        {% include "household/partials/field.html" with field=log_form.note %}
+        <button type="submit" class="rounded-button bg-primary px-5 py-2.5 font-medium text-white transition hover:bg-primary-600">
+          Mark done
+        </button>
+      </form>
+    </div>
+    {% if upcoming %}
+      <p class="mt-2 text-xs text-text-muted">Then {% for day in upcoming %}{{ day|date:"D M j, Y" }}{% if not forloop.last %}, {% endif %}{% endfor %}, …</p>
+    {% endif %}
+  {% elif chore.is_active %}
+    <p class="mt-2 text-sm text-text-muted">Nothing due — the schedule has ended.</p>
+  {% else %}
+    <p class="mt-2 text-sm text-text-muted">Paused. Edit it and tick Active to put it back on the schedule.</p>
+  {% endif %}
+</section>
+
+{% if item.instructions or item.supplies %}
+  <section class="mt-8 grid gap-6 sm:grid-cols-2">
+    {% if item.instructions %}
+      <div>
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">How</h2>
+        <p class="mt-2 whitespace-pre-line text-text-secondary">{{ item.instructions }}</p>
+      </div>
+    {% endif %}
+    {% if item.supplies %}
+      <div>
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Supplies</h2>
+        <p class="mt-2 whitespace-pre-line text-text-secondary">{{ item.supplies }}</p>
+        {% if item.supply_url %}
+          <a href="{{ item.supply_url }}" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-sm text-primary hover:underline">Where to buy →</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
+{% endif %}
+
+{% if chore.notes %}
+  <p class="mt-6 whitespace-pre-line text-text-secondary">{{ chore.notes }}</p>
+{% endif %}
+
+<section class="mt-8">
+  <div class="flex items-baseline justify-between gap-3">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">History</h2>
+    {% if item.estimated_cost is not None %}<p class="text-xs text-text-muted">Usually ${{ item.estimated_cost|money }}</p>{% endif %}
+  </div>
+
+  {% if cost_by_year %}
+    <p class="mt-2 text-sm text-text-secondary">
+      Spent {% for year, total in cost_by_year %}<span class="font-mono">${{ total|money }}</span> in {{ year }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+    </p>
+  {% endif %}
+
+  {% if history %}
+    <ul class="mt-3 divide-y divide-border overflow-hidden rounded-card border border-border bg-surface text-sm">
+      {% for occurrence in history %}
+        <li class="px-4 py-2.5">
+          <div class="flex items-baseline justify-between gap-3">
+            <span>{% if occurrence.completed_at %}{{ occurrence.completed_at|date:"D M j, Y" }}{% else %}{{ occurrence.due_on|date:"D M j, Y" }}{% endif %}</span>
+            <span class="{% if occurrence.status == 'done' %}text-success{% elif occurrence.status == 'missed' %}text-error{% else %}text-text-muted{% endif %}">
+              {{ occurrence.get_status_display }}{% if occurrence.completed_by %} · {{ occurrence.completed_by.first_name|default:occurrence.completed_by.username }}{% endif %}{% if occurrence.cost is not None %} · <span class="font-mono">${{ occurrence.cost|money }}</span>{% endif %}
+            </span>
+          </div>
+          {% if occurrence.note %}<p class="mt-0.5 text-xs text-text-muted">{{ occurrence.note }}</p>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="mt-2 text-sm text-text-muted">Not done yet.</p>
+  {% endif %}
+</section>
+
+<p class="mt-10">
+  <a href="{% url 'household:upkeep_delete' item.pk %}" class="text-sm text-error hover:underline">Delete this item</a>
+</p>
+{% endblock %}

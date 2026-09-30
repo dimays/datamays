@@ -2690,8 +2690,16 @@ input[type="checkbox"],
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .sm\:grid-cols-\[8rem_1fr_auto\] {
+    grid-template-columns: 8rem 1fr auto;
+  }
+
   .sm\:flex-row {
     flex-direction: row;
+  }
+
+  .sm\:items-end {
+    align-items: flex-end;
   }
 }
 

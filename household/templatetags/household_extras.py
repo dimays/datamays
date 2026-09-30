@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal, InvalidOperation
 
 from django import template
 
@@ -36,3 +37,19 @@ def due_words(occurrence, today):
     if occurrence.deadline and occurrence.deadline != occurrence.due_on:
         words += f" · by {_short(occurrence.deadline, today)}"
     return words
+
+
+@register.filter
+def money(value, places=2):
+    """An amount with separators: 1234.5 → 1,234.50. None reads as a dash.
+
+    The same format as finance's filter of the same name; restated rather
+    than loaded from finance's tag library, which is finance's business
+    (ADR 0009).
+    """
+    if value is None or value == "":
+        return "—"
+    try:
+        return f"{Decimal(str(value)):,.{int(places)}f}"
+    except (InvalidOperation, TypeError, ValueError):
+        return "—"
