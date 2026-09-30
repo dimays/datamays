@@ -15,7 +15,7 @@ you have not thought about which database it will hit, stop and think about
 it.
 
 ```bash
-uv run python manage.py test finance --settings=datamays.settings_test
+uv run python manage.py test --settings=datamays.settings_test
 ```
 
 ## Requirements
@@ -38,18 +38,29 @@ In the dev container, `.devcontainer/post-create.sh` does both installs for you.
 Then:
 
 ```bash
-uv run python manage.py migrate --settings=datamays.settings_test
+uv run python manage.py migrate --settings=datamays.settings_local
 ```
 
 ```bash
-uv run python manage.py runserver 0.0.0.0:8000
+uv run python manage.py seed_household_demo --settings=datamays.settings_local
 ```
+
+```bash
+uv run python manage.py runserver --settings=datamays.settings_local
+```
+
+`settings_local` is for clicking around: a file-based SQLite database
+(`db.local.sqlite3`, gitignored), console email, no Sentry, no LLM calls.
+`seed_household_demo` fills it with a fictional household — two members,
+four months of spending, budgets — and refuses to run against anything but
+SQLite. Sign-in details are in [`household/docs/`](../household/docs/README.md).
+Never run `runserver` under the default settings; it serves production data.
 
 ## The commands you will actually use
 
 | Task | Command |
 |---|---|
-| Run the suite | `uv run python manage.py test finance --settings=datamays.settings_test` |
+| Run the suite | `uv run python manage.py test --settings=datamays.settings_test` |
 | One test file | `uv run python manage.py test finance.tests.test_budgets --settings=datamays.settings_test` |
 | Check for model drift | `uv run python manage.py makemigrations --check --dry-run --settings=datamays.settings_test` |
 | System checks | `uv run python manage.py check --settings=datamays.settings_test` |

@@ -29,15 +29,18 @@ credentials are never stored, why money is `Decimal`, why "today" is not UTC.
 
 | App | Docs | What it is |
 |---|---|---|
+| `household` | [`household/docs/`](../household/docs/) | Mays Household — the private shell (sign-in, navigation, Today) plus chores, projects, and maintenance. Being built in phases; see [`plans/household.md`](plans/household.md). |
 | `finance` | [`finance/docs/`](../finance/docs/) | Private household finance tool at `/finance`. By far the largest app; start with its [README](../finance/docs/README.md). |
 | `core` | [`core/docs/`](../core/docs/) | The public site — projects, writing, styleguide. |
 | `contact` | [`contact/docs/`](../contact/docs/) | The contact form. One model, one view. |
 
 ## A note on scope
 
-The `finance` app exists to do one job: let David and Maddie navigate their
-finances, adjust their budgeting, watch their financial health, prepare for
-advisor conversations, and track spending, savings and net worth over time.
+The private side of this repo — Mays Household — exists to help David and
+Maddie run their home: keep up with chores and maintenance, plan and budget
+house projects, and, through the `finance` section, navigate their finances,
+adjust their budgeting, prepare for advisor conversations, and track
+spending, savings and net worth over time.
 
 It has two users. It is not a product, and generality that only pays off at
 a scale it will never reach is a cost, not an investment. Where these docs

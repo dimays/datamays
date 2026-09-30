@@ -19,7 +19,7 @@ gh pr merge <N> --merge --admin
 ## Before you merge
 
 ```bash
-uv run python manage.py test finance --settings=datamays.settings_test
+uv run python manage.py test --settings=datamays.settings_test
 ```
 
 ```bash
