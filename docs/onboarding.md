@@ -100,4 +100,5 @@ uv run python manage.py create_finance_user david --first-name David --email you
 
 - [`conventions.md`](conventions.md) — what the code expects of you
 - [`architecture/overview.md`](architecture/overview.md) — how the pieces fit
+- [`../household/docs/README.md`](../household/docs/README.md) — Mays Household: the shell, chores, projects, maintenance
 - [`../finance/docs/README.md`](../finance/docs/README.md) — the finance app itself

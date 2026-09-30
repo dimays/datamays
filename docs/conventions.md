@@ -94,6 +94,20 @@ They are separate because a `DeleteView` is confirmed with a plain `Form`
 that has no `.instance` — a single mixin doing both turned every alert
 delete into a 500, and no test noticed until one was written.
 
+**Never look anything up before the access gate.** The gate runs in
+`dispatch()`. Fetching an object in `dispatch()` or `setup()` ahead of it —
+or placing a redirecting mixin to the *left* of the gate in a view's bases —
+answers a stranger differently for a real id (a redirect, a 403) than for a
+missing one (a 404), which tells them what exists. Look objects up in
+`get_object()`, a handler, or a `cached_property`, and put mixins that
+redirect *after* the gate mixin. `household/tests/test_access.py` walks every
+private route as a stranger; two of these slipped in while building
+maintenance and are pinned by tests.
+
+For household chores, permission questions go to
+`household/services/permissions.py` and nowhere else — see
+[`household/docs/permissions.md`](../household/docs/permissions.md).
+
 ## Queries
 
 **A page's query count must not grow with the number of accounts,
