@@ -51,6 +51,7 @@ urlpatterns = [
     path("upkeep/<int:pk>/jobs/<int:occurrence_pk>/purchase/", views.JobLinkView.as_view(), name="job_link"),
     path("upkeep/<int:pk>/delete/", views.UpkeepDeleteView.as_view(), name="upkeep_delete"),
     path("preferences/", views.HouseholdPreferencesView.as_view(), name="preferences"),
+    path("help/", views.HelpView.as_view(), name="help"),
     # Sign-in
     path("login/", views.HouseholdLoginView.as_view(), name="login"),
     path("logout/", views.HouseholdLogoutView.as_view(), name="logout"),

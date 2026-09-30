@@ -4,7 +4,7 @@ from django.views.generic import UpdateView
 
 from ..forms.prefs import HouseholdPreferenceForm
 from ..models import HouseholdPreference
-from .base import HouseholdPageMixin
+from .base import HouseholdPageMixin, HouseholdView
 
 
 class HouseholdPreferencesView(HouseholdPageMixin, UpdateView):
@@ -19,3 +19,8 @@ class HouseholdPreferencesView(HouseholdPageMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Preferences saved.")
         return super().form_valid(form)
+
+
+class HelpView(HouseholdView):
+    template_name = "household/help.html"
+    page_title = "Help"

@@ -1,0 +1,102 @@
+{% extends "household/base.html" %}
+
+{% comment %}
+  The user-facing documentation for the household sections — written for
+  David and Maddie, not for developers (that's household/docs/). When a
+  screen's behavior changes in a way a user would notice, update this.
+{% endcomment %}
+
+{% block content %}
+<h1 class="page-title">Help</h1>
+<p class="page-subtitle">
+  How each part of Mays Household works. Finance has its own
+  <a href="{% url 'finance:help' %}" class="text-primary hover:underline">help page</a>.
+</p>
+
+<div class="mt-8 space-y-4">
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="font-semibold">Today</h2>
+    <p class="mt-1.5 text-sm text-text-secondary">
+      Where you land after signing in. Anything <span class="text-error">overdue</span> comes first, in red,
+      then what's due today, then the week's one-offs and less-frequent chores — the filter change, the
+      registration renewal — so they aren't a surprise. Daily and weekly routines are left out of
+      "coming up" on purpose. Below them are projects in progress and your budgets. The red number on the
+      Chores tab is your overdue count, shown on every page.
+    </p>
+  </section>
+
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="font-semibold">Chores</h2>
+    <p class="mt-1.5 text-sm text-text-secondary">
+      Your checklist, the shared household chores either of you can do, and — with
+      <span class="text-text-primary">Show Maddie's chores</span> / <span class="text-text-primary">Show David's chores</span>
+      switched on — the other person's. Tap the circle to mark something done; tap
+      <span class="text-text-primary">Undo</span> if you didn't mean to.
+    </p>
+    <p class="mt-2 text-sm text-text-secondary">
+      You can mark the other person's chore done too — it asks first, and records that you did it.
+      Only a chore's owner can edit, skip, or delete it, unless they've ticked
+      <span class="text-text-primary">Let the other person manage this chore</span>. Shared chores —
+      and every maintenance item and project task — either of you can manage.
+    </p>
+  </section>
+
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="font-semibold">How chores repeat</h2>
+    <p class="mt-1.5 text-sm text-text-secondary">
+      A chore can happen once (with or without a due date), or repeat daily, weekly on the days you pick,
+      monthly (on a date, or "the second Saturday", or "the last Friday"), or yearly. The form shows what
+      your choices mean as you make them.
+    </p>
+    <p class="mt-2 text-sm text-text-secondary">
+      <span class="text-text-primary">On a fixed schedule</span> follows the calendar: if this week's bins
+      are still open when next week's are due, this week's is marked missed and next week's takes its
+      place — a week away leaves one overdue item, not seven.
+      <span class="text-text-primary">Counting from when it was last done</span> waits for you: the next
+      furnace filter is due 90 days after the last one was actually changed, however late that was.
+    </p>
+    <p class="mt-2 text-sm text-text-secondary">
+      A <span class="text-text-primary">due</span> date is when a chore shows up; a
+      <span class="text-text-primary">deadline</span> is when it's late. A season ("only April to
+      October") skips the months outside it. To stop a chore for a while without losing its history,
+      edit it and untick <span class="text-text-primary">Active</span>.
+    </p>
+  </section>
+
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="font-semibold">Upkeep</h2>
+    <p class="mt-1.5 text-sm text-text-secondary">
+      Shared home maintenance. Each item has where it is, how to do it, the supplies it needs, and what it
+      usually costs, and it lands on a checklist when it's due. Mark it done from its page to record what it
+      cost and a note; later, <span class="text-text-primary">Link the purchase</span> ties the job to the real
+      transaction from Finance. The top of the page estimates what upkeep will cost over the next 90 days and
+      12 months. The <a href="{% url 'household:upkeep_library' %}" class="text-primary hover:underline">starter list</a>
+      has common jobs to add in one tap.
+    </p>
+  </section>
+
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="font-semibold">Projects</h2>
+    <p class="mt-1.5 text-sm text-text-secondary">
+      Longer-term house projects. Add milestones with dates to build the timeline, links to documents that
+      live elsewhere (Drive, quotes), and notes as you decide things. <span class="text-text-primary">Tasks</span>
+      are chores: give one to either of you and it lands on their checklist and their Today.
+    </p>
+    <p class="mt-2 text-sm text-text-secondary">
+      Under <span class="text-text-primary">Budget</span>, add lines for what you plan to spend, then
+      <span class="text-text-primary">Link spending</span> to pick the real purchases from Finance. It
+      suggests home-related spending around the project's dates; search by merchant for anything else. A
+      refund linked to the same project counts back against the spending.
+    </p>
+  </section>
+
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="font-semibold">Morning digest</h2>
+    <p class="mt-1.5 text-sm text-text-secondary">
+      Switch it on in <a href="{% url 'household:preferences' %}" class="text-primary hover:underline">Household preferences</a>
+      for a short email after 7am: overdue and today's chores, the week ahead, and project milestones coming
+      up. Nothing is sent on a morning with nothing to say.
+    </p>
+  </section>
+</div>
+{% endblock %}

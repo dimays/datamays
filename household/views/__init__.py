@@ -23,7 +23,7 @@ from .maintenance import (
     UpkeepListView,
     UpkeepUpdateView,
 )
-from .prefs import HouseholdPreferencesView
+from .prefs import HelpView, HouseholdPreferencesView
 from .projects import (
     BudgetLineCreateView,
     BudgetLineDeleteView,
@@ -59,6 +59,7 @@ __all__ = [
     "ChoreUpdateView",
     "ExpenseDeleteView",
     "ExpenseUpdateView",
+    "HelpView",
     "HouseholdLoginView",
     "HouseholdLogoutView",
     "HouseholdPageMixin",
