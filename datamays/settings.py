@@ -88,6 +88,7 @@ else:
 INSTALLED_APPS = [
     'core',
     'contact',
+    'household',
     'finance',
     'django.contrib.admin',
     'django.contrib.auth',
