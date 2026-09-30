@@ -33,6 +33,16 @@ SECTIONS = [
         "badge": "overdue_chores",
     },
     {
+        "label": "Projects",
+        "url": "household:projects",
+        "icon": "projects",
+        "namespace": "household",
+        "url_names": {
+            "projects", "project_create", "project_detail", "project_edit", "project_delete",
+            "milestone_edit", "project_task_create", "project_task_edit",
+        },
+    },
+    {
         "label": "Upkeep",
         "url": "household:upkeep",
         "icon": "upkeep",

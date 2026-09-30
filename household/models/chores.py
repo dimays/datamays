@@ -93,6 +93,15 @@ class Chore(TimestampedModel):
 
     is_active = models.BooleanField(default=True)
 
+    # Set for a project's tasks. A task is a household chore: both of you
+    # manage it, and its assignee decides whose checklist it lands on.
+    project = models.ForeignKey(
+        "household.Project", on_delete=models.CASCADE, null=True, blank=True, related_name="tasks"
+    )
+    milestone = models.ForeignKey(
+        "household.Milestone", on_delete=models.SET_NULL, null=True, blank=True, related_name="tasks"
+    )
+
     class Meta:
         ordering = ["title"]
 
@@ -161,6 +170,8 @@ class Chore(TimestampedModel):
             errors["deadline_offset_days"] = "Only a repeating chore has a deadline per occurrence."
         if not self.repeats and self.deadline and self.starts_on and self.deadline < self.starts_on:
             errors["deadline"] = "The deadline is before the due date."
+        if self.milestone_id and self.milestone.project_id != self.project_id:
+            errors["milestone"] = "That milestone belongs to a different project."
 
         if errors:
             raise ValidationError(errors)

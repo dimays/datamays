@@ -2,7 +2,7 @@
 
 from ..integrations import finance
 from ..models import HouseholdPreference
-from ..services import checklist
+from ..services import checklist, projects
 from .base import HouseholdView
 
 
@@ -17,5 +17,6 @@ class TodayView(HouseholdView):
         context.update(
             checklist.today_summary(self.request.user, include_partner=preference.show_partner_chores)
         )
+        context["projects"] = projects.active_for_today()
         context["budgets"] = finance.budget_glance(self.request.user)
         return context

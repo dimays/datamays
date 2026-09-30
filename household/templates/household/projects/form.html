@@ -1,0 +1,22 @@
+{% extends "household/base.html" %}
+
+{% block content %}
+<h1 class="page-title">{{ page_title }}</h1>
+
+<form method="post" class="mt-8 max-w-2xl space-y-5">
+  {% csrf_token %}
+  {% include "household/partials/field.html" with field=form.name %}
+  {% include "household/partials/field.html" with field=form.summary %}
+  <div class="grid gap-4 sm:grid-cols-2">
+    {% include "household/partials/field.html" with field=form.status %}
+    {% include "household/partials/field.html" with field=form.budget_total %}
+    {% include "household/partials/field.html" with field=form.start_on %}
+    {% include "household/partials/field.html" with field=form.target_on %}
+  </div>
+  <div class="flex flex-col gap-3 sm:flex-row">
+    <button type="submit" class="rounded-button bg-primary px-6 py-3 font-medium text-white transition hover:bg-primary-600">Save project</button>
+    <a href="{% if object %}{% url 'household:project_detail' object.pk %}{% else %}{% url 'household:projects' %}{% endif %}"
+       class="rounded-button border border-border px-6 py-3 text-center font-medium text-text-secondary transition hover:bg-muted">Cancel</a>
+  </div>
+</form>
+{% endblock %}

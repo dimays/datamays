@@ -3,6 +3,7 @@
 
 from .chores import Chore, Occurrence, OccurrenceStatus
 from .maintenance import MaintenanceArea, MaintenanceItem
+from .projects import Milestone, Project, ProjectLink, ProjectNote, ProjectStatus
 from .prefs import HouseholdPreference
 
 __all__ = [
@@ -10,6 +11,11 @@ __all__ = [
     "HouseholdPreference",
     "MaintenanceArea",
     "MaintenanceItem",
+    "Milestone",
     "Occurrence",
     "OccurrenceStatus",
+    "Project",
+    "ProjectLink",
+    "ProjectNote",
+    "ProjectStatus",
 ]

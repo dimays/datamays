@@ -1,0 +1,26 @@
+{% extends "household/base.html" %}
+
+{% block content %}
+<h1 class="page-title">{{ page_title }}</h1>
+<p class="page-subtitle">Part of <a href="{% url 'household:project_detail' object.project_id %}" class="text-primary hover:underline">{{ object.project.name }}</a>.</p>
+
+<form method="post" class="mt-8 max-w-lg space-y-5">
+  {% csrf_token %}
+  {% include "household/partials/field.html" with field=form.name %}
+  <div class="grid gap-4 sm:grid-cols-2">
+    {% include "household/partials/field.html" with field=form.target_on %}
+    {% include "household/partials/field.html" with field=form.completed_on %}
+  </div>
+  <div class="flex flex-col gap-3 sm:flex-row">
+    <button type="submit" class="rounded-button bg-primary px-6 py-3 font-medium text-white transition hover:bg-primary-600">Save</button>
+    <a href="{% url 'household:project_detail' object.project_id %}#timeline"
+       class="rounded-button border border-border px-6 py-3 text-center font-medium text-text-secondary transition hover:bg-muted">Cancel</a>
+  </div>
+</form>
+
+<form method="post" action="{% url 'household:milestone_delete' object.project_id object.pk %}" class="mt-10">
+  {% csrf_token %}
+  <button type="submit" class="text-sm text-error hover:underline">Remove this milestone</button>
+  <span class="text-xs text-text-muted">— its tasks stay in the project.</span>
+</form>
+{% endblock %}
