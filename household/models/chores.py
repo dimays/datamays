@@ -17,6 +17,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from .. import scheduling
+from ..dates import household_today, to_household_date
 from ..scheduling import Anchor, Frequency, MonthlyMode
 from .base import TimestampedModel
 
@@ -115,6 +116,8 @@ class Chore(TimestampedModel):
             max_occurrences=self.max_occurrences,
             deadline_offset_days=self.deadline_offset_days,
             season=season,
+            # An unsaved chore (the form's live preview) counts from today.
+            counts_from=to_household_date(self.created_at) if self.created_at else household_today(),
         )
 
     @property

@@ -27,10 +27,13 @@ from datetime import date, timedelta
 
 from django.db import models
 
-# A backstop against a schedule whose filters reject every candidate date.
-# Validation should make that impossible; this keeps a mistake from hanging a
-# request if it ever gets through. Twenty years of daily dates, comfortably.
+# Backstops against a schedule whose filters reject every candidate date.
+# Validation should make that impossible; these keep a mistake from hanging a
+# request — or, for a yearly schedule, from running past year 9999 and
+# raising — if one ever gets through. A step cap alone isn't enough: 20,000
+# yearly steps is further than the calendar goes.
 MAX_STEPS = 20_000
+HORIZON_YEARS = 100
 
 WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 ORDINALS = {1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth"}
@@ -75,6 +78,7 @@ class Schedule:
     max_occurrences: int | None = None
     deadline_offset_days: int | None = None
     season: tuple | None = None  # (start_month, end_month), inclusive, may wrap
+    counts_from: date | None = None  # when the chore was created; see fixed_dates()
 
     @property
     def repeats(self):
@@ -207,9 +211,10 @@ def fixed_dates(schedule: Schedule):
     if not schedule.is_fixed or schedule.starts_on is None:
         return
 
+    horizon = schedule.starts_on.year + HORIZON_YEARS
     produced = 0
     for steps, day in enumerate(_candidates(schedule)):
-        if steps >= MAX_STEPS:
+        if steps >= MAX_STEPS or day.year > horizon:
             return
         if schedule.ends_on and day > schedule.ends_on:
             return
@@ -217,6 +222,11 @@ def fixed_dates(schedule: Schedule):
             continue
 
         yield day
+        # Dates before the chore existed are not occurrences of it, so they
+        # don't use up its count: "ten times" means ten from when it was made,
+        # not ten from a start date in the past.
+        if schedule.counts_from and day < schedule.counts_from:
+            continue
         produced += 1
         if schedule.max_occurrences and produced >= schedule.max_occurrences:
             return
@@ -317,6 +327,23 @@ def next_due(schedule: Schedule, *, previous_due, done_on: date, occurrences_so_
     return next_fixed_after(schedule, previous_due or done_on)
 
 
+def is_low_frequency(schedule: Schedule) -> bool:
+    """Rare enough to need a heads-up before it is due.
+
+    The Today screen lists these in "Coming up" a week ahead: one-offs and
+    anything repeating a fortnight apart or more — the filter change, the
+    registration renewal. Daily and weekly routines are left out; listing
+    tomorrow's bins every day would drown the things that are easy to forget.
+    """
+    if not schedule.repeats:
+        return True
+    if schedule.frequency == Frequency.DAILY:
+        return schedule.interval >= 14
+    if schedule.frequency == Frequency.WEEKLY:
+        return schedule.interval >= 2
+    return True
+
+
 def deadline_for(schedule: Schedule, due: date | None) -> date | None:
     if due is None or schedule.deadline_offset_days is None:
         return None
@@ -383,6 +410,19 @@ def describe(schedule: Schedule) -> str:
 # --- validation ------------------------------------------------------------
 
 
+def reachable_months(schedule: Schedule) -> set:
+    """The months a fixed schedule's dates can ever fall in."""
+    if schedule.frequency in (Frequency.DAILY, Frequency.WEEKLY):
+        return set(range(1, 13))
+    if schedule.frequency == Frequency.YEARLY:
+        return {schedule.starts_on.month}
+    # Monthly every n: the months the cycle visits from the start month.
+    return {
+        shift_month(schedule.starts_on.year, schedule.starts_on.month, schedule.interval * step)[1]
+        for step in range(12)
+    }
+
+
 def validate(schedule: Schedule) -> dict:
     """Problems with a schedule, as {field: message}. Empty means valid.
 
@@ -411,6 +451,28 @@ def validate(schedule: Schedule) -> dict:
         start, end = schedule.season
         if start not in range(1, 13) or end not in range(1, 13):
             errors["season_start_month"] = "Pick a start and an end month."
+    if (
+        schedule.is_fixed
+        and schedule.starts_on
+        and schedule.season
+        and not any(in_season(date(2000, month, 1), schedule.season) for month in reachable_months(schedule))
+    ):
+        errors["season_start_month"] = (
+            "This schedule never falls inside that season — its due dates are "
+            "always in other months."
+        )
+    if (
+        schedule.is_fixed
+        and schedule.frequency == Frequency.MONTHLY
+        and schedule.monthly_mode == MonthlyMode.LAST_WEEKDAY
+        and schedule.starts_on
+        and not is_last_weekday_of_month(schedule.starts_on)
+    ):
+        weekday = calendar.day_name[schedule.starts_on.weekday()]
+        errors["starts_on"] = (
+            f"{schedule.starts_on:%b} {schedule.starts_on.day} isn't the last {weekday} of "
+            f"{schedule.starts_on:%B} — pick the last {weekday} as the first due date."
+        )
     if schedule.ends_on and schedule.starts_on and schedule.ends_on < schedule.starts_on:
         errors["ends_on"] = "The end date is before the first due date."
     if schedule.max_occurrences is not None and schedule.max_occurrences < 1:

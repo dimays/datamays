@@ -96,8 +96,13 @@ def reschedule(chore, today=None):
             current.deadline = chore.deadline
             current.save(update_fields=["due_on", "deadline", "updated_at"])
             return current
-        # A one-off that was already done stays done.
-        if chore.occurrences.exists() or not chore.is_active:
+        if not chore.is_active:
+            return None
+        # A one-off already done for this date stays done. Anything else —
+        # a new date for it, or a repeating chore just converted to a
+        # one-off — is something to do, so it opens.
+        latest = chore.occurrences.order_by("-pk").first()
+        if latest is not None and latest.due_on == chore.starts_on:
             return None
         return _open(chore, chore.starts_on)
 
@@ -180,7 +185,9 @@ def reopen(occurrence):
     if locked.status not in CLOSED_BY_A_PERSON:
         return False
 
-    later = list(Occurrence.objects.filter(chore_id=locked.chore_id, pk__gt=locked.pk))
+    # Locked too: a concurrent completion of the next occurrence must either
+    # finish first (and so block the undo) or wait for it.
+    later = list(Occurrence.objects.select_for_update().filter(chore_id=locked.chore_id, pk__gt=locked.pk))
     if any(not item.is_open for item in later):
         return False
 

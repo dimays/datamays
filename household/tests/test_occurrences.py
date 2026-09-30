@@ -282,18 +282,44 @@ class RescheduleTests(TestCase):
         [current] = open_ones(chore)
         self.assertEqual(current.due_on, date(2026, 11, 29))
 
-    def test_a_one_off_moves_its_date_but_a_done_one_stays_done(self):
+    def test_a_one_off_moves_its_date(self):
         chore = make_chore(self.david, starts_on=date(2026, 10, 3), today=TODAY)
 
         chore.starts_on = date(2026, 10, 4)
         occurrences.reschedule(chore, today=TODAY)
+
         [current] = open_ones(chore)
         self.assertEqual(current.due_on, date(2026, 10, 4))
 
-        occurrences.complete(current, by=self.david, now=at(TODAY), today=TODAY)
-        chore.starts_on = date(2026, 10, 5)
+    def test_a_done_one_off_stays_done_until_given_a_new_date(self):
+        chore = make_chore(self.david, starts_on=date(2026, 10, 3), today=TODAY)
+        occurrences.complete(open_ones(chore)[0], by=self.david, now=at(TODAY), today=TODAY)
+
         occurrences.reschedule(chore, today=TODAY)
         self.assertEqual(open_ones(chore), [])
+
+        # "Do it again on the 10th."
+        chore.starts_on = date(2026, 10, 10)
+        occurrences.reschedule(chore, today=TODAY)
+        [current] = open_ones(chore)
+        self.assertEqual(current.due_on, date(2026, 10, 10))
+
+    def test_a_finished_series_converted_to_a_one_off_goes_back_on_the_list(self):
+        """Found in review: it used to be left active but on no checklist."""
+        chore = make_chore(
+            self.david, frequency=Frequency.WEEKLY, starts_on=date(2026, 9, 28),
+            ends_on=date(2026, 9, 28), today=date(2026, 9, 28),
+        )
+        occurrences.complete(open_ones(chore)[0], by=self.david, now=at(date(2026, 9, 28)), today=date(2026, 9, 28))
+        self.assertEqual(open_ones(chore), [])
+
+        chore.frequency = Frequency.ONCE
+        chore.ends_on = None
+        chore.starts_on = date(2026, 11, 1)
+        occurrences.reschedule(chore, today=TODAY)
+
+        [current] = open_ones(chore)
+        self.assertEqual(current.due_on, date(2026, 11, 1))
 
 
 class OverdueTests(TestCase):
@@ -341,3 +367,21 @@ class ChoreValidationTests(TestCase):
         chore = Chore(title="x", frequency=Frequency.MONTHLY, starts_on=date(2026, 4, 1),
                       season_start_month=4, season_end_month=10)
         self.assertEqual(chore.describe_schedule(), "Monthly on day 1, Apr–Oct")
+
+
+class CountOriginTests(TestCase):
+    def test_a_past_start_does_not_use_up_the_count(self):
+        """Found in review: "ten times" from a June start, created in
+        September, used to open nothing at all."""
+        chore = make_chore(
+            make_member("david"), frequency=Frequency.WEEKLY, starts_on=date(2026, 6, 1),
+            max_occurrences=10, today=TODAY,
+        )
+        # Created "on" TODAY for counting purposes.
+        chore.created_at = at(TODAY)
+
+        from household.scheduling import fixed_dates
+
+        future = [day for day in fixed_dates(chore.schedule) if day >= TODAY]
+        self.assertEqual(len(future), 10)
+        self.assertEqual(future[0], date(2026, 10, 5))
