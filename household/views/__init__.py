@@ -13,6 +13,15 @@ from .chores import (
     PartnerToggleView,
     SchedulePreviewView,
 )
+from .maintenance import (
+    LibraryAdoptView,
+    LibraryView,
+    UpkeepCreateView,
+    UpkeepDeleteView,
+    UpkeepDetailView,
+    UpkeepListView,
+    UpkeepUpdateView,
+)
 from .prefs import HouseholdPreferencesView
 from .today import TodayView
 
@@ -28,6 +37,8 @@ __all__ = [
     "HouseholdPageMixin",
     "HouseholdPreferencesView",
     "HouseholdView",
+    "LibraryAdoptView",
+    "LibraryView",
     "OTPSetupView",
     "OTPVerifyView",
     "OccurrenceActionView",
@@ -35,4 +46,9 @@ __all__ = [
     "PartnerToggleView",
     "SchedulePreviewView",
     "TodayView",
+    "UpkeepCreateView",
+    "UpkeepDeleteView",
+    "UpkeepDetailView",
+    "UpkeepListView",
+    "UpkeepUpdateView",
 ]

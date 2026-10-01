@@ -1,0 +1,51 @@
+{% extends "household/base.html" %}
+
+{% block section_nav %}{% include "household/upkeep/_section_nav.html" %}{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3">
+  <h1 class="page-title">Upkeep</h1>
+  <a href="{% url 'household:upkeep_create' %}"
+     class="rounded-button bg-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600">
+    New item
+  </a>
+</div>
+<p class="page-subtitle">Shared home maintenance. Each item lands on a checklist when it's due.</p>
+
+{% include "household/partials/messages.html" %}
+
+{% if count == 0 %}
+  <div class="empty-state mt-8">
+    <p class="text-text-secondary">Nothing tracked yet.</p>
+    <a href="{% url 'household:upkeep_library' %}" class="mt-2 inline-block text-primary hover:underline">
+      Start from the starter list →
+    </a>
+  </div>
+{% else %}
+  {% if needs_attention %}
+    <section class="mt-8" aria-labelledby="attention-heading">
+      <h2 id="attention-heading" class="text-sm font-semibold uppercase tracking-wide text-text-muted">Overdue and next 30 days</h2>
+      <div class="mt-3 space-y-2">
+        {% for item in needs_attention %}{% include "household/upkeep/_item_card.html" %}{% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% for label, items in areas %}
+    <section class="mt-8">
+      <h2 class="text-lg font-bold">{{ label }}</h2>
+      <div class="mt-3 grid gap-2 sm:grid-cols-2">
+        {% for item in items %}{% include "household/upkeep/_item_card.html" %}{% endfor %}
+      </div>
+    </section>
+  {% endfor %}
+
+  {% if library_count %}
+    <p class="mt-10 text-sm text-text-muted">
+      {{ library_count }} common job{{ library_count|pluralize }} on the
+      <a href="{% url 'household:upkeep_library' %}" class="text-primary hover:underline">starter list</a>
+      you haven't added.
+    </p>
+  {% endif %}
+{% endif %}
+{% endblock %}

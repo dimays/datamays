@@ -38,6 +38,7 @@ One dated instance of a chore.
 | `completed_by` → User | Who actually did it — may not be the assignee |
 | `completed_at` | Aware datetime; its *household* date is what after-completion schedules count from |
 | `note` | |
+| `cost` | What doing it cost, positive `Decimal`, or null — mostly logged for maintenance |
 
 **Constraint:** `one_open_occurrence_per_chore` — a partial unique index on
 `chore` where `status = 'open'`. The lifecycle depends on it.
@@ -48,6 +49,21 @@ otherwise disagree about where "whenever" chores go.
 
 `is_overdue(today)`, `days_overdue(today)`, and `effective_deadline()` are
 the one definition of overdue; see [scheduling.md](scheduling.md#overdue-and-today).
+
+## MaintenanceItem
+
+Shared upkeep. `household/models/maintenance.py`; see
+[maintenance.md](maintenance.md).
+
+| Field | |
+|---|---|
+| `chore` → Chore | One-to-one. The name, schedule, assignee, and history live there; the chore is household-owned |
+| `area` | HVAC, plumbing, electrical, safety, appliances, exterior, yard, cleaning, other |
+| `location`, `instructions`, `supplies`, `supply_url` | |
+| `estimated_cost` | What it usually costs, positive `Decimal`; prefills the cost when logging a job |
+
+Money columns use `household/models/base.py::money_field`, the same shape
+as finance's (ADR 0002) — restated rather than imported (ADR 0009).
 
 ## HouseholdPreference
 
@@ -67,4 +83,5 @@ User ─┬─< Chore (owner)          null owner = household-owned
       └─< Occurrence (completed_by)
 
 Chore ─< Occurrence              at most one open at a time
+Chore ─── MaintenanceItem        one-to-one, for shared upkeep
 ```

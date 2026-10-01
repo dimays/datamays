@@ -312,9 +312,6 @@ def _chores(members):
     chore(maddie, "Plan the holiday card list", starts_on=days(25))
 
     # Shared household chores
-    chore(None, "Replace the furnace filter", frequency=Frequency.DAILY, interval=90,
-          anchor=Anchor.AFTER_COMPLETION, starts_on=days(-12))
-    chore(None, "Clean the gutters", frequency=Frequency.YEARLY, starts_on=days(5), deadline_offset_days=14)
     chore(None, "Mow the lawn", assignee=david, frequency=Frequency.WEEKLY,
           anchor=Anchor.AFTER_COMPLETION, starts_on=days(2), season_start_month=4, season_end_month=10)
     paused = chore(None, "Wash the windows", frequency=Frequency.MONTHLY, starts_on=days(10))
@@ -334,4 +331,41 @@ def _chores(members):
         when = datetime.combine(done_on, time(19), tzinfo=household_timezone())
         occurrences.complete(current, by=(david, maddie)[index % 2], now=when, today=done_on)
 
+    _maintenance(david, maddie, today)
     return Chore.objects.count()
+
+
+def _maintenance(david, maddie, today):
+    """Starter-list items in a spread of states: overdue with a cost history,
+    due today, due within the month, and further out."""
+    from datetime import datetime, time
+    from decimal import Decimal
+
+    from household.dates import household_timezone
+    from household.models import Occurrence, OccurrenceStatus
+    from household.services import maintenance, occurrences
+
+    def at(day):
+        return datetime.combine(day, time(10), tzinfo=household_timezone())
+
+    # The furnace filter: changed twice before, now 12 days overdue.
+    furnace = maintenance.adopt("furnace-filter", today=today)
+    furnace.location = "Basement furnace"
+    furnace.supplies = "16x25x1 MERV 11 filter"
+    furnace.supply_url = "https://example.com/filters"
+    furnace.save()
+    chore = furnace.chore
+    chore.assignee = david
+    chore.starts_on = today - timedelta(days=12)
+    chore.save()
+    occurrences.reschedule(chore, today=today)
+    for days_ago, who, cost in [(192, maddie, "23.49"), (102, david, "24.99")]:
+        Occurrence.objects.create(
+            chore=chore, due_on=today - timedelta(days=days_ago), status=OccurrenceStatus.DONE,
+            completed_by=who, completed_at=at(today - timedelta(days=days_ago)), cost=Decimal(cost),
+        )
+
+    maintenance.adopt("test-detectors", today=today)        # due today
+    maintenance.adopt("outdoor-water-off", today=today)     # within the month
+    maintenance.adopt("gutters", today=today)
+    maintenance.adopt("dryer-vent", today=today)            # months out

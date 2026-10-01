@@ -1,0 +1,87 @@
+{% comment %}
+  The schedule half of a chore form, shared by chores and maintenance items.
+  Expects `form` (a ChoreForm) and an Alpine scope on the enclosing <form>
+  with `frequency` and `anchor`. The preview posts the whole form; `_prefix`
+  tells the preview view which field names to read.
+{% endcomment %}
+  <fieldset class="space-y-4 rounded-card border border-border bg-surface p-4">
+    <legend class="px-1 text-sm font-medium">When</legend>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      {% include "household/partials/field.html" with field=form.frequency %}
+      <div>
+        <label for="{{ form.starts_on.id_for_label }}" class="mb-1.5 block text-sm font-medium">
+          <span x-text="frequency === 'once' ? 'Due' : 'First due'">Due</span>
+        </label>
+        {{ form.starts_on }}
+        <p class="mt-1.5 text-xs text-text-muted" x-show="frequency === 'once'">Leave blank for whenever.</p>
+        <p class="mt-1.5 text-xs text-text-muted" x-show="frequency !== 'once'" x-cloak>Also sets the weekday or day of the month it repeats on.</p>
+        {% if form.starts_on.errors %}<p class="mt-1.5 text-sm text-error">{{ form.starts_on.errors.0 }}</p>{% endif %}
+      </div>
+    </div>
+
+    <div x-show="frequency === 'once'">
+      {% include "household/partials/field.html" with field=form.deadline %}
+    </div>
+
+    <div x-show="frequency !== 'once'" x-cloak class="space-y-4">
+      <div>
+        <p class="mb-1.5 text-sm font-medium">{{ form.anchor.label }}</p>
+        <div class="space-y-2">
+          {% for choice in form.anchor %}
+            <label class="flex items-center gap-2.5 text-sm">{{ choice.tag }} <span>{{ choice.choice_label }}</span></label>
+          {% endfor %}
+        </div>
+        <p class="mt-1.5 text-xs text-text-muted" x-show="anchor === 'after_completion'">
+          The next one is due a set time after the last was done — right for filters and deep cleans.
+        </p>
+      </div>
+
+      <div>
+        <label for="{{ form.interval.id_for_label }}" class="mb-1.5 block text-sm font-medium">
+          <span x-text="anchor === 'after_completion' ? 'Due again after' : 'Every'">Every</span>
+        </label>
+        <div class="flex items-center gap-3">
+          <div class="w-24">{{ form.interval }}</div>
+          <span class="text-sm text-text-secondary"
+                x-text="{ daily: 'day(s)', weekly: 'week(s)', monthly: 'month(s)', yearly: 'year(s)' }[frequency]"></span>
+        </div>
+        {% if form.interval.errors %}<p class="mt-1.5 text-sm text-error">{{ form.interval.errors.0 }}</p>{% endif %}
+      </div>
+
+      <div x-show="frequency === 'weekly' && anchor === 'fixed'">
+        <p class="mb-1.5 text-sm font-medium">{{ form.weekdays.label }}</p>
+        <div class="flex flex-wrap gap-2">
+          {% for choice in form.weekdays %}
+            <label class="flex items-center gap-1.5 rounded-button border border-border px-2.5 py-1.5 text-sm">
+              {{ choice.tag }} <span>{{ choice.choice_label }}</span>
+            </label>
+          {% endfor %}
+        </div>
+        <p class="mt-1.5 text-xs text-text-muted">{{ form.weekdays.help_text }}</p>
+        {% if form.weekdays.errors %}<p class="mt-1.5 text-sm text-error">{{ form.weekdays.errors.0 }}</p>{% endif %}
+      </div>
+
+      <div x-show="frequency === 'monthly' && anchor === 'fixed'">
+        {% include "household/partials/field.html" with field=form.monthly_mode %}
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        {% include "household/partials/field.html" with field=form.deadline_offset_days %}
+        <div class="hidden sm:block"></div>
+        {% include "household/partials/field.html" with field=form.season_start_month %}
+        {% include "household/partials/field.html" with field=form.season_end_month %}
+        {% include "household/partials/field.html" with field=form.ends_on %}
+        {% include "household/partials/field.html" with field=form.max_occurrences %}
+      </div>
+    </div>
+
+    <div class="rounded-button border border-border bg-background px-4 py-3 text-sm"
+         hx-get="{% url 'household:chore_preview' %}"
+         {% if form.prefix %}hx-vals='{"_prefix": "{{ form.prefix }}"}'{% endif %}
+         hx-include="closest form"
+         hx-trigger="load, change from:closest form, input changed delay:400ms from:closest form"
+         aria-live="polite">
+      <p class="text-text-muted">…</p>
+    </div>
+  </fieldset>

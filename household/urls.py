@@ -20,6 +20,14 @@ urlpatterns = [
         views.OccurrenceActionView.as_view(),
         name="occurrence_action",
     ),
+    # Upkeep (maintenance)
+    path("upkeep/", views.UpkeepListView.as_view(), name="upkeep"),
+    path("upkeep/new/", views.UpkeepCreateView.as_view(), name="upkeep_create"),
+    path("upkeep/starter/", views.LibraryView.as_view(), name="upkeep_library"),
+    path("upkeep/starter/<slug:key>/", views.LibraryAdoptView.as_view(), name="upkeep_adopt"),
+    path("upkeep/<int:pk>/", views.UpkeepDetailView.as_view(), name="upkeep_detail"),
+    path("upkeep/<int:pk>/edit/", views.UpkeepUpdateView.as_view(), name="upkeep_edit"),
+    path("upkeep/<int:pk>/delete/", views.UpkeepDeleteView.as_view(), name="upkeep_delete"),
     path("preferences/", views.HouseholdPreferencesView.as_view(), name="preferences"),
     # Sign-in
     path("login/", views.HouseholdLoginView.as_view(), name="login"),

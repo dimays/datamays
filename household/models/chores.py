@@ -19,7 +19,7 @@ from django.db import models
 from .. import scheduling
 from ..dates import household_today, to_household_date
 from ..scheduling import Anchor, Frequency, MonthlyMode
-from .base import TimestampedModel
+from .base import TimestampedModel, money_field
 
 MONTH_CHOICES = [
     (1, "January"), (2, "February"), (3, "March"), (4, "April"),
@@ -128,6 +128,22 @@ class Chore(TimestampedModel):
     def is_household_owned(self):
         return self.owner_id is None
 
+    @property
+    def is_maintenance(self):
+        # Callers that loop over chores select_related("maintenance_item"),
+        # so this reads a cached relation rather than querying per chore.
+        try:
+            return self.maintenance_item is not None
+        except Chore.maintenance_item.RelatedObjectDoesNotExist:
+            return False
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+
+        if self.is_maintenance:
+            return reverse("household:upkeep_detail", args=[self.maintenance_item.pk])
+        return reverse("household:chore_detail", args=[self.pk])
+
     def describe_schedule(self):
         return scheduling.describe(self.schedule)
 
@@ -174,6 +190,12 @@ class Occurrence(TimestampedModel):
     )
     completed_at = models.DateTimeField(null=True, blank=True)
     note = models.TextField(blank=True)
+    cost = money_field(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        help_text="What doing it cost, as a positive number — mostly for maintenance.",
+    )
 
     class Meta:
         # Explicit about undated one-offs: SQLite sorts NULL first and

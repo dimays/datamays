@@ -56,6 +56,24 @@ the other person's overdue and due-today items when the toggle is on, then
 finance's **budget widget**. The Chores section's nav item carries the
 overdue count on every page, finance included.
 
+## Upkeep
+
+Everything here is behind the full gate, and — maintenance being shared
+work — open to both members.
+
+| Path | View | Template |
+|---|---|---|
+| `upkeep/` | `UpkeepListView` | `upkeep/list.html` — overdue and next 30 days, then by area |
+| `upkeep/new/` | `UpkeepCreateView` | `upkeep/form.html` — the chore form (`household_only`) and the item form, saved together |
+| `upkeep/<pk>/` | `UpkeepDetailView` | `upkeep/detail.html` — now, mark done with cost and note, how, supplies, history, spend by year |
+| `upkeep/<pk>/edit/` | `UpkeepUpdateView` | `upkeep/form.html` |
+| `upkeep/<pk>/delete/` | `UpkeepDeleteView` | `upkeep/confirm_delete.html` — deletes the chore and its history too |
+| `upkeep/starter/` | `LibraryView` | `upkeep/library.html` |
+| `upkeep/starter/<key>/` | `LibraryAdoptView` | — POST, adopts one starter entry |
+
+`chores/<pk>/`, `chores/<pk>/edit/`, and `chores/<pk>/delete/` redirect to
+these for a maintenance chore.
+
 ## Shared templates
 
 | Template | Used for |
@@ -69,3 +87,4 @@ overdue count on every page, finance included.
 | `partials/section_nav.html` | A section's own screens as a pill strip |
 | `partials/messages.html` | Flash messages |
 | `partials/field.html` | One labelled form field with help text and error |
+| `chores/_schedule_fields.html` | The schedule half of a chore form, with its live preview — shared by chores and maintenance |

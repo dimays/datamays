@@ -66,7 +66,7 @@ def bucket_for(occurrence, today):
 def load(today):
     """Every active chore with an open occurrence, collapse applied."""
     chores = occurrences.with_open_occurrence(
-        Chore.objects.filter(is_active=True).select_related("owner", "assignee")
+        Chore.objects.filter(is_active=True).select_related("owner", "assignee", "maintenance_item")
     )
     occurrences.refresh(chores, today)
     return [chore for chore in chores if chore.open_occurrences]

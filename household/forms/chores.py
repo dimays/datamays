@@ -74,9 +74,10 @@ class ChoreForm(StyledFormMixin, forms.ModelForm):
             "anchor": forms.RadioSelect,
         }
 
-    def __init__(self, *args, user, **kwargs):
+    def __init__(self, *args, user, household_only=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.user = user
+        self.household_only = household_only
 
         # A shared chore has no owner; offering to make it personal makes it yours.
         owner = (self.instance.owner if self.instance.pk else None) or user
@@ -99,6 +100,14 @@ class ChoreForm(StyledFormMixin, forms.ModelForm):
         self.fields["assignee"].label_from_instance = display_name
         self.fields["anchor"].choices = Anchor.choices
 
+        # Maintenance is shared work by definition (ADR 0011): no "whose",
+        # no grant — both of you manage it, and it can sit on either list.
+        if household_only:
+            del self.fields["whose"]
+            del self.fields["others_can_manage"]
+            self.fields["title"].label = "Name"
+            self.fields["assignee"].help_text = "Whose list it lands on when it's due."
+
     def clean(self):
         cleaned = super().clean()
 
@@ -113,7 +122,9 @@ class ChoreForm(StyledFormMixin, forms.ModelForm):
             if cleaned.get("frequency") != Frequency.WEEKLY or cleaned.get("anchor") == Anchor.AFTER_COMPLETION:
                 cleaned["weekdays"] = []
 
-        if cleaned.get("whose") == PERSONAL:
+        if self.household_only:
+            cleaned["whose"] = HOUSEHOLD
+        elif cleaned.get("whose") == PERSONAL:
             cleaned["assignee"] = None  # set to the owner in save()
 
         return cleaned
