@@ -22,8 +22,10 @@ Anything on someone's checklist. `household/models/chores.py`.
 `Chore.clean()` runs `scheduling.validate()` plus the checks that need both
 halves of a pair (season months, one-off vs. repeating deadlines).
 
-Arriving in later phases: links to the maintenance item or project (and
-milestone) a chore came from.
+| `project` → Project, `milestone` → Milestone | Set for a project's task. A task is household-owned; `clean()` checks the milestone is in the same project |
+
+A maintenance chore is reached the other way, through
+`MaintenanceItem.chore` (`chore.is_maintenance`).
 
 ## Occurrence
 
@@ -65,6 +67,17 @@ Shared upkeep. `household/models/maintenance.py`; see
 Money columns use `household/models/base.py::money_field`, the same shape
 as finance's (ADR 0002) — restated rather than imported (ADR 0009).
 
+## Project, Milestone, ProjectLink, ProjectNote
+
+`household/models/projects.py`; see [projects.md](projects.md).
+
+| Model | Fields |
+|---|---|
+| `Project` | `name`, `summary`, `status` (active · planned · idea · on_hold · done), `start_on`, `target_on`, `budget_total` (positive `Decimal`), `created_by` |
+| `Milestone` | `project`, `name`, `target_on`, `completed_on` — ordered by date with undated last, explicitly |
+| `ProjectLink` | `project`, `title`, `url` (a `URLField`: http, https, ftp only) |
+| `ProjectNote` | `project`, `author`, `body` — newest first |
+
 ## HouseholdPreference
 
 Per-person settings for the household sections; finance keeps its own.
@@ -84,4 +97,7 @@ User ─┬─< Chore (owner)          null owner = household-owned
 
 Chore ─< Occurrence              at most one open at a time
 Chore ─── MaintenanceItem        one-to-one, for shared upkeep
+Project ─< Chore (tasks)          a task is a household chore
+Project ─< Milestone ─< Chore     optional
+Project ─< ProjectLink, ProjectNote
 ```

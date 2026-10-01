@@ -124,11 +124,20 @@ class MaintenanceRedirectMixin:
     """
 
     upkeep_url_name = "household:upkeep_detail"
+    # Set on the edit view: a project task is edited in its project, where
+    # the milestone choice lives.
+    project_task_url_name = None
 
     def dispatch(self, request, *args, **kwargs):
         item = MaintenanceItem.objects.filter(chore_id=kwargs["pk"]).first()
         if item is not None:
             return redirect(self.upkeep_url_name, item.pk)
+
+        if self.project_task_url_name:
+            task = Chore.objects.filter(pk=kwargs["pk"], project__isnull=False).values("project_id").first()
+            if task is not None:
+                return redirect(self.project_task_url_name, task["project_id"], kwargs["pk"])
+
         return super().dispatch(request, *args, **kwargs)
 
 
@@ -144,6 +153,7 @@ class ManagedChoreMixin:
 
 class ChoreUpdateView(ManagedChoreMixin, ChoreFormMixin, MaintenanceRedirectMixin, UpdateView):
     upkeep_url_name = "household:upkeep_edit"
+    project_task_url_name = "household:project_task_edit"
 
     def get_page_title(self):
         return f"Edit {self.object.title}"
@@ -184,7 +194,7 @@ class ChoreDetailView(HouseholdPageMixin, MaintenanceRedirectMixin, DetailView):
     context_object_name = "chore"
 
     def get_queryset(self):
-        return Chore.objects.select_related("owner", "assignee")
+        return Chore.objects.select_related("owner", "assignee", "project", "milestone")
 
     def get_page_title(self):
         return self.object.title

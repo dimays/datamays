@@ -22,6 +22,12 @@
 
 {% include "household/partials/messages.html" %}
 
+{% if chore.project %}
+  <p class="mt-4 text-sm text-text-secondary">
+    A task in <a href="{% url 'household:project_detail' chore.project_id %}#tasks" class="text-primary hover:underline">{{ chore.project.name }}</a>{% if chore.milestone %}, toward “{{ chore.milestone.name }}”{% endif %}.
+  </p>
+{% endif %}
+
 <dl class="mt-6 grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
   <div><dt class="text-text-muted">Owner</dt><dd class="mt-0.5">{{ owner_name }}</dd></div>
   <div><dt class="text-text-muted">On whose list</dt><dd class="mt-0.5">{% if row %}{{ row.assignee_name }}{% else %}{{ chore.assignee.first_name|default:"Either of us" }}{% endif %}</dd></div>

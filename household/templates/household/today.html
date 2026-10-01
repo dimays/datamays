@@ -66,6 +66,18 @@
     <p class="text-sm text-text-muted">Nothing due today on {{ partner_name }}’s list.</p>
   {% endif %}
 
+  {% if projects %}
+    <section aria-labelledby="projects-heading">
+      <div class="flex items-baseline justify-between gap-3">
+        <h2 id="projects-heading" class="text-sm font-semibold uppercase tracking-wide text-text-muted">Projects in progress</h2>
+        <a href="{% url 'household:projects' %}" class="text-xs text-primary hover:underline">All projects</a>
+      </div>
+      <div class="mt-3 grid gap-3 sm:grid-cols-2">
+        {% for project in projects %}{% include "household/projects/_card.html" %}{% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
   {% include budgets.template with data=budgets.data label=budgets.label %}
 </div>
 {% endblock %}

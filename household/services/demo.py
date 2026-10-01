@@ -332,7 +332,58 @@ def _chores(members):
         occurrences.complete(current, by=(david, maddie)[index % 2], now=when, today=done_on)
 
     _maintenance(david, maddie, today)
+    _projects(david, maddie, today)
     return Chore.objects.count()
+
+
+def _projects(david, maddie, today):
+    """An active project mid-way through, and an idea."""
+    from decimal import Decimal
+
+    from household.models import Chore, Milestone, Project, ProjectLink, ProjectNote, ProjectStatus
+    from household.services import occurrences
+
+    days = lambda n: today + timedelta(days=n)  # noqa: E731
+
+    kitchen = Project.objects.create(
+        name="Kitchen refresh",
+        summary="Paint, new cabinet hardware, and a tile backsplash — no layout changes.",
+        status=ProjectStatus.ACTIVE,
+        start_on=days(-30),
+        target_on=days(60),
+        budget_total=Decimal("4500.00"),
+        created_by=maddie,
+    )
+    colors = Milestone.objects.create(project=kitchen, name="Pick paint colors", target_on=days(-20), completed_on=days(-18))
+    hardware = Milestone.objects.create(project=kitchen, name="Order cabinet hardware", target_on=days(-2))
+    paint = Milestone.objects.create(project=kitchen, name="Paint the walls and cabinets", target_on=days(21))
+    backsplash = Milestone.objects.create(project=kitchen, name="Install the backsplash", target_on=days(45))
+    Milestone.objects.create(project=kitchen, name="Donate the old hardware")
+
+    ProjectLink.objects.create(project=kitchen, title="Design board", url="https://docs.google.com/document/d/example")
+    ProjectLink.objects.create(project=kitchen, title="Tile quote", url="https://example.com/quote.pdf")
+    ProjectNote.objects.create(project=kitchen, author=maddie, body="Going with the matte finish — it hides fingerprints.")
+    ProjectNote.objects.create(project=kitchen, author=david, body="Hardware: brushed brass pulls, 5-inch centers.")
+
+    def task(title, assignee, milestone, **fields):
+        chore = Chore.objects.create(title=title, owner=None, assignee=assignee, project=kitchen,
+                                     milestone=milestone, **fields)
+        occurrences.reschedule(chore, today=today)
+        return chore
+
+    done = task("Buy paint samples", maddie, colors, starts_on=days(-25))
+    occurrences.complete(done.occurrences.get(status="open"), by=maddie, today=days(-24))
+    task("Measure the cabinet doors for pulls", david, hardware, starts_on=days(-4))
+    task("Get three backsplash quotes", maddie, backsplash, starts_on=days(3), deadline=days(14))
+    task("Buy painter's tape and drop cloths", david, paint, starts_on=days(5))
+    task("Pick a grout color", None, backsplash, starts_on=None)
+
+    Project.objects.create(
+        name="Vegetable garden",
+        summary="Two raised beds by the fence.",
+        status=ProjectStatus.IDEA,
+        created_by=david,
+    )
 
 
 def _maintenance(david, maddie, today):
