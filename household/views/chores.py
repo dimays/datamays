@@ -282,7 +282,7 @@ class OccurrenceActionView(HouseholdPageMixin, View):
             # A full-page post (maintenance's "Mark done", or no JavaScript)
             # gets no swapped row, so say what happened.
             if moved_on:
-                messages.error(request, f"“{title}” had moved on to its next date — nothing was changed.")
+                messages.error(request, f"“{title}” {self.moved_on_words(occurrence.chore)} — nothing was changed.")
             elif action == "undo":
                 if undone:
                     messages.success(request, f"Undone: “{title}” is back on the list.")
@@ -311,14 +311,16 @@ class OccurrenceActionView(HouseholdPageMixin, View):
 
         if moved_on:
             # Swap in the row that is open now, if there is one.
+            context["announce"] = f"“{title}” {self.moved_on_words(occurrence.chore)} — nothing was changed."
             current = occurrence.chore.occurrences.filter(status=OccurrenceStatus.OPEN).first()
             if current is not None:
                 current.chore = occurrence.chore
                 occurrence = current
-                context["announce"] = f"“{title}” had moved on to its next date — nothing was changed."
 
         if occurrence.is_open:
             occurrence.chore.open_occurrences = [occurrence]
+            # As the row reads on the page it replaces.
+            occurrence.chore.missed_streak = occurrences.missed_streak(occurrence.chore)
             [row] = checklist.rows_for(request.user, [occurrence.chore], today)
             # Announced to screen readers, which otherwise hear nothing when
             # a row is swapped back in.
@@ -331,15 +333,25 @@ class OccurrenceActionView(HouseholdPageMixin, View):
             request,
             "household/chores/_row_closed.html",
             {**context, "occurrence": occurrence, "following": following,
-             "can_undo": permissions.can_undo(request.user, occurrence)},
+             # Only a done or skipped one can be undone; a missed row's Undo
+             # could never work. Found in review.
+             "can_undo": occurrence.status in occurrences.CLOSED_BY_A_PERSON
+             and permissions.can_undo(request.user, occurrence)},
         )
-
 
     @staticmethod
     def undo_refusal(occurrence):
         if not occurrence.chore.is_active:
             return "it has been paused since"
         return "it has moved on since"
+
+    @staticmethod
+    def moved_on_words(chore):
+        if not chore.is_active:
+            return "has been paused since"
+        if not chore.occurrences.filter(status=OccurrenceStatus.OPEN).exists():
+            return "has ended since"
+        return "had moved on to its next date"
 
 
 class PartnerToggleView(HouseholdPageMixin, View):

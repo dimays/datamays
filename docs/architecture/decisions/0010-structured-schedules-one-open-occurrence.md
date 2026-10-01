@@ -87,8 +87,11 @@ one-off's deadline changing. A fixed schedule with no dates left from today
 (or an after-completion one whose end date has passed) is refused by the
 form rather than silently opening nothing.
 
-**Every miss is recorded** (round 2). The collapse used to mark only the
-open occurrence missed, so a week the sweep didn't see left one missed row,
-and "Missed N" said 1. It now records a missed row for each date that came
-and went (up to a year's worth at once), which is what "the missed rows
-remain as history" above always meant.
+**Every miss is recorded; no date is settled twice** (rounds 2–3). The
+collapse used to mark only the open occurrence missed, so a week the sweep
+didn't see left one missed row, and "Missed N" said 1. Now a missed row is
+recorded for each date that came and went — by the collapse (up to a year's
+worth at once), a late completion, or a schedule edit — which is what "the
+missed rows remain as history" above always meant. And every path that
+picks a fixed date passes over dates already done, skipped, or missed, so a
+date done early is never reopened or recorded as missed beside its done row.

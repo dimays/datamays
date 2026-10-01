@@ -9,6 +9,7 @@ from itertools import islice
 
 from django.contrib import messages
 from django.db import transaction
+from django.db.models import F
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
@@ -144,7 +145,11 @@ class UpkeepDetailView(HouseholdView):
             log_form=LogCompletionForm(initial={"cost": item.estimated_cost}),
             history=chore.occurrences.exclude(status=OccurrenceStatus.OPEN)
             .select_related("completed_by", "transaction")
-            .order_by("-completed_at", "-due_on", "-id")[:20],
+            # Done jobs first, newest first. Missed rows have no completion
+            # time, and Postgres sorts NULLs first on a descending order —
+            # found in review: a year of misses pushed every job (and its
+            # cost) out of the twenty.
+            .order_by(F("completed_at").desc(nulls_last=True), "-due_on", "-id")[:20],
             cost_by_year=maintenance.cost_by_year(item),
         )
         return context

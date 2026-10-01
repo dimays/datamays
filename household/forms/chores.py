@@ -183,9 +183,11 @@ class ChoreForm(StyledFormMixin, forms.ModelForm):
         new = replace(proposed.schedule, counts_from=today)
         if self.instance.pk and replace(self.instance.schedule, counts_from=today) == new:
             return
-        # A schedule refused for another reason (the model's validation,
-        # which runs after this) would only gain a misleading second error.
-        if self.errors or scheduling.validate(new):
+        # A schedule refused for another reason (a field, or the model's
+        # validation, which runs after this) would only gain a misleading
+        # second error. Errors elsewhere on the form — a blank title, or the
+        # live preview's missing fields — don't stop this check.
+        if any(name in self.errors for name in SCHEDULE_FIELDS) or scheduling.validate(new):
             return
 
         if not new.is_fixed:

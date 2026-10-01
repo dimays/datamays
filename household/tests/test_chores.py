@@ -683,3 +683,61 @@ class RoundTwoScenarioTests(TestCase):
             {"note": "x" * 1001}, follow=True)
 
         self.assertContains(response, "note is too long")
+
+
+class RoundThreeTests(TestCase):
+    def setUp(self):
+        self.david = make_member("david", first_name="David")
+        self.maddie = make_member("maddie", first_name="Maddie")
+        self.today = household_today()
+
+    def test_a_stale_tap_on_a_chore_paused_since_says_so_and_offers_no_undo(self):
+        chore = make_chore(None, title="Bins", frequency=Frequency.WEEKLY,
+                           starts_on=self.today - timedelta(days=3), today=self.today - timedelta(days=3))
+        stale = chore.occurrences.get(status=OccurrenceStatus.OPEN)
+        before = Chore.objects.get(pk=chore.pk)
+        chore.is_active = False
+        chore.save()
+        occurrences.apply_edit(chore, before, today=self.today)
+        sign_in(self.client, self.david)
+
+        response = self.client.post(reverse("household:occurrence_action", args=[stale.pk, "complete"]), **HTMX)
+
+        self.assertContains(response, "paused since")
+        self.assertNotContains(response, "Undo")
+
+    def test_the_swapped_in_row_shows_its_missed_streak(self):
+        chore = make_chore(self.david, title="Dishes", frequency=Frequency.DAILY,
+                           starts_on=self.today - timedelta(days=3), today=self.today - timedelta(days=3))
+        stale = chore.occurrences.get(status=OccurrenceStatus.OPEN)
+        occurrences.sweep(self.today)
+        sign_in(self.client, self.david)
+
+        response = self.client.post(reverse("household:occurrence_action", args=[stale.pk, "complete"]), **HTMX)
+
+        self.assertContains(response, "Missed 3 times before this")
+
+    def test_the_request_that_loses_a_collapse_race_shows_the_same_streak(self):
+        chore = make_chore(self.david, frequency=Frequency.DAILY,
+                           starts_on=self.today - timedelta(days=5), today=self.today - timedelta(days=5))
+        first = list(checklist.with_missed_streak(occurrences.with_open_occurrence(Chore.objects.filter(pk=chore.pk))))
+        second = list(checklist.with_missed_streak(occurrences.with_open_occurrence(Chore.objects.filter(pk=chore.pk))))
+
+        occurrences.refresh(first, self.today)
+        occurrences.refresh(second, self.today)
+
+        self.assertEqual(first[0].missed_streak, 5)
+        self.assertEqual(second[0].missed_streak, 5)
+
+    def test_the_upkeep_preview_shows_a_past_end_date(self):
+        """Round 3: the preview's missing `whose` hid the dates check."""
+        sign_in(self.client, self.david)
+
+        response = self.client.get(reverse("household:chore_preview"), {
+            "_prefix": "chore", "chore-frequency": Frequency.DAILY, "chore-interval": 90,
+            "chore-anchor": Anchor.AFTER_COMPLETION, "chore-monthly_mode": "day",
+            "chore-starts_on": (self.today - timedelta(days=30)).isoformat(),
+            "chore-ends_on": (self.today - timedelta(days=1)).isoformat(),
+        })
+
+        self.assertContains(response, "already passed")

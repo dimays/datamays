@@ -82,11 +82,13 @@ still open, the current one becomes *missed* and the **newest** arrived date
 opens — only the newest. A week away from a daily chore leaves one row, not
 seven, and that row is **due today, not overdue**: the newest date is today.
 Every date that came and went is still recorded as a missed row — whether
-the sweep caught each one or a screen caught them all at once (up to a
-year's worth) — so history is complete and the row can say **"Missed 7
-times before this"**: the misses since the last one done or skipped. An
-overdue fixed occurrence that a schedule edit replaces is recorded as
-missed too, not erased. This happens at the next due
+the sweep caught each one, a screen caught them all at once (up to a year's
+worth), a late completion jumped over them, or a schedule edit replaced the
+schedule they belonged to — so history is complete and the row can say
+**"Missed 7 times before this"**: the misses since the last one done or
+skipped. A settled date is never recorded twice or reopened: every path
+that picks a fixed date (`_due_for_a_fresh_start`, `_advance`, `refresh`)
+passes over dates already done, skipped, or missed. This happens at the next due
 date even if the old occurrence's deadline has not passed, so a deadline
 longer than the gap between due dates has no effect.
 
@@ -111,16 +113,18 @@ something that decides the open occurrence changed — the schedule, whether
 the chore is active, or a one-off's deadline — so tidying a title never
 resets an overdue chore. When it does reschedule:
 
-- a **fixed** chore starts from today, passing over any date already done,
-  skipped, or missed (so editing a chore done today doesn't bring today's
-  back, and one done early for Friday doesn't bring Friday back). Only those
-  exact dates are passed over: a one-off done early and then made weekly
-  still starts this week;
+- a **fixed** chore starts from today, passing over any **settled** date
+  (one already done, skipped, or missed) — and over today itself if
+  anything was done or skipped today, even early for a later date. So
+  editing a chore just done doesn't bring it straight back, and one done
+  early for Friday doesn't bring Friday back. Only those dates are passed
+  over: a one-off done early and then made weekly starts at its next date,
+  not after the old due date;
 - an **after-completion** chore still counts from when it was last done —
   unless its due date was changed by hand, which is honored;
 - a schedule change restarts any occurrence limit from today, for both
-  anchors: only occurrences opened since the change count
-  (`occurrences.occurrences_toward_limit`). The form refuses a changed
+  anchors: only occurrences opened since the day of the change count
+  (`occurrences.occurrences_toward_limit`; missed rows never count). The form refuses a changed
   schedule with nothing left to do — a fixed one with no dates left, or an
   end date already past.
 
@@ -143,8 +147,9 @@ tomorrow in UTC.
 Twice, deliberately:
 
 - **On read.** `refresh()` applies the missed-occurrence rule to chores
-  already loaded, in bulk, writing only when something is stale — two queries
-  whatever the number of chores. A screen is never wrong because the
+  already loaded, in bulk, reading nothing more unless something is stale —
+  two queries whatever the number of chores. A stale chore then costs a few
+  writes of its own (the miss, the dates recorded, the new open row). A screen is never wrong because the
   scheduler skipped a run. Two requests collapsing the same chore at once
   both end up showing the one row that opened.
 - **Hourly.** `manage.py sweep_chores` applies it to every chore, so a missed
