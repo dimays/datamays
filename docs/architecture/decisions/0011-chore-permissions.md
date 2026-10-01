@@ -58,3 +58,7 @@ protecting anything.
 - **A refused member sees a member's page** ("Not yours to change"), not the
   stranger's 403 — and a refused or failed htmx action now shows a message
   instead of silently doing nothing.
+- **Shared stays shared** (round 2). Editing a household chore to "mine"
+  made the editor its owner and locked the other person out of it — the
+  same takeover in another direction. The field is now fixed for an existing
+  shared chore, and the granted person can't change the grant either.

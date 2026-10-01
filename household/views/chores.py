@@ -255,7 +255,8 @@ class OccurrenceActionView(HouseholdPageMixin, View):
         # a job, so a cost is validated as money wherever it is posted from.
         details = LogCompletionForm(request.POST)
         if not details.is_valid():
-            messages.error(request, "That cost doesn't look like an amount — nothing was changed.")
+            problem = "That cost doesn't look like an amount" if "cost" in details.errors else "That note is too long"
+            messages.error(request, f"{problem} — nothing was changed.")
             return redirect(safe_next(request, default=reverse("household:chores")))
         note = details.cleaned_data["note"].strip()
 
@@ -269,22 +270,33 @@ class OccurrenceActionView(HouseholdPageMixin, View):
             undone = occurrences.reopen(occurrence)
             following = None
 
+        occurrence.refresh_from_db()
+        # Tapped on a row that had already moved on: its date passed and it
+        # was recorded as missed (by the sweep, or another screen) while the
+        # page sat open. Nothing was done. Found in review: this gave a 500,
+        # or a "Marked done" for nothing.
+        moved_on = action != "undo" and occurrence.status == OccurrenceStatus.MISSED
+        title = occurrence.chore.title
+
         if not is_htmx(request):
             # A full-page post (maintenance's "Mark done", or no JavaScript)
             # gets no swapped row, so say what happened.
-            title = occurrence.chore.title
-            if action == "undo":
+            if moved_on:
+                messages.error(request, f"“{title}” had moved on to its next date — nothing was changed.")
+            elif action == "undo":
                 if undone:
                     messages.success(request, f"Undone: “{title}” is back on the list.")
                 else:
-                    messages.error(request, f"Couldn't undo “{title}” — a newer one has been done since.")
+                    messages.error(request, f"Couldn't undo “{title}” — {self.undo_refusal(occurrence)}.")
+            elif occurrence.completed_by_id != request.user.pk:
+                who = display_name(occurrence.completed_by)
+                messages.error(request, f"“{title}” was already {occurrence.get_status_display().lower()} by {who}.")
             else:
                 done = "Marked done" if action == "complete" else "Skipped"
                 upcoming = f" — next due {following.due_on:%b} {following.due_on.day}" if following and following.due_on else ""
                 messages.success(request, f"{done}: “{title}”{upcoming}.")
             return redirect(safe_next(request, default=reverse("household:chores")))
 
-        occurrence.refresh_from_db()
         today = household_today()
         # The swapped-in row's no-JavaScript fallback should return to the
         # page it sits on, not to this endpoint.
@@ -297,15 +309,23 @@ class OccurrenceActionView(HouseholdPageMixin, View):
             "show_assignee": request.POST.get("show_assignee") == "1",
         }
 
+        if moved_on:
+            # Swap in the row that is open now, if there is one.
+            current = occurrence.chore.occurrences.filter(status=OccurrenceStatus.OPEN).first()
+            if current is not None:
+                current.chore = occurrence.chore
+                occurrence = current
+                context["announce"] = f"“{title}” had moved on to its next date — nothing was changed."
+
         if occurrence.is_open:
             occurrence.chore.open_occurrences = [occurrence]
             [row] = checklist.rows_for(request.user, [occurrence.chore], today)
             # Announced to screen readers, which otherwise hear nothing when
             # a row is swapped back in.
-            context["announce"] = f"“{occurrence.chore.title}” is back on the list."
+            context.setdefault("announce", f"“{title}” is back on the list.")
             return render(request, "household/chores/_row.html", {**context, "row": row})
         if action == "undo":
-            context["undo_refused"] = True
+            context["undo_refused"] = self.undo_refusal(occurrence)
 
         return render(
             request,
@@ -313,6 +333,13 @@ class OccurrenceActionView(HouseholdPageMixin, View):
             {**context, "occurrence": occurrence, "following": following,
              "can_undo": permissions.can_undo(request.user, occurrence)},
         )
+
+
+    @staticmethod
+    def undo_refusal(occurrence):
+        if not occurrence.chore.is_active:
+            return "it has been paused since"
+        return "it has moved on since"
 
 
 class PartnerToggleView(HouseholdPageMixin, View):

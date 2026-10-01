@@ -192,10 +192,16 @@ class CollapseTests(TestCase):
     def test_an_arrived_due_date_misses_the_old_one(self):
         [chore] = self.refreshed(date(2026, 10, 20))
 
-        statuses = list(self.weekly.occurrences.values_list("due_on", "status"))
+        statuses = list(self.weekly.occurrences.order_by("due_on").values_list("due_on", "status"))
+        # Every date that came and went is recorded as missed — the 12th
+        # too, though nothing ever opened for it — and only the newest opens.
         self.assertEqual(
             statuses,
-            [(date(2026, 10, 5), OccurrenceStatus.MISSED), (date(2026, 10, 19), OccurrenceStatus.OPEN)],
+            [
+                (date(2026, 10, 5), OccurrenceStatus.MISSED),
+                (date(2026, 10, 12), OccurrenceStatus.MISSED),
+                (date(2026, 10, 19), OccurrenceStatus.OPEN),
+            ],
         )
         # The caller's copy is updated in place, ready to render.
         self.assertEqual(chore.open_occurrences[0].due_on, date(2026, 10, 19))
@@ -504,6 +510,36 @@ class EditPathTests(TestCase):
             done += 1
             occurrences.complete(open_ones(chore)[0], by=self.david, now=at(TODAY), today=TODAY)
         self.assertEqual(done, 3)
+
+    def test_an_overdue_occurrence_replaced_by_an_edit_is_recorded_as_missed(self):
+        """Round 2: the edit deleted it, and the miss vanished from history."""
+        chore = make_chore(self.david, frequency=Frequency.WEEKLY, starts_on=date(2026, 9, 21),
+                           today=date(2026, 9, 21))
+        [overdue] = open_ones(chore)
+        before = type(chore).objects.get(pk=chore.pk)
+
+        chore.frequency = Frequency.DAILY
+        chore.save()
+        occurrences.apply_edit(chore, before, today=TODAY)
+
+        overdue.refresh_from_db()
+        self.assertEqual(overdue.status, OccurrenceStatus.MISSED)
+        self.assertEqual(open_ones(chore)[0].due_on, TODAY)
+
+    def test_raising_an_ended_after_completion_chores_limit_revives_it(self):
+        chore = make_chore(None, frequency=Frequency.MONTHLY, anchor=Anchor.AFTER_COMPLETION,
+                           starts_on=date(2026, 7, 1), max_occurrences=2, today=date(2026, 7, 1))
+        for day in (date(2026, 7, 1), date(2026, 8, 1)):
+            occurrences.complete(open_ones(chore)[0], by=self.david, now=at(day), today=day)
+        self.assertEqual(open_ones(chore), [])
+        chore.occurrences.update(created_at=at(date(2026, 7, 1)))
+        before = type(chore).objects.get(pk=chore.pk)
+
+        chore.max_occurrences = 4
+        chore.save()
+        occurrences.apply_edit(chore, before, today=TODAY)
+
+        self.assertEqual(open_ones(chore)[0].due_on, date(2026, 9, 1))
 
     def test_a_new_due_date_on_an_after_completion_chore_is_honored(self):
         chore = make_chore(None, frequency=Frequency.DAILY, interval=90, anchor=Anchor.AFTER_COMPLETION,

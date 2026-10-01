@@ -13,7 +13,7 @@
   <div class="min-w-0 flex-1" role="status">
     <p class="truncate text-text-muted line-through">{{ occurrence.chore.title }}</p>
     <p class="mt-0.5 text-xs text-text-muted">
-      {% if undo_refused %}<span class="text-warning">Can't undo — a newer one has been done since.</span> {% endif %}{% if occurrence.status == "done" %}Done{% else %}Skipped{% endif %}{% if occurrence.completed_by_id != request.user.pk %} by {{ occurrence.completed_by.first_name|default:occurrence.completed_by.username }}{% endif %}{% if following %} · Next: {% due_words following today %}{% endif %}
+      {% if undo_refused %}<span class="text-warning">Can't undo — {{ undo_refused }}.</span> {% endif %}{{ occurrence.get_status_display }}{% if occurrence.completed_by_id and occurrence.completed_by_id != request.user.pk %} by {{ occurrence.completed_by.first_name|default:occurrence.completed_by.username }}{% endif %}{% if following %} · Next: {% due_words following today %}{% endif %}
     </p>
   </div>
 

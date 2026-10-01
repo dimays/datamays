@@ -81,13 +81,25 @@ after-completion chores, a skip restarts the clock just as done does.
 still open, the current one becomes *missed* and the **newest** arrived date
 opens — only the newest. A week away from a daily chore leaves one row, not
 seven, and that row is **due today, not overdue**: the newest date is today.
-So the misses aren't silent, the row says **"Missed 7 times before this"** —
-the misses since the last one done or skipped. This happens at the next due
+Every date that came and went is still recorded as a missed row — whether
+the sweep caught each one or a screen caught them all at once (up to a
+year's worth) — so history is complete and the row can say **"Missed 7
+times before this"**: the misses since the last one done or skipped. An
+overdue fixed occurrence that a schedule edit replaces is recorded as
+missed too, not erased. This happens at the next due
 date even if the old occurrence's deadline has not passed, so a deadline
 longer than the gap between due dates has no effect.
 
 **Undo.** `reopen()` reverses the most recent done or skipped occurrence and
-removes the untouched next one it opened. Anything older is history.
+removes the untouched next one it opened. Anything older is history, and a
+chore paused since can't be undone (it would hold an open occurrence no list
+shows).
+
+**A tap on a row that has moved on** — a phone left open overnight, while the
+sweep recorded the row as missed — does nothing. The current row is swapped
+in with a "moved on to its next date" note (or, without JavaScript, the same
+as a message). Marking done something the other person just did says so,
+rather than "Marked done".
 
 **One-offs.** A done one-off stays done — unless it is given a new date
 ("do it again on the 10th"), which puts it back on the list. Converting a
@@ -133,7 +145,8 @@ Twice, deliberately:
 - **On read.** `refresh()` applies the missed-occurrence rule to chores
   already loaded, in bulk, writing only when something is stale — two queries
   whatever the number of chores. A screen is never wrong because the
-  scheduler skipped a run.
+  scheduler skipped a run. Two requests collapsing the same chore at once
+  both end up showing the one row that opened.
 - **Hourly.** `manage.py sweep_chores` applies it to every chore, so a missed
   week is recorded on the day it happened even if nobody opened the app. It
   runs in both scheduler chains, `household_hourly` and `household_daily`.

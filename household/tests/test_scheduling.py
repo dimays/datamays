@@ -369,6 +369,11 @@ class ValidationTests(SimpleTestCase):
 class OverflowTests(SimpleTestCase):
     """Round-1 review: "every 9000 years" passed validation, then crashed."""
 
+    def test_a_deadline_past_year_9999_is_no_deadline_not_a_crash(self):
+        schedule = Schedule(frequency=Frequency.DAILY, starts_on=date(9999, 12, 30), deadline_offset_days=5)
+
+        self.assertIsNone(deadline_for(schedule, date(9999, 12, 30)))
+
     def test_absurd_intervals_are_refused(self):
         self.assertIn("interval", validate(Schedule(Frequency.YEARLY, date(2026, 1, 1), interval=9000)))
         self.assertEqual(validate(Schedule(Frequency.YEARLY, date(2026, 1, 1), interval=10)), {})

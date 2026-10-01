@@ -86,3 +86,9 @@ through one atomic service, `occurrences.apply_edit`, which also notices a
 one-off's deadline changing. A fixed schedule with no dates left from today
 (or an after-completion one whose end date has passed) is refused by the
 form rather than silently opening nothing.
+
+**Every miss is recorded** (round 2). The collapse used to mark only the
+open occurrence missed, so a week the sweep didn't see left one missed row,
+and "Missed N" said 1. It now records a missed row for each date that came
+and went (up to a year's worth at once), which is what "the missed rows
+remain as history" above always meant.

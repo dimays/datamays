@@ -23,10 +23,11 @@ chore at all — see [architecture.md](architecture.md#sign-in-and-the-access-ga
 - **The grant** is the per-chore "Let the other person manage this chore"
   box. Each person sets a default for new chores in preferences. It lets the
   other person manage the chore, **not take it over**: only the owner can
-  change whose chore it is.
+  change whose chore it is, or withdraw the grant.
 - **Household-owned** chores (no owner — "Shared household chore" on the
   form, and later maintenance items and project tasks) are shared work:
-  either person manages them, always.
+  either person manages them, always. A shared chore stays shared — neither
+  person can make it their own, which would take it from the other.
 - **Marking done** is open to both so that "I took the trash out for you" is
   one tap. The occurrence records who actually did it.
 

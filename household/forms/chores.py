@@ -107,14 +107,17 @@ class ChoreForm(StyledFormMixin, forms.ModelForm):
         # Only the owner decides whose a personal chore is. The grant lets the
         # other person manage it, not take it over: switching it to shared
         # and back would have made them its owner. Found in review.
-        if (
-            not household_only
-            and self.instance.pk
-            and self.instance.owner_id
-            and self.instance.owner_id != user.pk
-        ):
-            self.fields["whose"].disabled = True
-            self.fields["whose"].help_text = "Only its owner can change whose chore this is."
+        if not household_only and self.instance.pk:
+            if self.instance.owner_id is None:
+                # Shared work stays shared: making it "mine" would let either
+                # person take it from the other. Found in review.
+                self.fields["whose"].disabled = True
+                self.fields["whose"].help_text = "A shared chore stays shared — add a personal one instead."
+            elif self.instance.owner_id != user.pk:
+                self.fields["whose"].disabled = True
+                self.fields["whose"].help_text = "Only its owner can change whose chore this is."
+                # Nor can the person granted access change the grant.
+                self.fields["others_can_manage"].disabled = True
 
         # Maintenance is shared work by definition (ADR 0011): no "whose",
         # no grant — both of you manage it, and it can sit on either list.

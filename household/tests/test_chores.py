@@ -371,8 +371,8 @@ class CollapseOnReadTests(TestCase):
             self.client.get(reverse("household:chores"))
 
         self.assertEqual(
-            list(chore.occurrences.values_list("status", flat=True)),
-            [OccurrenceStatus.MISSED, OccurrenceStatus.OPEN],
+            list(chore.occurrences.order_by("due_on").values_list("status", flat=True)),
+            [OccurrenceStatus.MISSED, OccurrenceStatus.MISSED, OccurrenceStatus.OPEN],
         )
 
 
@@ -429,7 +429,8 @@ class ConsistencyTests(TestCase):
 
         self.client.get(reverse("household:chore_list"))
 
-        self.assertEqual(chore.occurrences.filter(status=OccurrenceStatus.MISSED).count(), 1)
+        # Two weeks came and went: both are recorded as missed.
+        self.assertEqual(chore.occurrences.filter(status=OccurrenceStatus.MISSED).count(), 2)
 
     def test_a_missed_streak_is_shown_on_the_rolled_forward_row(self):
         """The collapse keeps one row; this keeps the misses from being silent."""
@@ -442,15 +443,18 @@ class ConsistencyTests(TestCase):
 
         self.assertContains(response, "Missed 5 times before this")
 
-    def test_the_request_that_collapses_counts_the_miss_it_made(self):
+    def test_the_request_that_collapses_counts_the_misses_it_made(self):
         """Round 2: the streak was counted before the collapse, so the first
-        screen after a miss showed one too few."""
+        screen after a miss showed too few — and without the sweep, a week
+        away recorded (and showed) a single miss."""
         chore = make_chore(self.david, frequency=Frequency.DAILY,
-                           starts_on=self.today - timedelta(days=2), today=self.today - timedelta(days=2))
+                           starts_on=self.today - timedelta(days=7), today=self.today - timedelta(days=7))
 
-        [loaded] = [c for c in checklist.load(self.today) if c.pk == chore.pk]
+        [first] = [c for c in checklist.load(self.today) if c.pk == chore.pk]
+        [second] = [c for c in checklist.load(self.today) if c.pk == chore.pk]
 
-        self.assertEqual(loaded.missed_streak, 1)
+        self.assertEqual(first.missed_streak, 7)
+        self.assertEqual(second.missed_streak, 7)
 
     def test_a_streak_resets_once_one_is_done(self):
         chore = make_chore(self.david, frequency=Frequency.DAILY,
@@ -567,3 +571,115 @@ class FeedbackTests(TestCase):
         response = self.client.post(reverse("household:occurrence_action", args=[current.pk, "undo"]), follow=True)
 
         self.assertContains(response, "back on the list")
+
+
+class RoundTwoScenarioTests(TestCase):
+    """Found by the round-2 end-to-end scenarios: two people, real
+    endpoints, a clock that moves."""
+
+    def setUp(self):
+        self.david = make_member("david", first_name="David")
+        self.maddie = make_member("maddie", first_name="Maddie")
+        self.today = household_today()
+
+    def stale_daily_chore(self):
+        """A daily chore whose open row is yesterday's, left on a screen
+        while the sweep moved it on."""
+        chore = make_chore(self.david, title="Dishes", frequency=Frequency.DAILY,
+                           starts_on=self.today - timedelta(days=1), today=self.today - timedelta(days=1))
+        stale = chore.occurrences.get(status=OccurrenceStatus.OPEN)
+        occurrences.sweep(self.today)
+        return chore, stale
+
+    def test_a_stale_tap_swaps_in_the_current_row_rather_than_a_500(self):
+        chore, stale = self.stale_daily_chore()
+        current = chore.occurrences.get(status=OccurrenceStatus.OPEN)
+        sign_in(self.client, self.david)
+
+        response = self.client.post(reverse("household:occurrence_action", args=[stale.pk, "complete"]), **HTMX)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'id="occurrence-{current.pk}"')
+        self.assertContains(response, "moved on to its next date")
+        stale.refresh_from_db()
+        current.refresh_from_db()
+        self.assertEqual(stale.status, OccurrenceStatus.MISSED)
+        self.assertTrue(current.is_open)
+
+    def test_a_stale_tap_without_javascript_says_nothing_was_done(self):
+        chore, stale = self.stale_daily_chore()
+        sign_in(self.client, self.david)
+
+        response = self.client.post(reverse("household:occurrence_action", args=[stale.pk, "skip"]), follow=True)
+
+        self.assertContains(response, "nothing was changed")
+        self.assertNotContains(response, "Skipped:")
+        self.assertTrue(chore.occurrences.filter(status=OccurrenceStatus.OPEN).exists())
+
+    def test_marking_done_what_the_other_person_just_did_says_so(self):
+        chore = make_chore(self.david, title="Dishes", starts_on=self.today)
+        occurrence = chore.occurrences.get()
+        occurrences.complete(occurrence, by=self.maddie)
+        sign_in(self.client, self.david)
+
+        response = self.client.post(reverse("household:occurrence_action", args=[occurrence.pk, "complete"]),
+                                    follow=True)
+
+        self.assertContains(response, "already done by Maddie")
+
+    def test_the_request_that_loses_a_collapse_race_shows_the_new_row(self):
+        chore = make_chore(self.david, frequency=Frequency.DAILY,
+                           starts_on=self.today - timedelta(days=1), today=self.today - timedelta(days=1))
+        # Two requests, each loaded before either collapsed it.
+        first = list(occurrences.with_open_occurrence(Chore.objects.filter(pk=chore.pk)))
+        second = list(occurrences.with_open_occurrence(Chore.objects.filter(pk=chore.pk)))
+
+        occurrences.refresh(first, self.today)
+        occurrences.refresh(second, self.today)
+
+        self.assertEqual(second[0].open_occurrences[0].due_on, self.today)
+        self.assertEqual(chore.occurrences.filter(status=OccurrenceStatus.OPEN).count(), 1)
+
+    def test_a_shared_chore_cannot_be_made_someones_own(self):
+        chore = make_chore(None, title="Trash")
+        sign_in(self.client, self.maddie)
+
+        self.client.post(reverse("household:chore_edit", args=[chore.pk]), form_data(title="Trash", whose="personal"))
+
+        chore.refresh_from_db()
+        self.assertIsNone(chore.owner)
+
+    def test_the_granted_person_cannot_change_the_grant(self):
+        chore = make_chore(self.david, title="Mine", others_can_manage=True)
+        sign_in(self.client, self.maddie)
+
+        data = form_data(title="Mine")
+        data.pop("others_can_manage", None)  # an unticked box
+        self.client.post(reverse("household:chore_edit", args=[chore.pk]), data)
+
+        chore.refresh_from_db()
+        self.assertTrue(chore.others_can_manage)
+
+    def test_undo_on_a_chore_paused_since_is_refused(self):
+        chore = make_chore(self.david, title="Dishes", starts_on=self.today)
+        occurrence = chore.occurrences.get()
+        occurrences.complete(occurrence, by=self.david)
+        chore.is_active = False
+        chore.save()
+        sign_in(self.client, self.david)
+
+        response = self.client.post(reverse("household:occurrence_action", args=[occurrence.pk, "undo"]),
+                                    follow=True)
+
+        self.assertContains(response, "paused since")
+        self.assertFalse(chore.occurrences.filter(status=OccurrenceStatus.OPEN).exists())
+
+    def test_a_note_too_long_is_called_a_note_not_a_cost(self):
+        chore = make_chore(self.david, title="Dishes", starts_on=self.today)
+        sign_in(self.client, self.david)
+
+        response = self.client.post(
+            reverse("household:occurrence_action", args=[chore.occurrences.get().pk, "complete"]),
+            {"note": "x" * 1001}, follow=True)
+
+        self.assertContains(response, "note is too long")

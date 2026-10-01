@@ -135,7 +135,13 @@ def reschedule(chore, today=None, *, starts_on_changed=False):
         return _open(chore, chore.starts_on)
 
     if current is not None:
-        current.delete()
+        if current.is_overdue(today) and chore.schedule.is_fixed:
+            # An overdue fixed occurrence is a miss, and history should say
+            # so, rather than the edit erasing it. Found in review.
+            current.status = OccurrenceStatus.MISSED
+            current.save(update_fields=["status", "updated_at"])
+        else:
+            current.delete()
 
     # Pausing a repeating chore takes it off every checklist; resuming it
     # starts afresh from today.
@@ -241,8 +247,12 @@ def reopen(occurrence):
     untouched next occurrence this one opened, the history stands and this
     returns False.
     """
-    locked = Occurrence.objects.select_for_update().get(pk=occurrence.pk)
+    locked = Occurrence.objects.select_for_update().select_related("chore").get(pk=occurrence.pk)
     if locked.status not in CLOSED_BY_A_PERSON:
+        return False
+    # A paused chore holds no open occurrence; undoing would give it one
+    # that no list shows. Found in review.
+    if not locked.chore.is_active:
         return False
 
     # Locked too: a concurrent completion of the next occurrence must either
@@ -263,6 +273,10 @@ def reopen(occurrence):
     return True
 
 
+# A chore left alone for years records at most this many misses at once.
+MISSED_RECORD_LIMIT = 366
+
+
 def refresh(chores, today=None):
     """Apply the missed-occurrence collapse to chores already loaded.
 
@@ -279,21 +293,36 @@ def refresh(chores, today=None):
         if not chore.schedule.is_fixed:
             continue
 
-        newer = scheduling.superseding_due(chore.schedule, current.due_on, today)
-        if newer is None:
+        arrived = scheduling.arrived_since(chore.schedule, current.due_on, today)
+        if not arrived:
             continue
+        newer, skipped_over = arrived[-1], arrived[:-1][-MISSED_RECORD_LIMIT:]
 
         with transaction.atomic():
             # Conditional, so a concurrent completion is never overwritten.
             missed = Occurrence.objects.filter(pk=current.pk, status=OccurrenceStatus.OPEN).update(
                 status=OccurrenceStatus.MISSED, updated_at=timezone.now()
             )
-            if missed:
-                chore.open_occurrences = [_open(chore, newer)]
-                # The streak was counted in SQL before this miss existed;
-                # count it, or the request that collapses shows one too few.
-                if hasattr(chore, "missed_streak"):
-                    chore.missed_streak += 1
+            if not missed:
+                # Someone else got there first (a completion, or another
+                # request collapsing it): show what is open now, not the stale
+                # row. Found in review: tapping the stale row gave a 500.
+                chore.open_occurrences = list(chore.occurrences.filter(status=OccurrenceStatus.OPEN))
+                continue
+
+            # Every date that came and went is recorded as missed, not only
+            # the one that was open — so history and "Missed N times" are
+            # right even when the sweep didn't run each day. Found in review.
+            Occurrence.objects.bulk_create(
+                Occurrence(chore=chore, due_on=day, deadline=scheduling.deadline_for(chore.schedule, day),
+                           status=OccurrenceStatus.MISSED)
+                for day in skipped_over
+            )
+            chore.open_occurrences = [_open(chore, newer)]
+            # The streak was counted in SQL before these misses existed;
+            # count them, or the request that collapses shows too few.
+            if hasattr(chore, "missed_streak"):
+                chore.missed_streak += 1 + len(skipped_over)
 
     return chores
 

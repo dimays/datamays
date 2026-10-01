@@ -251,21 +251,27 @@ def next_fixed_after(schedule: Schedule, day: date) -> date | None:
     return next((due for due in fixed_dates(schedule) if due > day), None)
 
 
+def arrived_since(schedule: Schedule, open_due: date, today: date) -> list:
+    """Every due date after `open_due` that has arrived by `today`, in order."""
+    arrived = []
+    for due in fixed_dates(schedule):
+        if due > today:
+            break
+        if due > open_due:
+            arrived.append(due)
+    return arrived
+
+
 def superseding_due(schedule: Schedule, open_due: date, today: date) -> date | None:
     """The newest due date that has arrived since `open_due`, if any.
 
     A fixed chore keeps one open occurrence. When a later due date arrives
     while it is still open, the old one is missed and this newer one takes
     its place — only the newest, so a week away from a daily chore collapses
-    into one overdue item rather than a wall of seven.
+    into one row rather than a wall of seven.
     """
-    latest = None
-    for due in fixed_dates(schedule):
-        if due > today:
-            break
-        if due > open_due:
-            latest = due
-    return latest
+    arrived = arrived_since(schedule, open_due, today)
+    return arrived[-1] if arrived else None
 
 
 # --- after-completion schedules --------------------------------------------
@@ -361,7 +367,10 @@ def is_low_frequency(schedule: Schedule) -> bool:
 def deadline_for(schedule: Schedule, due: date | None) -> date | None:
     if due is None or schedule.deadline_offset_days is None:
         return None
-    return due + timedelta(days=schedule.deadline_offset_days)
+    try:
+        return due + timedelta(days=schedule.deadline_offset_days)
+    except OverflowError:  # past year 9999; no deadline rather than a 500
+        return None
 
 
 # --- words -----------------------------------------------------------------
