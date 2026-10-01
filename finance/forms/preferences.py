@@ -5,7 +5,7 @@ from django import forms
 from ..chart_sections import CHART_SECTION_CHOICES
 from ..models import Account, Budget, UserPreference
 from ..services.widgets import WIDGET_CHOICES
-from .base import StyledFormMixin
+from household.forms.base import StyledFormMixin
 
 
 def _ordered_for_display(saved, all_slugs):

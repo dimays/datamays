@@ -13,9 +13,9 @@ from django.core.management.base import CommandError
 from django.test import TestCase
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
-from finance.access import is_household_member
-from finance.dates import household_today
 from finance.models import Budget, BudgetPeriod, Transaction
+from household.access import is_household_member
+from household.dates import household_today
 from household.services import demo
 
 

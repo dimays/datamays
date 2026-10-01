@@ -81,22 +81,20 @@ cannot catch every unbuilt utility. After touching templates, run the build.
 See [ADR 0007](architecture/decisions/0007-committed-frontend-build-artifacts.md)
 for why it works this way.
 
-## Getting into `/finance` locally
+## Getting into Mays Household locally
 
-The finance app is gated three ways: authenticated, a member of the `finance`
-group, and cleared a TOTP second factor. To give yourself an account:
+The private apps are gated three ways: authenticated, a member of the
+`household` group, and cleared a TOTP second factor. The demo seed (above)
+creates two members who already have an authenticator; sign in at
+`/household/login/` as described in
+[`household/docs/`](../household/docs/README.md).
+
+To create an account by hand instead — you will be walked through enrolling an
+authenticator app on first sign-in:
 
 ```bash
-uv run python manage.py create_finance_user david --first-name David --email you@example.com --settings=datamays.settings_test
+uv run python manage.py create_finance_user david --first-name David --email you@example.com --settings=datamays.settings_local
 ```
-
-Then seed the category tree, which several features assume exists:
-
-```bash
-uv run python manage.py seed_finance_categories --settings=datamays.settings_test
-```
-
-On first sign-in you will be walked through enrolling an authenticator app.
 
 ## Where to go next
 

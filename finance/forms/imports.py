@@ -3,7 +3,7 @@
 from django import forms
 
 from ..models import Account, Institution, RecordType
-from .base import StyledFormMixin
+from household.forms.base import StyledFormMixin
 
 
 class UploadForm(StyledFormMixin, forms.Form):

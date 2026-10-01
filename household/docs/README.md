@@ -15,7 +15,7 @@ with each phase and describe only what has actually been built.
 | Phase | Branch | State |
 |---|---|---|
 | 0 — Foundation | `household/foundation` | App skeleton, local settings, demo seed |
-| 1 — Shell | `household/shell` | Not started |
+| 1 — Shell | `household/shell` | Sign-in, access gate, page chrome, section nav, Today with the budget widget |
 | 2 — Scheduling | `household/scheduling` | Not started |
 | 3 — Chores | `household/chores` | Not started |
 | 4 — Maintenance | `household/maintenance` | Not started |
@@ -57,7 +57,7 @@ uv run python manage.py seed_household_demo --settings=datamays.settings_local
 uv run python manage.py runserver --settings=datamays.settings_local
 ```
 
-Sign in as `david` or `maddie` with `DEMO_PASSWORD` from
+Sign in at `/household/login/` as `david` or `maddie` with `DEMO_PASSWORD` from
 [`services/demo.py`](../services/demo.py). For the second factor:
 
 ```bash
@@ -67,16 +67,12 @@ uv run python manage.py demo_totp_code david --settings=datamays.settings_local
 `seed_household_demo --reset` wipes and reseeds. Both commands refuse to run
 against anything but SQLite.
 
-## Layout
+## The docs
 
-```
-household/
-  models/       One module per domain (arrives with the scheduling phase)
-  services/     Logic; demo.py builds the local demo household
-  management/commands/   seed_household_demo, demo_totp_code
-  tests/        One file per feature area
-  docs/         You are here
-```
+| | |
+|---|---|
+| [`architecture.md`](architecture.md) | The shell, the dependency rules, sign-in, navigation. **Read first if you are changing code.** |
+| [`screens.md`](screens.md) | Every URL, its view, and its template |
 
 ## Decisions
 

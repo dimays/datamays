@@ -3,13 +3,14 @@ from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from finance.access import FINANCE_GROUP
+from household.access import HOUSEHOLD_GROUP
 
 
 class Command(BaseCommand):
     help = (
-        "Create (or promote) a user and add them to the finance group. "
-        "Membership of that group is what grants access to /finance."
+        "Create (or promote) a user and add them to the household group. "
+        "Membership of that group is what grants access to /household and "
+        "/finance."
     )
 
     def add_arguments(self, parser):
@@ -22,9 +23,9 @@ class Command(BaseCommand):
         User = get_user_model()
         username = options["username"]
 
-        group, created_group = Group.objects.get_or_create(name=FINANCE_GROUP)
+        group, created_group = Group.objects.get_or_create(name=HOUSEHOLD_GROUP)
         if created_group:
-            self.stdout.write(f"Created the '{FINANCE_GROUP}' group.")
+            self.stdout.write(f"Created the '{HOUSEHOLD_GROUP}' group.")
 
         user, created = User.objects.get_or_create(
             username=username,
@@ -48,8 +49,8 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"'{username}' can now reach /finance. They will be prompted to "
-                "enrol an authenticator app on first sign-in."
+                f"'{username}' can now sign in to Mays Household. They will be "
+                "prompted to enroll an authenticator app on first sign-in."
             )
         )
 

@@ -1214,6 +1214,48 @@ input[type="checkbox"],
   text-align: center;
 }
 
+/* A section's own screens, as one row of pills under the header. On a phone
+     it scrolls sideways rather than wrapping, so it never costs more than one
+     row: the scrollbar is hidden, and the right edge fades out so a cut-off
+     pill reads as "there is more" rather than as a clipping bug. The fade
+     stops at desktop widths, where every pill fits. */
+
+.section-nav {
+  position: relative;
+  margin-left: -1rem;
+  margin-right: -1rem;
+  margin-bottom: 1.5rem;
+  overflow-x: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 768px) {
+  .section-nav {
+    margin-left: 0px;
+    margin-right: 0px;
+    padding-left: 0px;
+    padding-right: 0px;
+  }
+}
+
+.section-nav {
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to right, black 85%, transparent);
+          mask-image: linear-gradient(to right, black 85%, transparent);
+}
+
+.section-nav::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .section-nav {
+    -webkit-mask-image: none;
+            mask-image: none;
+  }
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -1549,6 +1591,11 @@ input[type="checkbox"],
 
 .w-full {
   width: 100%;
+}
+
+.w-max {
+  width: -moz-max-content;
+  width: max-content;
 }
 
 .min-w-0 {
@@ -2088,6 +2135,10 @@ input[type="checkbox"],
   padding-right: 0.5rem;
 }
 
+.pr-8 {
+  padding-right: 2rem;
+}
+
 .pt-12 {
   padding-top: 3rem;
 }
@@ -2342,10 +2393,6 @@ input[type="checkbox"],
   transition-duration: 200ms;
 }
 
-.\[dropdown_start\:dropdown_end\] {
-  dropdown_start: dropdown end;
-}
-
 .\[range_form_start\:range_form_end\] {
   range_form_start: range form end;
 }
@@ -2391,6 +2438,11 @@ input[type="checkbox"],
 .hover\:bg-primary-600:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(67 56 202 / var(--tw-bg-opacity, 1));
+}
+
+.hover\:bg-surface:hover {
+  --tw-bg-opacity: 1;
+  background-color: rgb(17 24 39 / var(--tw-bg-opacity, 1));
 }
 
 .hover\:bg-warning\/25:hover {
@@ -2521,6 +2573,10 @@ input[type="checkbox"],
 
   .md\:pb-16 {
     padding-bottom: 4rem;
+  }
+
+  .md\:pr-0 {
+    padding-right: 0px;
   }
 
   .md\:pt-24 {

@@ -1,0 +1,23 @@
+{% load household_nav %}
+{% household_sections as sections %}
+
+{% comment %}
+  Thumb-reachable tab bar. Mobile only — desktop uses the header nav. Both
+  render the same section list, so the two surfaces never drift apart. A
+  section's own screens are one level down, in its section nav.
+{% endcomment %}
+<nav class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+     aria-label="Primary">
+  <ul class="mx-auto flex max-w-5xl items-stretch justify-between px-1">
+    {% for section in sections %}
+      <li class="flex-1">
+        <a href="{{ section.href }}"
+           class="flex flex-col items-center gap-1 px-1 py-2.5 text-[11px] font-medium transition {% if section.is_active %}text-accent{% else %}text-text-muted hover:text-text-secondary{% endif %}"
+           {% if section.is_active %}aria-current="page"{% endif %}>
+          {% include "household/icons/"|add:section.icon|add:".html" %}
+          <span>{{ section.label }}</span>
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+</nav>

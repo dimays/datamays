@@ -44,8 +44,8 @@ See [ADR 0003](architecture/decisions/0003-household-sign-convention.md).
 
 ## Dates
 
-**Every date decision goes through `finance/dates.py`**, never
-`django.utils.timezone.localdate()`. The project's `TIME_ZONE` is UTC —
+**Every date decision goes through `household_today()`**
+(`household/dates.py`), never `django.utils.timezone.localdate()`. The project's `TIME_ZONE` is UTC —
 correct for storage and for the public site, wrong for a household budget,
 because UTC has already rolled over to tomorrow by early evening in Chicago.
 
@@ -55,12 +55,15 @@ See [ADR 0004](architecture/decisions/0004-household-today-not-utc.md).
 
 ## Where code goes
 
+`<app>` is `finance` or `household`; both follow the same layout.
+
 | Kind of thing | Where |
 |---|---|
-| Business logic, arithmetic, anything worth testing without a request | `finance/services/` |
-| Forms | `finance/forms/`, one module per subject — never inside a view module |
-| Views | `finance/views/`, one module per screen area |
-| Anything scheduled or run by hand | `finance/management/commands/`, as a thin wrapper around a service |
+| Business logic, arithmetic, anything worth testing without a request | `<app>/services/` |
+| Forms | `<app>/forms/`, one module per subject — never inside a view module |
+| Views | `<app>/views/`, one module per screen area |
+| Anything scheduled or run by hand | `<app>/management/commands/`, as a thin wrapper around a service |
+| Anything in `household` that needs finance data | `household/integrations/finance.py`, and only there ([ADR 0009](architecture/decisions/0009-one-household-app-one-finance-bridge.md)) |
 | Repeated UI class strings | `assets/css/input.css`, as an `@layer components` class |
 
 Views stay thin. If a view is doing arithmetic, that arithmetic belongs in
@@ -69,7 +72,8 @@ Views stay thin. If a view is doing arithmetic, that arithmetic belongs in
 ## Forms
 
 Do not write `attrs={"class": ...}` on a widget. `StyledFormMixin`
-(`finance/forms/base.py`) applies the app's field styling by widget type.
+(`household/forms/base.py`) applies the field styling by widget type, in
+every section.
 Declare `widgets` only for attributes genuinely specific to the field — a
 `step`, a `min`/`max`, a `rows`, a `placeholder`, `type="date"`.
 

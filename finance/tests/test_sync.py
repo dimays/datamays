@@ -103,7 +103,7 @@ class InitialHistoryWindowTests(SyncTestCase):
             2026, 8, 4, 23, 59, 59, tzinfo=ZoneInfo("America/Chicago")
         )
 
-        with patch("finance.dates.timezone.now", return_value=worst_case_now):
+        with patch("household.dates.timezone.now", return_value=worst_case_now):
             since = default_since(self.connection)
 
         # Mirrors providers.simplefin._get_accounts' own construction of the
