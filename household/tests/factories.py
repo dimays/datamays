@@ -35,3 +35,22 @@ def sign_in(client, user):
     session = client.session
     session["otp_device_id"] = TOTPDevice.objects.get(user=user, confirmed=True).persistent_id
     session.save()
+
+
+def make_chore(owner=None, *, start=True, today=None, **kwargs):
+    """A chore, with its first occurrence opened as the app would.
+
+    `owner=None` makes a household-owned chore. Personal chores default to
+    their owner as assignee, the same as creating one from the checklist.
+    """
+    from household.models import Chore
+    from household.services import occurrences
+
+    kwargs.setdefault("title", "Take out the bins")
+    if owner is not None:
+        kwargs.setdefault("assignee", owner)
+
+    chore = Chore.objects.create(owner=owner, **kwargs)
+    if start:
+        occurrences.reschedule(chore, today=today)
+    return chore

@@ -16,7 +16,7 @@ with each phase and describe only what has actually been built.
 |---|---|---|
 | 0 — Foundation | `household/foundation` | App skeleton, local settings, demo seed |
 | 1 — Shell | `household/shell` | Sign-in, access gate, page chrome, section nav, Today with the budget widget |
-| 2 — Scheduling | `household/scheduling` | Not started |
+| 2 — Scheduling | `household/scheduling` | Schedule arithmetic, `Chore` / `Occurrence`, the occurrence lifecycle, `sweep_chores` |
 | 3 — Chores | `household/chores` | Not started |
 | 4 — Maintenance | `household/maintenance` | Not started |
 | 5 — Projects | `household/projects` | Not started |
@@ -72,6 +72,8 @@ against anything but SQLite.
 | | |
 |---|---|
 | [`architecture.md`](architecture.md) | The shell, the dependency rules, sign-in, navigation. **Read first if you are changing code.** |
+| [`scheduling.md`](scheduling.md) | How chores repeat: fixed vs. after-completion, missed vs. overdue, the lifecycle, worked examples |
+| [`data-model.md`](data-model.md) | Every model and the relationships that matter |
 | [`screens.md`](screens.md) | Every URL, its view, and its template |
 
 ## Decisions
@@ -81,3 +83,6 @@ against anything but SQLite.
 - [ADR 0009](../../docs/architecture/decisions/0009-one-household-app-one-finance-bridge.md) —
   one app for chores, maintenance, and projects; finance is reached through
   one module
+- [ADR 0010](../../docs/architecture/decisions/0010-structured-schedules-one-open-occurrence.md) —
+  structured schedules, one open occurrence per chore, missed occurrences
+  collapse

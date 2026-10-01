@@ -131,8 +131,10 @@ ones. `LOGIN_URL` and `LOGIN_REDIRECT_URL` move to the household namespace.
 ### 3.5 Scheduling — the core of Chores and Maintenance
 
 Structured fields rather than raw RRULE strings: they validate cleanly,
-render as a normal form, and cover what a household actually needs.
-`python-dateutil`'s `rrule` does the arithmetic underneath.
+render as a normal form, and cover what a household actually needs. The
+arithmetic is our own small pure functions — *not* `dateutil.rrule`, which
+skips months lacking the requested day, so "monthly on the 31st" would not
+happen in February (changed during phase 2; see ADR 0010).
 
 | Field | Values |
 |---|---|
