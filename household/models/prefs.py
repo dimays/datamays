@@ -24,6 +24,15 @@ class HouseholdPreference(TimestampedModel):
         default=False,
         help_text="Let the other person manage new chores you create, unless you say otherwise.",
     )
+    morning_digest = models.BooleanField(
+        default=False,
+        help_text="Email me a morning summary: overdue and today's chores, the week ahead, and project milestones.",
+    )
+    last_digest_on = models.DateField(
+        null=True,
+        blank=True,
+        help_text="The household date the last digest went out — what keeps it to one a morning.",
+    )
 
     def __str__(self):
         return f"Household preferences for {self.user}"
