@@ -24,6 +24,7 @@ Help page (header menu → Help).
 | 6 — Finance bridge | `household/finance-bridge` | Project budget lines and linked spending, maintenance purchases, projected upkeep costs |
 | 7 — Notifications | `household/notifications` | Opt-in morning digest; `household_hourly` / `household_daily` scheduler entry points |
 | 8 — Polish | `household/polish` | In-app Help, keyboard focus ring, query ceilings for every page, docs pass |
+| Pre-merge review | `household/review-fixes` | Independent adversarial review (security, domain logic, money, architecture, deploy, tests/UX); fixes and regression tests for every confirmed finding |
 
 ## Vocabulary
 

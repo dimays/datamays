@@ -53,3 +53,24 @@ finance refactor has exactly one household file to check.
   transaction to a project is a household-side row.
 - If one section ever needs to become its own app, the module-per-domain
   layout makes the move mechanical.
+
+## Amendment — 2026-09-30, pre-merge review
+
+The decision stands; three statements above were too strong.
+
+- **Finance depends on five shell modules, not two:** `household.access`,
+  `household.dates`, `household.redirects`, `household.forms.base`, and
+  `household.views.base` — the list `tests/test_boundaries.py` enforces. The
+  dependency runs both ways (finance → shell; household → finance through
+  the bridge and through foreign keys to `finance.Transaction`); what is
+  enforced is that each side touches only the other's narrow surface.
+- **"Exactly one household file to check" is not quite true.** The bridge
+  hands back finance's own `Transaction` objects, and household templates
+  and services read their fields (`amount`, `posted_on`, `merchant`,
+  `description_raw`, `is_transfer`, `account.name`, `category.name`). Those
+  fields are listed in `tests/test_boundaries.py::FinanceFieldContractTests`,
+  which fails if finance renames one — so a refactor has one *test* to read,
+  rather than a template that silently renders blank.
+- **"Can never count what finance's reports wouldn't"** holds because linked
+  rows are re-checked against `spend_filter` on every read
+  (`integrations/finance.py::still_spending`), not only when linked.

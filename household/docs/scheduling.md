@@ -44,9 +44,15 @@ A **one-off** has a single occurrence, due on a date or "whenever".
   and Fri starting on a Wednesday: the first is that Friday.
 - **The season filters before the count.** "Ten times, April to October"
   means ten in-season dates.
-- **The count starts when the chore was created.** "Ten times" from a start
+- **The count starts when the schedule was set.** "Ten times" from a start
   date in June, for a chore made in September, means ten from September —
-  dates before the chore existed don't use it up.
+  dates before the chore existed don't use it up. Changing the schedule
+  restarts the count from that day (`Chore.schedule_set_on`).
+- **A fixed schedule with nothing left from today is refused** by the form
+  (an end date or count already passed), rather than creating a chore that
+  appears on no list.
+- **Intervals are capped at ten years** in any unit, well short of the end of
+  the calendar.
 - **A schedule that can never fall in its season is refused.** Yearly on
   Jan 15 with an April–October season has no dates at all; validation says
   so rather than accepting a chore that would never appear.
@@ -73,9 +79,12 @@ after-completion chores, a skip restarts the clock just as done does.
 
 **Missed.** When a fixed chore's next due date arrives and the current one is
 still open, the current one becomes *missed* and the **newest** arrived date
-opens — only the newest. A week away from a daily chore leaves one overdue
-item, not seven. This happens at the next due date even if the old
-occurrence's deadline has not passed.
+opens — only the newest. A week away from a daily chore leaves one row, not
+seven, and that row is **due today, not overdue**: the newest date is today.
+So the misses aren't silent, the row says **"Missed 7 times before this"** —
+the misses since the last one done or skipped. This happens at the next due
+date even if the old occurrence's deadline has not passed, so a deadline
+longer than the gap between due dates has no effect.
 
 **Undo.** `reopen()` reverses the most recent done or skipped occurrence and
 removes the untouched next one it opened. Anything older is history.
@@ -84,17 +93,28 @@ removes the untouched next one it opened. Anything older is history.
 ("do it again on the 10th"), which puts it back on the list. Converting a
 repeating chore to a one-off does the same.
 
-**Editing.** Changing a schedule replaces the open occurrence with a fresh
-one from today (an after-completion chore still counts from when it was last
-done). Editing only the title or notes must *not* call `reschedule()` — it
-would reset an overdue chore. **Pausing** (`is_active = False`) removes a
-repeating chore from every checklist; resuming starts it afresh.
+**Editing.** Every edit form goes through one service,
+`occurrences.apply_edit(chore, before)`, atomically. It does nothing unless
+something that decides the open occurrence changed — the schedule, whether
+the chore is active, or a one-off's deadline — so tidying a title never
+resets an overdue chore. When it does reschedule:
+
+- a **fixed** chore starts from today, but never on or before a date already
+  done, skipped, or missed (so editing a chore done today doesn't bring
+  today's back);
+- an **after-completion** chore still counts from when it was last done —
+  unless its due date was changed by hand, which is honored;
+- a schedule change restarts any occurrence limit from today.
+
+**Pausing** (`is_active = False`) removes a repeating chore from every
+checklist; resuming starts it afresh by the same rules.
 
 ## Overdue and "today"
 
 An occurrence is **overdue** when it is open and its deadline — or its due
 date, if it has no deadline — is before today. Due today is not overdue. An
-undated one-off is never overdue.
+undated one-off is overdue only if it has a deadline and that has passed;
+it then shows as overdue everywhere, as the nav badge counts it.
 
 "Today" is always `household_today()`, and a completion's date is its
 *household* date: done at 10:30pm in Chicago counts for that day, not for

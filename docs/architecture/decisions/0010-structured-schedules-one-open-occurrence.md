@@ -65,3 +65,22 @@ history.
   not, or an overdue chore would be quietly reset.
 - The semantics, with worked examples, are in
   [`household/docs/scheduling.md`](../../../household/docs/scheduling.md).
+
+## Amendment — 2026-09-30, pre-merge review
+
+**What the collapse looks like.** The text above (and the decision as first
+described) said a week away from a daily chore "leaves one overdue item". It
+doesn't: the newest arrived date opens, so the collapsed row is *due today*,
+not overdue, and a daily chore without a deadline is never overdue at all.
+The collapse itself is as agreed. To keep a missed week from being silent,
+every checklist row now says "Missed N times before this" — the misses since
+the last one done or skipped (`checklist.with_missed_streak`).
+
+**Edits.** Review found three edit-path bugs, now fixed and tested:
+editing or pausing/resuming never reopens a date already done or skipped
+(a fresh start begins after the last closed date); a schedule change records
+`Chore.schedule_set_on`, and an occurrence limit counts from there — so an
+edit can't use up "10 times" on dates before it; and every edit form goes
+through one atomic service, `occurrences.apply_edit`, which also notices a
+one-off's deadline changing. A fixed schedule with no dates left from today
+is refused by the form rather than silently opening nothing.

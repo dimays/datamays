@@ -23,8 +23,9 @@ the member group, the base template, the top-level navigation, the Today
 landing screen, and what "today" means. `finance` keeps everything else about
 money and becomes one section inside that shell.
 
-- The member group is renamed from `finance` to `household` by a data
-  migration. Existing users keep their passwords and TOTP devices.
+- Members are added to a new `household` group by a data migration (the
+  `finance` group is kept — see the amendment below). Existing users keep
+  their passwords and TOTP devices.
 - Sign-in moves to `/household/login/`; the old finance paths redirect.
 - **Finance URLs do not move.** Emailed reports and bookmarks point at
   `/finance/…` and keep working.
@@ -55,3 +56,17 @@ see the chore list.
   cover `/household` too — project budgets carry money.
 - `LOGIN_URL` and `LOGIN_REDIRECT_URL` move to the household namespace, and
   a verified session lands on Today rather than the finance homepage.
+
+## Amendment — 2026-09-30, pre-merge review
+
+**The group is copied, not renamed.** The first version renamed `finance` to
+`household`. Review found that a `heroku rollback` (code, not data) would then
+lock both people out of finance, since the old code checks for `finance`.
+Migration `household.0001` now adds the `finance` group's members to
+`household` and leaves `finance` in place, unused by current code; a later
+migration can drop it once rolling back past this release is off the table.
+
+**Migrations run in the release phase.** The new gate checks `household`, so
+the code must never serve before the migration has run. The `Procfile` now
+has `release: python manage.py migrate --noinput`. See
+`household/docs/runbook.md` for shipping and rolling back.

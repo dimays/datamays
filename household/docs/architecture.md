@@ -10,21 +10,31 @@ from tangling. The *why* behind the two biggest calls is in
 ## The shell and its sections
 
 ```
-household/                       the shell, plus (in later phases) chores,
-                                 projects, and maintenance
-  access.py         the three-gate access check every private page uses
-  dates.py          household_today() — "today" in Chicago, not UTC
-  redirects.py      safe_next(): the one validator for caller-supplied `next`
-  forms/            StyledFormMixin and field classes; the sign-in forms
-  views/base.py     PageTitleMixin, HouseholdView
-  views/auth.py     sign-in, authenticator setup, second-factor challenge
-  views/today.py    the Today screen
-  integrations/finance.py   the only door into finance
-  templatetags/household_nav.py   the section list
-  templates/household/   base.html (page chrome), auth screens, 403, Today
+household/
+  # the shell — what finance may import (tests/test_boundaries.py)
+  access.py           the three-gate access check every private page uses
+  dates.py            household_today() — "today" in Chicago, not UTC
+  redirects.py        safe_next(): the one validator for caller-supplied `next`
+  forms/base.py       StyledFormMixin, used by every form in both apps
+  views/base.py       PageTitleMixin, HouseholdView
 
-finance/                         a section: extends household/base.html and
-                                 adds its own section nav
+  # the sections
+  scheduling.py       pure recurrence arithmetic (docs/scheduling.md)
+  models/             chores, maintenance, projects, budgets, prefs
+  services/           occurrences (lifecycle), checklist (Today, badges),
+                      permissions, maintenance, projects, spending,
+                      digest, wording, members, demo (local seed only)
+  integrations/finance.py   the only door into finance
+  views/              auth, today, chores, maintenance, projects, prefs
+  forms/              chores, maintenance, projects, prefs, auth
+  templatetags/       household_nav (sections, badge), household_extras
+  management/commands/  household_hourly, household_daily, sweep_chores,
+                      send_digests, seed_household_demo, demo_totp_code
+  templates/household/  base.html (page chrome), auth, 403s, Today,
+                      chores/, upkeep/, projects/, help, preferences
+
+finance/              a section: extends household/base.html and adds its
+                      own section nav
 ```
 
 ## Dependency rules

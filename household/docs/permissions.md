@@ -21,7 +21,9 @@ chore at all — see [architecture.md](architecture.md#sign-in-and-the-access-ga
 | Undo a done/skip | ✓ | only if they did it | ✓ | ✓ |
 
 - **The grant** is the per-chore "Let the other person manage this chore"
-  box. Each person sets a default for new chores in preferences.
+  box. Each person sets a default for new chores in preferences. It lets the
+  other person manage the chore, **not take it over**: only the owner can
+  change whose chore it is.
 - **Household-owned** chores (no owner — "Shared household chore" on the
   form, and later maintenance items and project tasks) are shared work:
   either person manages them, always.
@@ -46,6 +48,14 @@ Your checklist and Today show your chores and the shared ones. "Show
 Maddie's chores" (a switch on both screens, remembered per person in
 `HouseholdPreference.show_partner_chores`) adds hers — on the checklist in
 full, on Today just her overdue and due-today items.
+
+## When something is refused
+
+A refused member sees "Not yours to change" (`household/403_member.html`),
+explaining how to get the grant — not the stranger's 403. A refused or
+failed htmx tap shows a message at the bottom of the screen
+(`#action-error` in `household/base.html`) rather than silently doing
+nothing.
 
 ## Tested as a table
 

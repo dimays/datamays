@@ -16,6 +16,7 @@ Anything on someone's checklist. `household/models/chores.py`.
 | `others_can_manage` | The per-chore grant: lets the other person edit, skip, or delete it |
 | schedule fields | `frequency`, `interval`, `starts_on`, `weekdays`, `monthly_mode`, `anchor`, `ends_on`, `max_occurrences`, `deadline`, `deadline_offset_days`, `season_start_month`, `season_end_month` — see [scheduling.md](scheduling.md) |
 | `is_active` | False pauses a repeating chore: it leaves every checklist |
+| `schedule_set_on` | Household date the schedule was last set; an occurrence limit counts from here |
 
 `chore.schedule` assembles the schedule fields into a
 `scheduling.Schedule`; `chore.describe_schedule()` renders it in words.
@@ -43,8 +44,10 @@ One dated instance of a chore.
 | `cost` | What doing it cost, positive `Decimal`, or null — mostly logged for maintenance |
 | `transaction` → finance.Transaction | The purchase behind a maintenance job; cleared if the transaction is deleted |
 
-**Constraint:** `one_open_occurrence_per_chore` — a partial unique index on
-`chore` where `status = 'open'`. The lifecycle depends on it.
+**Constraints:** `one_open_occurrence_per_chore` — a partial unique index on
+`chore` where `status = 'open'`; the lifecycle depends on it.
+`one_job_per_transaction` — a purchase is behind at most one maintenance job,
+so spend by year can't count it twice.
 
 **Ordering:** by `due_on` with nulls last, explicitly. SQLite and Postgres
 disagree about where NULL sorts, so the local server and production would
@@ -86,7 +89,7 @@ as finance's (ADR 0002) — restated rather than imported (ADR 0009).
 | Model | Fields |
 |---|---|
 | `BudgetLine` | `project`, `label`, `estimated` (positive `Decimal`) |
-| `ProjectExpense` | `project`, `budget_line` (optional; nulled if the line is removed), `transaction` → finance.Transaction (deleted with it). Unique per project and transaction |
+| `ProjectExpense` | `project`, `budget_line` (optional; nulled if the line is removed), `transaction` → finance.Transaction (deleted with it). Unique per project and transaction; a purchase linked to two projects counts in full in each |
 
 ## HouseholdPreference
 
