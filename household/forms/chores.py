@@ -163,16 +163,14 @@ class ChoreForm(StyledFormMixin, forms.ModelForm):
 
 
     def _check_dates_left(self, cleaned):
-        """Refuse a fixed schedule with nothing left to do from today.
+        """Refuse a schedule with nothing left to do from today.
 
         Found in review: an end date or count already used up was accepted,
         and the chore silently appeared on no list. Only checked for a new
         chore or a changed schedule — a finished series whose title is being
         tidied up is fine as it is.
         """
-        if cleaned.get("frequency") in (None, Frequency.ONCE) or cleaned.get("anchor") != Anchor.FIXED:
-            return
-        if not cleaned.get("starts_on"):
+        if cleaned.get("frequency") in (None, Frequency.ONCE) or not cleaned.get("starts_on"):
             return
 
         fields = {name: cleaned.get(name) for name in SCHEDULE_FIELDS if name != "deadline"}
@@ -181,6 +179,17 @@ class ChoreForm(StyledFormMixin, forms.ModelForm):
         today = household_today()
         new = replace(proposed.schedule, counts_from=today)
         if self.instance.pk and replace(self.instance.schedule, counts_from=today) == new:
+            return
+        # A schedule refused for another reason (the model's validation,
+        # which runs after this) would only gain a misleading second error.
+        if self.errors or scheduling.validate(new):
+            return
+
+        if not new.is_fixed:
+            # After-completion: the count restarts with the change, so only
+            # an end date already past leaves nothing to do.
+            if new.ends_on and new.ends_on < today:
+                self.add_error("ends_on", "That end date has already passed.")
             return
 
         if scheduling.first_fixed_on_or_after(new, max(today, new.starts_on)) is None:

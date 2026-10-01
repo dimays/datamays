@@ -442,6 +442,16 @@ class ConsistencyTests(TestCase):
 
         self.assertContains(response, "Missed 5 times before this")
 
+    def test_the_request_that_collapses_counts_the_miss_it_made(self):
+        """Round 2: the streak was counted before the collapse, so the first
+        screen after a miss showed one too few."""
+        chore = make_chore(self.david, frequency=Frequency.DAILY,
+                           starts_on=self.today - timedelta(days=2), today=self.today - timedelta(days=2))
+
+        [loaded] = [c for c in checklist.load(self.today) if c.pk == chore.pk]
+
+        self.assertEqual(loaded.missed_streak, 1)
+
     def test_a_streak_resets_once_one_is_done(self):
         chore = make_chore(self.david, frequency=Frequency.DAILY,
                            starts_on=self.today - timedelta(days=3), today=self.today - timedelta(days=3))
@@ -481,6 +491,29 @@ class FormGuardTests(TestCase):
             ends_on=chore.ends_on.isoformat()))
 
         self.assertEqual(response.status_code, 302)
+
+    def test_an_after_completion_schedule_ending_in_the_past_is_refused(self):
+        sign_in(self.client, self.david)
+        today = household_today()
+
+        response = self.client.post(reverse("household:chore_create"), form_data(
+            frequency=Frequency.DAILY, interval=90, anchor=Anchor.AFTER_COMPLETION,
+            starts_on=(today - timedelta(days=30)).isoformat(), ends_on=(today - timedelta(days=1)).isoformat()))
+
+        self.assertIn("ends_on", response.context["form"].errors)
+        self.assertFalse(Chore.objects.exists())
+
+    def test_a_bad_interval_gets_one_error_not_two(self):
+        """Round 2: it also drew a misleading "no dates left" on the end date."""
+        sign_in(self.client, self.david)
+
+        response = self.client.post(reverse("household:chore_create"), form_data(
+            frequency=Frequency.DAILY, interval=0,
+            starts_on=(household_today() - timedelta(days=5)).isoformat()))
+
+        errors = response.context["form"].errors
+        self.assertIn("interval", errors)
+        self.assertNotIn("ends_on", errors)
 
     def test_a_granted_partner_cannot_take_a_chore_over(self):
         chore = make_chore(self.david, title="Mine", others_can_manage=True)

@@ -23,14 +23,13 @@ Everything takes `today` explicitly (defaulting to `household_today()`) so
 tests can pin the date rather than patch the clock.
 """
 
-from datetime import timedelta
 
 from django.db import transaction
 from django.db.models import Prefetch
 from django.utils import timezone
 
 from .. import scheduling
-from ..dates import household_today, to_household_date
+from ..dates import household_start_of_day, household_today, to_household_date
 from ..models import Chore, Occurrence, OccurrenceStatus
 
 CLOSED_BY_A_PERSON = (OccurrenceStatus.DONE, OccurrenceStatus.SKIPPED)
@@ -76,22 +75,34 @@ def _due_for_a_fresh_start(chore, today, *, starts_on_changed=False):
         )
         if last is not None:
             return scheduling.next_after_completion(
-                schedule, to_household_date(last.completed_at), chore.occurrences.count()
+                schedule, to_household_date(last.completed_at), occurrences_toward_limit(chore)
             )
         return scheduling.first_due(schedule, today)
 
-    # A fixed schedule starts from today — but never on or before a date
-    # already closed. Found in review: editing (or pausing and resuming) a
-    # chore done today reopened today's occurrence, as if undone.
-    last_closed = (
+    # A fixed schedule starts from today — but never on a date already
+    # closed. Found in review: editing (or pausing and resuming) a chore done
+    # today reopened today's occurrence, as if undone. Only the closed dates
+    # themselves are passed over: a one-off done early, then made weekly,
+    # still starts this week rather than after the old due date.
+    start = max(today, schedule.starts_on)
+    closed = set(
         chore.occurrences.exclude(status=OccurrenceStatus.OPEN)
-        .exclude(due_on__isnull=True)
-        .order_by("-due_on")
+        .filter(due_on__gte=start)
         .values_list("due_on", flat=True)
-        .first()
     )
-    start = today if last_closed is None else max(today, last_closed + timedelta(days=1))
-    return scheduling.first_fixed_on_or_after(schedule, max(start, schedule.starts_on))
+    return next((due for due in scheduling.fixed_dates(schedule) if due >= start and due not in closed), None)
+
+
+def occurrences_toward_limit(chore):
+    """How many occurrences count against an after-completion chore's limit.
+
+    Those opened since the schedule was set (`Schedule.counts_from`), the
+    same rule fixed schedules follow — found in review: counting the whole
+    history meant changing a chore to "3 times" after ten done ones opened
+    nothing, and the chore silently vanished.
+    """
+    since = household_start_of_day(chore.schedule.counts_from)
+    return chore.occurrences.filter(created_at__gte=since).count()
 
 
 @transaction.atomic
@@ -176,7 +187,7 @@ def _advance(closed, today):
         schedule,
         previous_due=closed.due_on,
         done_on=to_household_date(closed.completed_at),
-        occurrences_so_far=chore.occurrences.count(),
+        occurrences_so_far=occurrences_toward_limit(chore),
     )
     if due is None:
         return None
@@ -279,6 +290,10 @@ def refresh(chores, today=None):
             )
             if missed:
                 chore.open_occurrences = [_open(chore, newer)]
+                # The streak was counted in SQL before this miss existed;
+                # count it, or the request that collapses shows one too few.
+                if hasattr(chore, "missed_streak"):
+                    chore.missed_streak += 1
 
     return chores
 

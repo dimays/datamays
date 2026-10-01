@@ -78,9 +78,11 @@ the last one done or skipped (`checklist.with_missed_streak`).
 
 **Edits.** Review found three edit-path bugs, now fixed and tested:
 editing or pausing/resuming never reopens a date already done or skipped
-(a fresh start begins after the last closed date); a schedule change records
-`Chore.schedule_set_on`, and an occurrence limit counts from there — so an
-edit can't use up "10 times" on dates before it; and every edit form goes
+(a fresh start passes over closed dates); a schedule change records
+`Chore.schedule_set_on`, and an occurrence limit — fixed or after-completion
+— counts from there, so an edit can't use up "10 times" on dates before it;
+and every edit form goes
 through one atomic service, `occurrences.apply_edit`, which also notices a
 one-off's deadline changing. A fixed schedule with no dates left from today
-is refused by the form rather than silently opening nothing.
+(or an after-completion one whose end date has passed) is refused by the
+form rather than silently opening nothing.

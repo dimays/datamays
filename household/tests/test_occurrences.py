@@ -456,6 +456,55 @@ class EditPathTests(TestCase):
         self.assertEqual(current.due_on, date(2026, 9, 30))
         self.assertEqual(chore.schedule_set_on, date(2026, 9, 30))
 
+    def test_a_one_off_done_early_then_made_weekly_starts_now(self):
+        """Round 2: the fresh start waited until after the one-off's old due
+        date, three months out."""
+        chore = make_chore(self.david, starts_on=TODAY + timedelta(days=90), today=TODAY)
+        occurrences.complete(open_ones(chore)[0], by=self.david, now=at(TODAY), today=TODAY)
+        before = type(chore).objects.get(pk=chore.pk)
+
+        chore.frequency = Frequency.WEEKLY
+        chore.starts_on = TODAY
+        chore.save()
+        occurrences.apply_edit(chore, before, today=TODAY)
+
+        self.assertEqual(open_ones(chore)[0].due_on, TODAY)
+
+    def test_a_date_done_early_is_still_passed_over(self):
+        friday = date(2026, 10, 2)
+        chore = make_chore(self.david, frequency=Frequency.WEEKLY, starts_on=friday, today=TODAY)
+        occurrences.complete(open_ones(chore)[0], by=self.david, now=at(TODAY), today=TODAY)
+
+        for active in (False, True):
+            before = type(chore).objects.get(pk=chore.pk)
+            chore.is_active = active
+            chore.save()
+            occurrences.apply_edit(chore, before, today=TODAY)
+
+        self.assertEqual(open_ones(chore)[0].due_on, friday + timedelta(days=7))
+
+    def test_an_after_completion_limit_counts_from_the_change_too(self):
+        """Round 2: the whole history counted, so changing a long-running
+        chore to "3 times" opened nothing and it vanished."""
+        chore = make_chore(None, frequency=Frequency.DAILY, starts_on=date(2026, 9, 1), today=date(2026, 9, 1))
+        for day in range(1, 11):
+            occurrences.complete(open_ones(chore)[0], by=self.david, now=at(date(2026, 9, day)),
+                                 today=date(2026, 9, day))
+        chore.occurrences.update(created_at=at(date(2026, 9, 1)))  # opened on earlier days
+        before = type(chore).objects.get(pk=chore.pk)
+
+        chore.anchor = Anchor.AFTER_COMPLETION
+        chore.interval = 7
+        chore.max_occurrences = 3
+        chore.save()
+        occurrences.apply_edit(chore, before, today=TODAY)
+
+        done = 0
+        while open_ones(chore):
+            done += 1
+            occurrences.complete(open_ones(chore)[0], by=self.david, now=at(TODAY), today=TODAY)
+        self.assertEqual(done, 3)
+
     def test_a_new_due_date_on_an_after_completion_chore_is_honored(self):
         chore = make_chore(None, frequency=Frequency.DAILY, interval=90, anchor=Anchor.AFTER_COMPLETION,
                            starts_on=date(2026, 9, 1), today=TODAY)

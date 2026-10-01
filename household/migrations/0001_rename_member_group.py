@@ -36,8 +36,15 @@ def forwards(apps, schema_editor):
 
 
 def backwards(apps, schema_editor):
-    """Undo the copy, making sure everyone in `household` is in `finance`
-    first — so a member added after the deploy isn't stranded by a rollback."""
+    """Make sure everyone in `household` is in `finance`, so a member added
+    after the deploy isn't stranded by a rollback.
+
+    The `household` group itself is left alone. Unapplying runs while the
+    household code is still deployed — deleting the group would lock both
+    people out until the code rollback finished (found in the Postgres
+    rollback rehearsal) — and it may have existed before this migration ran.
+    The old code ignores it.
+    """
     Group = apps.get_model("auth", "Group")
 
     new = Group.objects.filter(name=NEW).first()
@@ -47,7 +54,6 @@ def backwards(apps, schema_editor):
     old, _ = Group.objects.get_or_create(name=OLD)
     old.user_set.add(*new.user_set.all())
     old.permissions.add(*new.permissions.all())
-    new.delete()
 
 
 class Migration(migrations.Migration):

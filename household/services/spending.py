@@ -17,6 +17,7 @@ from .. import scheduling
 from ..dates import to_household_date
 from ..integrations import finance
 from ..models import Occurrence, OccurrenceStatus, ProjectExpense
+from . import occurrences
 
 ZERO = Decimal("0")
 
@@ -159,7 +160,7 @@ def job_candidates(occurrence, today, query=""):
     # A purchase already behind another job isn't offered again: it would
     # count twice in spend by year.
     taken = Occurrence.objects.filter(transaction__isnull=False).exclude(pk=occurrence.pk).values_list("transaction_id", flat=True)
-    return finance.spending_candidates(start=start, end=end, query=query, exclude_ids=taken)
+    return finance.spending_candidates(start=start, end=end, query=query, exclude_ids=taken, money_out_only=True)
 
 
 def link_job(occurrence, transaction_id):
@@ -225,7 +226,9 @@ def _due_dates_within(item, today, end):
     elif schedule.repeats:
         # The same rule the lifecycle uses — interval, season, end date, and
         # count — assuming each one is done on the day it's due.
-        made = item.occurrence_count
+        # Counted the way the lifecycle counts: only occurrences since the
+        # schedule was last set. A query only when there is a limit to hit.
+        made = occurrences.occurrences_toward_limit(chore) if schedule.max_occurrences else 0
         day = max(current.due_on, today)
         while True:
             day = scheduling.next_after_completion(schedule, day, made)

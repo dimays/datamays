@@ -99,12 +99,18 @@ something that decides the open occurrence changed — the schedule, whether
 the chore is active, or a one-off's deadline — so tidying a title never
 resets an overdue chore. When it does reschedule:
 
-- a **fixed** chore starts from today, but never on or before a date already
-  done, skipped, or missed (so editing a chore done today doesn't bring
-  today's back);
+- a **fixed** chore starts from today, passing over any date already done,
+  skipped, or missed (so editing a chore done today doesn't bring today's
+  back, and one done early for Friday doesn't bring Friday back). Only those
+  exact dates are passed over: a one-off done early and then made weekly
+  still starts this week;
 - an **after-completion** chore still counts from when it was last done —
   unless its due date was changed by hand, which is honored;
-- a schedule change restarts any occurrence limit from today.
+- a schedule change restarts any occurrence limit from today, for both
+  anchors: only occurrences opened since the change count
+  (`occurrences.occurrences_toward_limit`). The form refuses a changed
+  schedule with nothing left to do — a fixed one with no dates left, or an
+  end date already past.
 
 **Pausing** (`is_active = False`) removes a repeating chore from every
 checklist; resuming starts it afresh by the same rules.

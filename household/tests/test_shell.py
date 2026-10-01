@@ -156,7 +156,7 @@ class MemberGroupMigrationTests(TestCase):
 
     def test_reversing_strands_nobody(self):
         """A member added after the deploy (only in `household`) is put in
-        `finance` before the household group goes."""
+        `finance`, so the rolled-back code lets them in."""
         old_member = make_member("david", in_group=False)
         old_member.groups.add(Group.objects.create(name="finance"))
         rename_group.forwards(apps, None)
@@ -164,9 +164,20 @@ class MemberGroupMigrationTests(TestCase):
 
         rename_group.backwards(apps, None)
 
-        self.assertFalse(Group.objects.filter(name=HOUSEHOLD_GROUP).exists())
         for user in (old_member, new_member):
             self.assertTrue(user.groups.filter(name="finance").exists())
+
+    def test_reversing_keeps_the_household_code_open_until_it_is_rolled_back(self):
+        """Found in the Postgres rehearsal: `migrate household zero` runs
+        while the household code is still deployed, and deleting the group
+        locked both people out until the code rollback finished."""
+        user = make_member("david", in_group=False)
+        user.groups.add(Group.objects.create(name="finance"))
+        rename_group.forwards(apps, None)
+
+        rename_group.backwards(apps, None)
+
+        self.assertTrue(is_household_member(user))
 
     def test_harmless_on_an_empty_database(self):
         rename_group.forwards(apps, None)

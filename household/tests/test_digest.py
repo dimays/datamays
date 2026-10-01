@@ -230,6 +230,16 @@ class ClaimTests(TestCase):
         self.assertFalse(digest.send_digest(stale, MORNING))
         self.assertEqual(len(mail.outbox), 1)
 
+    def test_a_failed_build_releases_the_claim(self):
+        """Round 2: the claim was taken before building, outside the release,
+        so one database hiccup cost that morning's digest."""
+        with patch("household.services.digest.build_digest", side_effect=RuntimeError("db hiccup")):
+            self.assertFalse(digest.send_digest(self.preference, MORNING))
+
+        self.preference.refresh_from_db()
+        self.assertIsNone(self.preference.last_digest_on)
+        self.assertTrue(digest.send_digest(self.preference, MORNING))
+
     def test_a_failed_send_releases_the_claim(self):
         with patch("household.services.digest.send_mail", side_effect=OSError("smtp down")):
             self.assertFalse(digest.send_digest(self.preference, MORNING))

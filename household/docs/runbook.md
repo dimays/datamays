@@ -13,7 +13,7 @@ group (the migration adds the members to it; anyone already there would gain
 access):
 
 ```bash
-heroku run "python manage.py shell -c \"from django.contrib.auth.models import Group; print(list(Group.objects.filter(name='household').values_list('user__username', flat=True)))\"" --app datamays
+heroku run "python manage.py shell -c \"from django.contrib.auth.models import Group; print(list(Group.objects.filter(name='household', user__isnull=False).values_list('user__username', flat=True)))\"" --app datamays
 ```
 
 It should print `[]` (or nothing but your two usernames).
@@ -70,7 +70,15 @@ that is safe:
   first version renamed it; a rollback would have locked both of you out of
   your own finances. Found in pre-merge review.)
 - The household tables stay behind, unused by the old code. Nothing in the
-  old code touches them.
+  old code touches them — though while they hold links to finance
+  transactions, deleting one of those transactions (or its account) from
+  the admin is refused by the database. Nothing in the old code's screens
+  deletes transactions.
+- **Group membership is copied once**, when `household.0001` first runs,
+  and never reconciled after. Anyone added to `household` after the deploy
+  isn't in `finance`: add them there before a plain rollback (or run
+  `migrate household zero`, below, which does it). While rolled back, add a
+  new member to **both** groups — `0001` won't run again on re-deploy.
 
 To roll back:
 
@@ -87,10 +95,16 @@ is still deployed — *before* step 2 — run:
 heroku run python manage.py migrate household zero --app datamays
 ```
 
-It drops the household tables and folds anyone in `household` back into
-`finance`. It can't be run after the rollback: the old code has no
+It drops the household tables and adds anyone in `household` to
+`finance`. It leaves the `household` group itself in place, so the
+household code — still deployed until step 2 — keeps letting you in; the
+old code ignores the group, along with the household permission rows left
+behind. It can't be run after the rollback: the old code has no
 `household` app. Don't rename groups by hand instead; the migration records
 would then disagree with the data.
+
+Re-deploying after `zero` re-runs every household migration from the start
+(rehearsed on Postgres: no duplicates, both people let in).
 
 ## Configuration
 

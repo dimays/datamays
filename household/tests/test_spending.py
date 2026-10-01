@@ -383,7 +383,9 @@ class RoundOneMoneyTests(SpendingTestCase):
         summary = spending.budget_summary(self.project)
 
         self.assertEqual(summary.percent, 0)
-        self.assertIn("-$25.00", self.page())
+        body = self.page()
+        self.assertIn("-$25.00", body)
+        self.assertNotIn("$-", body)  # round 2: the header still read "$-25"
 
     def test_a_purchase_finance_later_calls_a_transfer_stops_counting(self):
         purchase = self.txn("-300.00")
@@ -429,4 +431,7 @@ class JobExclusivityTests(SpendingTestCase):
             self.jobs[1].save()
 
     def test_a_refund_cannot_be_a_jobs_purchase(self):
-        self.assertFalse(spending.link_job(self.jobs[0], self.txn("5.00", slug="housing-maintenance").pk))
+        refund = self.txn("5.00", slug="housing-maintenance")
+
+        self.assertFalse(spending.link_job(self.jobs[0], refund.pk))
+        self.assertNotIn(refund.pk, [t.pk for t in spending.job_candidates(self.jobs[0], household_today())])

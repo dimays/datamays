@@ -12,8 +12,10 @@ fixed UTC cron time, so it lands at the same local hour on both sides of a
 daylight-saving change.
 
 **Sending never happens inside a database transaction** (the repo-wide rule;
-see finance's architecture doc): everything is read first, the mail goes
-out with nothing open, then the date is recorded.
+see finance's architecture doc). The day is claimed first, in one
+conditional UPDATE, so overlapping runs can't both send; then everything is
+read and the mail goes out with nothing open. Any failure after the claim
+releases it, so the next hourly run tries again.
 """
 
 import logging
@@ -118,13 +120,12 @@ def send_digest(preference, now):
     if not claimed:
         return False
 
-    sections = build_digest(user, today)
-    if not sections:
-        # The claim stands for an empty morning, so the next hour doesn't
-        # rebuild it.
-        return False
-
     try:
+        sections = build_digest(user, today)
+        if not sections:
+            # The claim stands for an empty morning, so the next hour doesn't
+            # rebuild it.
+            return False
         send_mail(
             subject=f"[Mays Household] {today:%A}: {_subject_summary(sections)}",
             message=render_digest(user, today, sections),
@@ -133,7 +134,9 @@ def send_digest(preference, now):
             fail_silently=False,
         )
     except Exception:  # noqa: BLE001
-        # Release the claim so the next hourly run tries again.
+        # Building or sending failed: release the claim so the next hourly
+        # run tries again. (Found in review: a build failure kept the claim,
+        # and that morning's digest never came.)
         logger.exception("Could not send the digest to %s", user.pk)
         HouseholdPreference.objects.filter(pk=preference.pk, last_digest_on=today).update(last_digest_on=previous)
         return False
