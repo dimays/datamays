@@ -1,6 +1,6 @@
 """The occurrence lifecycle: open, done, skipped, missed, undone."""
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -385,3 +385,85 @@ class CountOriginTests(TestCase):
         future = [day for day in fixed_dates(chore.schedule) if day >= TODAY]
         self.assertEqual(len(future), 10)
         self.assertEqual(future[0], date(2026, 10, 5))
+
+
+class EditPathTests(TestCase):
+    """Round-1 review: editing a chore must not resurrect, ignore, or drop it."""
+
+    def setUp(self):
+        self.david = make_member("david")
+
+    def test_an_edit_never_reopens_a_date_already_done(self):
+        chore = make_chore(self.david, frequency=Frequency.WEEKLY, starts_on=date(2026, 10, 5),
+                           today=date(2026, 10, 5))
+        occurrences.complete(open_ones(chore)[0], by=self.david, now=at(date(2026, 10, 5)), today=date(2026, 10, 5))
+        before = type(chore).objects.get(pk=chore.pk)
+
+        chore.deadline_offset_days = 2
+        chore.save()
+        occurrences.apply_edit(chore, before, today=date(2026, 10, 5))
+
+        [current] = open_ones(chore)
+        self.assertEqual(current.due_on, date(2026, 10, 12))
+        self.assertEqual(current.deadline, date(2026, 10, 14))
+
+    def test_pausing_and_resuming_after_todays_is_done_keeps_it_done(self):
+        chore = make_chore(self.david, frequency=Frequency.DAILY, starts_on=TODAY, today=TODAY)
+        occurrences.complete(open_ones(chore)[0], by=self.david, now=at(TODAY), today=TODAY)
+
+        for active in (False, True):
+            before = type(chore).objects.get(pk=chore.pk)
+            chore.is_active = active
+            chore.save()
+            occurrences.apply_edit(chore, before, today=TODAY)
+
+        [current] = open_ones(chore)
+        self.assertEqual(current.due_on, TODAY + timedelta(days=1))
+
+    def test_changing_only_a_one_offs_deadline_moves_it(self):
+        chore = make_chore(self.david, starts_on=TODAY, deadline=TODAY + timedelta(days=30), today=TODAY)
+        before = type(chore).objects.get(pk=chore.pk)
+
+        chore.deadline = TODAY + timedelta(days=2)
+        chore.save()
+        occurrences.apply_edit(chore, before, today=TODAY)
+
+        self.assertEqual(open_ones(chore)[0].deadline, TODAY + timedelta(days=2))
+
+    def test_a_title_edit_changes_nothing(self):
+        chore = make_chore(self.david, frequency=Frequency.WEEKLY, starts_on=date(2026, 9, 7),
+                           today=date(2026, 9, 7))
+        [overdue] = open_ones(chore)
+        before = type(chore).objects.get(pk=chore.pk)
+
+        chore.title = "Bins and recycling"
+        chore.save()
+        self.assertIsNone(occurrences.apply_edit(chore, before, today=TODAY))
+        self.assertEqual(open_ones(chore), [overdue])
+
+    def test_a_schedule_change_restarts_the_occurrence_limit(self):
+        """It used to burn the count on dates from before the edit, and the
+        chore vanished from every list."""
+        chore = make_chore(self.david, frequency=Frequency.WEEKLY, starts_on=date(2026, 9, 1),
+                           max_occurrences=5, today=date(2026, 9, 1))
+        before = type(chore).objects.get(pk=chore.pk)
+
+        chore.frequency = Frequency.DAILY
+        chore.save()
+        occurrences.apply_edit(chore, before, today=date(2026, 9, 30))
+
+        [current] = open_ones(chore)
+        self.assertEqual(current.due_on, date(2026, 9, 30))
+        self.assertEqual(chore.schedule_set_on, date(2026, 9, 30))
+
+    def test_a_new_due_date_on_an_after_completion_chore_is_honored(self):
+        chore = make_chore(None, frequency=Frequency.DAILY, interval=90, anchor=Anchor.AFTER_COMPLETION,
+                           starts_on=date(2026, 9, 1), today=TODAY)
+        occurrences.complete(open_ones(chore)[0], by=self.david, now=at(date(2026, 9, 10)), today=date(2026, 9, 10))
+        before = type(chore).objects.get(pk=chore.pk)
+
+        chore.starts_on = date(2026, 11, 1)
+        chore.save()
+        occurrences.apply_edit(chore, before, today=TODAY)
+
+        self.assertEqual(open_ones(chore)[0].due_on, date(2026, 11, 1))

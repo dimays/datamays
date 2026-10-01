@@ -33,7 +33,7 @@
     </div>
     <p class="text-xs text-text-muted">{{ form.whose.help_text }}</p>
 
-    <div x-show="whose === 'household'" x-cloak>
+    <div x-show="whose === 'household'">
       {% include "household/partials/field.html" with field=form.assignee %}
     </div>
     <label x-show="whose === 'personal'" class="flex items-center gap-2.5 text-sm">

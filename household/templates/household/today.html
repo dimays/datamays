@@ -15,7 +15,7 @@
 
 {% comment %}
   Top to bottom, per the plan (3.7): what's late, what's today, what's easy to
-  forget in the coming week, then money. Yours and the shared chores; the
+  forget in the coming week, then money, then projects. Yours and the shared chores; the
   other person's alongside when the toggle is on.
 {% endcomment %}
 <div class="mt-6 space-y-8">
@@ -66,6 +66,8 @@
     <p class="text-sm text-text-muted">Nothing due today on {{ partner_name }}’s list.</p>
   {% endif %}
 
+  {% include budgets.template with data=budgets.data label=budgets.label %}
+
   {% if projects %}
     <section aria-labelledby="projects-heading">
       <div class="flex items-baseline justify-between gap-3">
@@ -77,7 +79,5 @@
       </div>
     </section>
   {% endif %}
-
-  {% include budgets.template with data=budgets.data label=budgets.label %}
 </div>
 {% endblock %}

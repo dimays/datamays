@@ -23,6 +23,8 @@ Everything takes `today` explicitly (defaulting to `household_today()`) so
 tests can pin the date rather than patch the clock.
 """
 
+from datetime import timedelta
+
 from django.db import transaction
 from django.db.models import Prefetch
 from django.utils import timezone
@@ -58,12 +60,15 @@ def _open(chore, due_on):
     return Occurrence.objects.create(chore=chore, due_on=due_on, deadline=deadline)
 
 
-def _due_for_a_fresh_start(chore, today):
+def _due_for_a_fresh_start(chore, today, *, starts_on_changed=False):
     schedule = chore.schedule
 
     if schedule.anchor == scheduling.Anchor.AFTER_COMPLETION:
-        # Rescheduling must not forget when the job was last done: the
-        # furnace filter is still due 90 days after it was changed.
+        # A due date set by hand is what the person wants next.
+        if starts_on_changed:
+            return scheduling.first_due(schedule, today)
+        # Otherwise rescheduling must not forget when the job was last done:
+        # the furnace filter is still due 90 days after it was changed.
         last = (
             chore.occurrences.filter(status__in=CLOSED_BY_A_PERSON, completed_at__isnull=False)
             .order_by("-completed_at")
@@ -73,12 +78,24 @@ def _due_for_a_fresh_start(chore, today):
             return scheduling.next_after_completion(
                 schedule, to_household_date(last.completed_at), chore.occurrences.count()
             )
+        return scheduling.first_due(schedule, today)
 
-    return scheduling.first_due(schedule, today)
+    # A fixed schedule starts from today — but never on or before a date
+    # already closed. Found in review: editing (or pausing and resuming) a
+    # chore done today reopened today's occurrence, as if undone.
+    last_closed = (
+        chore.occurrences.exclude(status=OccurrenceStatus.OPEN)
+        .exclude(due_on__isnull=True)
+        .order_by("-due_on")
+        .values_list("due_on", flat=True)
+        .first()
+    )
+    start = today if last_closed is None else max(today, last_closed + timedelta(days=1))
+    return scheduling.first_fixed_on_or_after(schedule, max(start, schedule.starts_on))
 
 
 @transaction.atomic
-def reschedule(chore, today=None):
+def reschedule(chore, today=None, *, starts_on_changed=False):
     """Bring a chore's open occurrence in line with its schedule.
 
     Call it after creating a chore, and after editing one *only if the
@@ -114,8 +131,38 @@ def reschedule(chore, today=None):
     if not chore.is_active:
         return None
 
-    due = _due_for_a_fresh_start(chore, today)
+    due = _due_for_a_fresh_start(chore, today, starts_on_changed=starts_on_changed)
     return _open(chore, due) if due is not None else None
+
+
+def edit_signature(chore):
+    """Everything about a chore that decides its open occurrence.
+
+    Includes a one-off's deadline, which `Schedule` doesn't carry — found in
+    review: changing only that left the open occurrence on the old date.
+    """
+    return (chore.schedule, chore.is_active, chore.deadline)
+
+
+@transaction.atomic
+def apply_edit(chore, before, today=None):
+    """After a chore is saved from a form: bring its occurrence in line,
+    but only if something that decides it changed.
+
+    `before` is the stored chore as it was (re-read from the database before
+    the form ran). Editing only a title or notes must not reschedule — it
+    would reset an overdue chore. A schedule change restarts any occurrence
+    limit from today (`schedule_set_on`).
+    """
+    today = today or household_today()
+    if edit_signature(before) == edit_signature(chore):
+        return None
+
+    if before.schedule != chore.schedule:
+        chore.schedule_set_on = today
+        chore.save(update_fields=["schedule_set_on", "updated_at"])
+
+    return reschedule(chore, today, starts_on_changed=before.starts_on != chore.starts_on)
 
 
 def _advance(closed, today):

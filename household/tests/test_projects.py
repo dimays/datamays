@@ -349,3 +349,23 @@ class TaskStateTests(TestCase):
         response = self.client.get(reverse("household:project_task_create", args=[project.pk]) + "?milestone=abc")
 
         self.assertEqual(response.status_code, 200)
+
+
+class PausedProgressTests(TestCase):
+    def test_a_paused_task_is_not_counted_as_done(self):
+        """Round-1 review: pausing a repeating task made it count as finished."""
+        david = make_member("david")
+        project = make_project()
+        weekly = make_task(project, "Water seedlings", frequency=Frequency.WEEKLY, starts_on=TODAY)
+        occurrences.complete(weekly.occurrences.get(status=OccurrenceStatus.OPEN), by=david)
+        weekly.is_active = False
+        weekly.save()
+        occurrences.reschedule(weekly, today=TODAY)
+        ended = make_task(project, "Too late", frequency=Frequency.WEEKLY, starts_on=TODAY - timedelta(days=30),
+                          ends_on=TODAY - timedelta(days=20), today=TODAY)
+
+        progress = projects.progress(projects.with_progress(Project.objects.filter(pk=project.pk)).get())
+        _, others = projects.tasks(project, david, TODAY)
+
+        self.assertEqual((progress.tasks_done, progress.task_count), (0, 2))
+        self.assertEqual({c.title: c.state for c in others}, {"Water seedlings": "paused", "Too late": "ended"})

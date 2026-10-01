@@ -69,6 +69,18 @@ def total_spent(transactions):
     return sum((spent(txn) for txn in transactions), Decimal("0"))
 
 
+def still_spending(transaction_ids):
+    """Which of these transactions finance still counts as spending.
+
+    Linked rows are re-checked on every read, not only when linked, so a
+    purchase finance later marks as a transfer stops counting in household
+    totals too.
+    """
+    return set(
+        Transaction.objects.filter(spend_filter(), pk__in=list(transaction_ids)).values_list("pk", flat=True)
+    )
+
+
 def get_transaction(pk):
     """A spending transaction by id, or None — for validating a posted link.
 

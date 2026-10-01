@@ -1,8 +1,12 @@
 """Creating and editing a chore, schedule included."""
 
+from dataclasses import replace
+
 from django import forms
 
 from ..models import Chore
+from .. import scheduling
+from ..dates import household_today
 from ..scheduling import Anchor, Frequency, WEEKDAY_NAMES
 from ..services.members import display_name, members
 from .base import StyledFormMixin
@@ -100,6 +104,18 @@ class ChoreForm(StyledFormMixin, forms.ModelForm):
         self.fields["assignee"].label_from_instance = display_name
         self.fields["anchor"].choices = Anchor.choices
 
+        # Only the owner decides whose a personal chore is. The grant lets the
+        # other person manage it, not take it over: switching it to shared
+        # and back would have made them its owner. Found in review.
+        if (
+            not household_only
+            and self.instance.pk
+            and self.instance.owner_id
+            and self.instance.owner_id != user.pk
+        ):
+            self.fields["whose"].disabled = True
+            self.fields["whose"].help_text = "Only its owner can change whose chore this is."
+
         # Maintenance is shared work by definition (ADR 0011): no "whose",
         # no grant — both of you manage it, and it can sit on either list.
         if household_only:
@@ -122,6 +138,8 @@ class ChoreForm(StyledFormMixin, forms.ModelForm):
             if cleaned.get("frequency") != Frequency.WEEKLY or cleaned.get("anchor") == Anchor.AFTER_COMPLETION:
                 cleaned["weekdays"] = []
 
+        self._check_dates_left(cleaned)
+
         if self.household_only:
             cleaned["whose"] = HOUSEHOLD
         elif cleaned.get("whose") == PERSONAL:
@@ -142,3 +160,31 @@ class ChoreForm(StyledFormMixin, forms.ModelForm):
         if commit:
             chore.save()
         return chore
+
+
+    def _check_dates_left(self, cleaned):
+        """Refuse a fixed schedule with nothing left to do from today.
+
+        Found in review: an end date or count already used up was accepted,
+        and the chore silently appeared on no list. Only checked for a new
+        chore or a changed schedule — a finished series whose title is being
+        tidied up is fine as it is.
+        """
+        if cleaned.get("frequency") in (None, Frequency.ONCE) or cleaned.get("anchor") != Anchor.FIXED:
+            return
+        if not cleaned.get("starts_on"):
+            return
+
+        fields = {name: cleaned.get(name) for name in SCHEDULE_FIELDS if name != "deadline"}
+        fields["weekdays"] = fields.get("weekdays") or []
+        proposed = Chore(**{k: v for k, v in fields.items() if v is not None or k in ("ends_on", "max_occurrences")})
+        today = household_today()
+        new = replace(proposed.schedule, counts_from=today)
+        if self.instance.pk and replace(self.instance.schedule, counts_from=today) == new:
+            return
+
+        if scheduling.first_fixed_on_or_after(new, max(today, new.starts_on)) is None:
+            self.add_error(
+                "ends_on",
+                "That schedule has no dates left from today — check the end date, the count, or the season.",
+            )

@@ -28,8 +28,8 @@ from ..access import HOUSEHOLD_GROUP
 from ..dates import household_timezone
 from ..models import HouseholdPreference, ProjectStatus
 from ..models.projects import Milestone
-from ..templatetags.household_extras import due_words
 from . import checklist
+from .wording import due_words
 
 logger = logging.getLogger(__name__)
 
@@ -106,25 +106,38 @@ def send_digest(preference, now):
         logger.warning("Digest for %s skipped: no email address", user.pk)
         return False
 
-    sections = build_digest(user, today)
-    if sections:
-        try:
-            send_mail(
-                subject=f"[Mays Household] {today:%A}: {_subject_summary(sections)}",
-                message=render_digest(user, today, sections),
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                fail_silently=False,
-            )
-        except Exception:  # noqa: BLE001
-            # Not recorded as sent, so the next hourly run tries again.
-            logger.exception("Could not send the digest to %s", user.pk)
-            return False
+    # Claim the day before sending, in one conditional UPDATE: if two hourly
+    # runs overlap (Heroku Scheduler doesn't promise it won't), only one wins
+    # the claim and only one email goes out. Found in review.
+    previous = preference.last_digest_on
+    claimed = (
+        HouseholdPreference.objects.filter(pk=preference.pk)
+        .exclude(last_digest_on=today)
+        .update(last_digest_on=today, updated_at=timezone.now())
+    )
+    if not claimed:
+        return False
 
-    # Recorded even for an empty morning, so the next hour doesn't rebuild it.
-    preference.last_digest_on = today
-    preference.save(update_fields=["last_digest_on", "updated_at"])
-    return bool(sections)
+    sections = build_digest(user, today)
+    if not sections:
+        # The claim stands for an empty morning, so the next hour doesn't
+        # rebuild it.
+        return False
+
+    try:
+        send_mail(
+            subject=f"[Mays Household] {today:%A}: {_subject_summary(sections)}",
+            message=render_digest(user, today, sections),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+    except Exception:  # noqa: BLE001
+        # Release the claim so the next hourly run tries again.
+        logger.exception("Could not send the digest to %s", user.pk)
+        HouseholdPreference.objects.filter(pk=preference.pk, last_digest_on=today).update(last_digest_on=previous)
+        return False
+    return True
 
 
 def _subject_summary(sections):

@@ -21,7 +21,10 @@ def with_progress(projects):
     """Annotate task counts and prefetch milestones — a fixed query count."""
     open_occurrence = Occurrence.objects.filter(chore=OuterRef("pk"), status=OccurrenceStatus.OPEN)
     done_occurrence = Occurrence.objects.filter(chore=OuterRef("pk"), status=OccurrenceStatus.DONE)
-    finished_tasks = Chore.objects.filter(project=OuterRef("pk")).filter(
+    # Paused tasks aren't done, whatever their history — found in review:
+    # pausing a repeating task (which removes its open occurrence) made it
+    # count as finished.
+    finished_tasks = Chore.objects.filter(project=OuterRef("pk"), is_active=True).filter(
         ~Exists(open_occurrence), Exists(done_occurrence)
     )
 
@@ -146,10 +149,11 @@ def tasks(project, user, today):
     or not it still holds an open occurrence (a paused one-off does).
     """
     done_occurrence = Occurrence.objects.filter(chore=OuterRef("pk"), status=OccurrenceStatus.DONE)
+    skipped_occurrence = Occurrence.objects.filter(chore=OuterRef("pk"), status=OccurrenceStatus.SKIPPED)
     chores = list(
         occurrences.with_open_occurrence(
             project.tasks.select_related("owner", "assignee", "milestone", "maintenance_item")
-            .annotate(has_done=Exists(done_occurrence))
+            .annotate(has_done=Exists(done_occurrence), has_skipped=Exists(skipped_occurrence))
         )
     )
     occurrences.refresh(chores, today)
@@ -161,6 +165,10 @@ def tasks(project, user, today):
             chore.state = "paused"
         elif chore.has_done:
             chore.state = "done"
-        else:
+        elif chore.has_skipped:
             chore.state = "skipped"
+        else:
+            # Its schedule ran out before anything was done (an end date or
+            # count already passed).
+            chore.state = "ended"
     return checklist.rows_for(user, active_open, today), others

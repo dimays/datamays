@@ -186,18 +186,19 @@ class IsolationTests(TransactionTestCase):
 
 
 class ChainTests(TestCase):
-    def test_hourly_runs_finance_then_household_steps_in_order(self):
+    def test_hourly_runs_household_steps_before_the_bank_sync(self):
+        """A slow sync mustn't delay the morning email."""
         with patch("household.management.commands._chain.call_command") as run:
             call_command("household_hourly", verbosity=0)
 
         self.assertEqual(
             [c.args[0] for c in run.call_args_list],
-            ["finance_hourly", "sweep_chores", "send_digests"],
+            ["sweep_chores", "send_digests", "finance_hourly"],
         )
 
     def test_a_failing_step_does_not_stop_the_rest_but_fails_the_run(self):
         def run(name, **kwargs):
-            if name == "finance_hourly":
+            if name == "sweep_chores":
                 raise SystemExit(1)
 
         with patch("household.management.commands._chain.call_command", side_effect=run) as mocked:
@@ -212,3 +213,26 @@ class ChainTests(TestCase):
             call_command("household_daily", verbosity=0)
 
         self.assertEqual([c.args[0] for c in run.call_args_list], ["finance_daily", "sweep_chores"])
+
+
+class ClaimTests(TestCase):
+    """Round-1 review: overlapping hourly runs could both send."""
+
+    def setUp(self):
+        self.david = make_member("david", email="david@example.com")
+        make_chore(self.david, title="Unload the dishwasher", starts_on=TODAY, today=TODAY)
+        self.preference = subscribe(self.david)
+
+    def test_a_second_run_holding_a_stale_copy_sends_nothing(self):
+        stale = HouseholdPreference.objects.get(pk=self.preference.pk)
+
+        self.assertTrue(digest.send_digest(self.preference, MORNING))
+        self.assertFalse(digest.send_digest(stale, MORNING))
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_a_failed_send_releases_the_claim(self):
+        with patch("household.services.digest.send_mail", side_effect=OSError("smtp down")):
+            self.assertFalse(digest.send_digest(self.preference, MORNING))
+
+        self.preference.refresh_from_db()
+        self.assertIsNone(self.preference.last_digest_on)

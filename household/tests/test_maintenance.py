@@ -32,11 +32,18 @@ def make_item(title="Replace the furnace filter", *, today=TODAY, **chore_fields
     return item
 
 
+def first_due_date():
+    return household_today() + timedelta(days=150)
+
+
 def form_data(**overrides):
     data = {
         "chore-title": "Clean the dryer vent",
         "chore-frequency": Frequency.YEARLY,
-        "chore-starts_on": "2027-03-01",
+        # Relative to the real today: a yearly date that has already passed
+        # rolls to next year, so a fixed date here would break the test in
+        # 2027. Found in review by running the suite on a shifted clock.
+        "chore-starts_on": first_due_date().isoformat(),
         "chore-interval": 1,
         "chore-monthly_mode": "day",
         "chore-anchor": Anchor.FIXED,
@@ -99,7 +106,7 @@ class FormTests(TestCase):
         item = MaintenanceItem.objects.get()
         self.assertRedirects(response, reverse("household:upkeep_detail", args=[item.pk]))
         self.assertEqual((item.name, item.location, item.chore.owner), ("Clean the dryer vent", "Laundry room", None))
-        self.assertEqual(item.chore.occurrences.get(status=OccurrenceStatus.OPEN).due_on, date(2027, 3, 1))
+        self.assertEqual(item.chore.occurrences.get(status=OccurrenceStatus.OPEN).due_on, first_due_date())
 
     def test_errors_in_either_half_re_render_without_saving(self):
         response = self.client.post(

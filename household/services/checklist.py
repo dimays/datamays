@@ -9,7 +9,8 @@ load — two queries for any number of chores (see `load()`) — plus whatever
 from dataclasses import dataclass
 from datetime import timedelta
 
-from django.db.models import Q
+from django.db.models import Count, OuterRef, Q, Subquery, Value
+from django.db.models.functions import Coalesce
 
 from .. import scheduling
 from ..dates import household_today
@@ -52,10 +53,12 @@ class Row:
 
 
 def bucket_for(occurrence, today):
-    if occurrence.due_on is None:
-        return "whenever"
+    # Overdue first: an undated one-off with a past deadline is overdue, as
+    # the nav badge counts it. Found in review: it sat under "Whenever".
     if occurrence.is_overdue(today):
         return "overdue"
+    if occurrence.due_on is None:
+        return "whenever"
     if occurrence.due_on <= today:
         return "today"
     if occurrence.due_on <= today + timedelta(days=UPCOMING_DAYS):
@@ -63,10 +66,39 @@ def bucket_for(occurrence, today):
     return "later"
 
 
+def with_missed_streak(chores):
+    """Annotate how many occurrences were missed in a row before the current
+    one — since the last one done or skipped.
+
+    The collapse (ADR 0010) keeps a week away from a daily chore to one row
+    due today rather than seven overdue ones; this keeps that week from being
+    silent. Found in review: the docs promised an overdue item, and the code
+    gave a quiet "due today" with the misses only in history.
+    """
+    last_kept = (
+        Occurrence.objects.filter(
+            chore=OuterRef(OuterRef("pk")), status__in=occurrences.CLOSED_BY_A_PERSON
+        )
+        .order_by("-id")
+        .values("id")[:1]
+    )
+    missed = (
+        Occurrence.objects.filter(chore=OuterRef("pk"), status=OccurrenceStatus.MISSED)
+        .filter(id__gt=Coalesce(Subquery(last_kept), Value(0)))
+        .order_by()
+        .values("chore")
+        .annotate(count=Count("id"))
+        .values("count")
+    )
+    return chores.annotate(missed_streak=Coalesce(Subquery(missed), Value(0)))
+
+
 def load(today):
     """Every active chore with an open occurrence, collapse applied."""
     chores = occurrences.with_open_occurrence(
-        Chore.objects.filter(is_active=True).select_related("owner", "assignee", "maintenance_item")
+        with_missed_streak(
+            Chore.objects.filter(is_active=True).select_related("owner", "assignee", "maintenance_item")
+        )
     )
     occurrences.refresh(chores, today)
     return [chore for chore in chores if chore.open_occurrences]
@@ -145,7 +177,11 @@ def today_summary(user, *, include_partner, today=None):
     return {
         "today": today,
         "partner_name": display_name(partner) if partner else None,
-        "overdue": [row for row in rows if row.bucket == "overdue"],
+        # Yours first, then the shared ones (plan 3.7); each most late first.
+        "overdue": sorted(
+            (row for row in rows if row.bucket == "overdue"),
+            key=lambda row: (row.chore.assignee_id != user.pk, -row.days_overdue),
+        ),
         "due_today": [row for row in rows if row.bucket == "today"],
         "coming_up": [
             row

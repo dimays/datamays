@@ -1316,6 +1316,11 @@ a:focus-visible,
   right: 0px;
 }
 
+.inset-x-4 {
+  left: 1rem;
+  right: 1rem;
+}
+
 .-left-\[1\.95rem\] {
   left: -1.95rem;
 }
@@ -1334,6 +1339,10 @@ a:focus-visible,
 
 .bottom-0 {
   bottom: 0px;
+}
+
+.bottom-24 {
+  bottom: 6rem;
 }
 
 .left-0 {
@@ -2419,6 +2428,10 @@ a:focus-visible,
   font-weight: 500;
 }
 
+.font-normal {
+  font-weight: 400;
+}
+
 .font-semibold {
   font-weight: 600;
 }
@@ -2790,6 +2803,18 @@ a:focus-visible,
 }
 
 @media (min-width: 768px) {
+  .md\:bottom-8 {
+    bottom: 2rem;
+  }
+
+  .md\:left-auto {
+    left: auto;
+  }
+
+  .md\:right-8 {
+    right: 2rem;
+  }
+
   .md\:inline-block {
     display: inline-block;
   }
@@ -2804,6 +2829,10 @@ a:focus-visible,
 
   .md\:h-20 {
     height: 5rem;
+  }
+
+  .md\:max-w-sm {
+    max-width: 24rem;
   }
 
   .md\:flex-row {

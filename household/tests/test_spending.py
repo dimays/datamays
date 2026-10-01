@@ -196,8 +196,8 @@ class ProjectViewTests(SpendingTestCase):
 
         response = self.client.get(reverse("household:project_detail", args=[self.project.pk]))
 
-        self.assertContains(response, "$413")
-        self.assertContains(response, "$587 left")
+        self.assertContains(response, "$412.87")
+        self.assertContains(response, "$587.13 left")
 
     def test_the_search_term_survives_the_redirect_safely(self):
         purchase = self.txn("-45.00", merchant="Tile & Stone")
@@ -358,3 +358,75 @@ class ProjectionCountTests(TestCase):
 
         # The open one plus the two the count still allows — not 12.
         self.assertEqual(projection["total"], Decimal("30.00"))
+
+
+class RoundOneMoneyTests(SpendingTestCase):
+    def setUp(self):
+        super().setUp()
+        sign_in(self.client, self.david)
+        self.project = Project.objects.create(name="Kitchen", status=ProjectStatus.ACTIVE, budget_total=Decimal("1000.00"))
+
+    def page(self):
+        return self.client.get(reverse("household:project_detail", args=[self.project.pk])).content.decode()
+
+    def test_cents_are_shown_so_over_and_left_are_never_wrong(self):
+        spending.link_expense(self.project, self.txn("-1000.40").pk)
+
+        body = self.page()
+
+        self.assertIn("$1,000.40", body)
+        self.assertIn("$0.40 over", body)
+
+    def test_a_refund_only_project_reads_sensibly(self):
+        spending.link_expense(self.project, self.txn("25.00").pk)
+
+        summary = spending.budget_summary(self.project)
+
+        self.assertEqual(summary.percent, 0)
+        self.assertIn("-$25.00", self.page())
+
+    def test_a_purchase_finance_later_calls_a_transfer_stops_counting(self):
+        purchase = self.txn("-300.00")
+        spending.link_expense(self.project, purchase.pk)
+        purchase.is_transfer = True
+        purchase.save()
+
+        summary = spending.budget_summary(self.project)
+
+        self.assertEqual(summary.actual, Decimal("0"))
+        self.assertFalse(summary.expenses[0].counts)
+        self.assertIn("Not counted", self.page())
+
+
+class JobExclusivityTests(SpendingTestCase):
+    def setUp(self):
+        super().setUp()
+        self.jobs = []
+        for title in ("Filter", "Gutters"):
+            chore = Chore.objects.create(title=title, frequency=Frequency.DAILY, interval=90,
+                                         anchor=Anchor.AFTER_COMPLETION, starts_on=household_today())
+            MaintenanceItem.objects.create(chore=chore)
+            occurrences.reschedule(chore)
+            job = chore.occurrences.get(status=OccurrenceStatus.OPEN)
+            occurrences.complete(job, by=self.david)
+            job.refresh_from_db()
+            self.jobs.append(job)
+
+    def test_one_purchase_backs_one_job(self):
+        purchase = self.txn("-400.00", slug="housing-maintenance")
+
+        self.assertTrue(spending.link_job(self.jobs[0], purchase.pk))
+        self.assertFalse(spending.link_job(self.jobs[1], purchase.pk))
+        self.assertNotIn(purchase.pk, [t.pk for t in spending.job_candidates(self.jobs[1], household_today())])
+
+    def test_the_database_holds_the_line_too(self):
+        from django.db import IntegrityError, transaction
+
+        purchase = self.txn("-400.00", slug="housing-maintenance")
+        spending.link_job(self.jobs[0], purchase.pk)
+        self.jobs[1].transaction = purchase
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            self.jobs[1].save()
+
+    def test_a_refund_cannot_be_a_jobs_purchase(self):
+        self.assertFalse(spending.link_job(self.jobs[0], self.txn("5.00", slug="housing-maintenance").pk))

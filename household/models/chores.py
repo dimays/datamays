@@ -93,6 +93,15 @@ class Chore(TimestampedModel):
 
     is_active = models.BooleanField(default=True)
 
+    schedule_set_on = models.DateField(
+        null=True,
+        blank=True,
+        help_text=(
+            "The household date the schedule was last set or changed. An "
+            "occurrence limit counts from here: changing the schedule restarts it."
+        ),
+    )
+
     # Set for a project's tasks. A task is a household chore: both of you
     # manage it, and its assignee decides whose checklist it lands on.
     project = models.ForeignKey(
@@ -125,8 +134,10 @@ class Chore(TimestampedModel):
             max_occurrences=self.max_occurrences,
             deadline_offset_days=self.deadline_offset_days,
             season=season,
-            # An unsaved chore (the form's live preview) counts from today.
-            counts_from=to_household_date(self.created_at) if self.created_at else household_today(),
+            # The count runs from when the schedule was last set; an unsaved
+            # chore (the form's live preview) counts from today.
+            counts_from=self.schedule_set_on
+            or (to_household_date(self.created_at) if self.created_at else household_today()),
         )
 
     @property
@@ -222,6 +233,13 @@ class Occurrence(TimestampedModel):
         # disagree about where "whenever" chores go.
         ordering = [models.F("due_on").asc(nulls_last=True), "id"]
         constraints = [
+            # One purchase is behind at most one job; otherwise spend by year
+            # would count it twice.
+            models.UniqueConstraint(
+                fields=["transaction"],
+                condition=models.Q(transaction__isnull=False),
+                name="one_job_per_transaction",
+            ),
             # The lifecycle depends on this. Without it, a double tap on
             # "done" could open two next occurrences, and the chore would
             # appear twice on a checklist forever after.
