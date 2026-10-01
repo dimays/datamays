@@ -16,7 +16,7 @@ Python deps via uv · frontend built with Node, committed as artifacts
 |---|---|---|---|
 | `core` | ~530 LOC | Yes | Projects, writing, styleguide. The portfolio. |
 | `contact` | ~100 LOC | Yes | One form, one model, sends an email. |
-| `household` | new | **No** | Mays Household: the private shell and the chores, projects, and maintenance sections at `/household`. Being built — see [the plan](../plans/household.md). |
+| `household` | ~5k LOC | **No** | Mays Household: the private shell (sign-in, navigation, Today) and the chores, projects, and maintenance sections at `/household`. See [the plan](../plans/household.md). |
 | `finance` | ~19k LOC | **No** | The household finance tool at `/finance`, a section of Mays Household. |
 
 `finance` is the overwhelming majority of the codebase and has its own

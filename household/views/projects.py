@@ -250,7 +250,7 @@ class TaskCreateView(TaskFormMixin, CreateView):
 
     def get_initial(self):
         initial = super().get_initial()
-        milestone = self.request.GET.get("milestone")
+        milestone = spending.as_id(self.request.GET.get("milestone"))
         if milestone and self.project.milestones.filter(pk=milestone).exists():
             initial["milestone"] = milestone
         return initial
@@ -341,7 +341,7 @@ class ExpenseUpdateView(ProjectChildView):
 
     def post(self, request, pk, expense_pk):
         expense = get_object_or_404(ProjectExpense, pk=expense_pk, project=self.project)
-        line_pk = request.POST.get("budget_line") or None
+        line_pk = spending.as_id(request.POST.get("budget_line"))
         expense.budget_line = self.project.budget_lines.filter(pk=line_pk).first() if line_pk else None
         expense.save(update_fields=["budget_line", "updated_at"])
         return self.back("#budget")

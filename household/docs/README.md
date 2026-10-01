@@ -5,10 +5,11 @@ The private household app for David and Maddie. It wraps the existing
 one navigation bar, one Today screen — and adds three sections of its own:
 **Chores**, **Projects**, and **Maintenance**.
 
-It is being built in phases on stacked `household/*` branches. The plan,
+It was built in phases on stacked `household/*` branches. The plan,
 including the agreed decisions and the definition of done, is
-[`docs/plans/household.md`](../../docs/plans/household.md). These docs grow
-with each phase and describe only what has actually been built.
+[`docs/plans/household.md`](../../docs/plans/household.md). These docs
+describe what was built; what each screen does *for a user* is the in-app
+Help page (header menu → Help).
 
 ## Status
 
@@ -22,7 +23,7 @@ with each phase and describe only what has actually been built.
 | 5 — Projects | `household/projects` | Projects with milestones, timeline, links, notes, and tasks that are chores; projects on Today |
 | 6 — Finance bridge | `household/finance-bridge` | Project budget lines and linked spending, maintenance purchases, projected upkeep costs |
 | 7 — Notifications | `household/notifications` | Opt-in morning digest; `household_hourly` / `household_daily` scheduler entry points |
-| 8 — Polish | `household/polish` | Not started |
+| 8 — Polish | `household/polish` | In-app Help, keyboard focus ring, query ceilings for every page, docs pass |
 
 ## Vocabulary
 

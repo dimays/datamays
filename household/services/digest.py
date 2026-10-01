@@ -24,6 +24,7 @@ from django.core.mail import send_mail
 from django.urls import reverse
 from django.utils import timezone
 
+from ..access import HOUSEHOLD_GROUP
 from ..dates import household_timezone
 from ..models import HouseholdPreference, ProjectStatus
 from ..models.projects import Milestone
@@ -143,5 +144,10 @@ def _subject_summary(sections):
 def send_due_digests(now=None):
     """Every digest due this hour. Returns how many were sent."""
     now = now or timezone.now()
-    preferences = HouseholdPreference.objects.filter(morning_digest=True).select_related("user")
+    # Current members only: someone removed from the household (or
+    # deactivated) must stop getting shared chores and milestones by email —
+    # and could no longer reach the preference to turn it off.
+    preferences = HouseholdPreference.objects.filter(
+        morning_digest=True, user__is_active=True, user__groups__name=HOUSEHOLD_GROUP
+    ).select_related("user")
     return sum(1 for preference in preferences if is_due(preference, now) and send_digest(preference, now))

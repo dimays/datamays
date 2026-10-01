@@ -1,6 +1,6 @@
 # Plan: from Household Finance to Household
 
-Status: **agreed** · Branch: `feature/household` · Drafted and agreed 2026-09-30
+Status: **built, in review** · Branch: `feature/household` · Drafted and agreed 2026-09-30 · Built 2026-09-30
 
 The finance app becomes one section of a wider private household app for
 David and Maddie. Three new sections join it — **Chores**, **Projects**,
@@ -444,6 +444,26 @@ Recorded so the answer to "why doesn't it…" is on file:
 - **Light theme, SMS, multiple households** — unchanged from finance.
 
 ---
+
+## Status against the definition of done
+
+As of the end of phase 8. ✅ verified · ⏳ waiting on review, deploy, or use.
+
+| # | Criterion | Status |
+|---|---|---|
+| 1 | Every phase's "done when" met, PRs merged into `feature/household`, then `main` | ✅ built, one PR per phase (dimays/datamays#77–#85) · ⏳ review and merge |
+| 2 | Production running it; existing sign-ins work; finance links work | ✅ locally: group migration rehearsed on the demo database, old `/finance/login/` redirects keep `?next=`, every finance screen renders · ⏳ deploy |
+| 3 | Scheduler on the wrapper commands; first digest arrives | ✅ `household_hourly` run end to end locally with the digest printed to the console · ⏳ swap the two Heroku Scheduler entries ([runbook](../../household/docs/runbook.md)) |
+| 4a | Weekly chore: create, complete, next appears | ✅ browser, 375px |
+| 4b | Partner toggle; edits refused until shared; then editable | ✅ permission table test through real endpoints; toggle and confirmation dialog in the browser |
+| 4c | Filter every 90 days after completion; log with cost; link the real transaction | ✅ browser: logged at $25.00, linked, cost became $38.76 from the purchase |
+| 4d | Project with budget, milestones, a Drive link, a task on Maddie's checklist | ✅ browser (demo seed and form) and tests |
+| 4e | Transactions linked to a project; actual vs. budget | ✅ browser ($412.87 + $38.76 = $452 shown) and to-the-cent tests |
+| 4f | Today: budget widget, overdue flagged, a low-frequency chore under "Coming up" | ✅ browser, 375px and 1280px |
+| 4g | Mark the other person's chore done after the dialog | ✅ browser |
+| 4h | Receive a morning digest | ✅ rendered and "sent" to the console locally · ⏳ first real email after the scheduler switch |
+| 5 | Suite green; docs and ADRs describe what shipped; in-app Help covers every section | ✅ 860 tests · `household/docs/` (9 files), ADRs 0008–0011, amendments to 0004 and 0006 · in-app Help |
+| 6 | A week of real use by both of you without a blocking issue | ⏳ yours to call |
 
 ## Decisions
 

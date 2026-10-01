@@ -200,7 +200,8 @@ def reopen(occurrence):
     locked.completed_by = None
     locked.completed_at = None
     locked.cost = None
-    locked.save(update_fields=["status", "completed_by", "completed_at", "cost", "updated_at"])
+    locked.transaction = None
+    locked.save(update_fields=["status", "completed_by", "completed_at", "cost", "transaction", "updated_at"])
     return True
 
 

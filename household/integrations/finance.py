@@ -70,12 +70,17 @@ def total_spent(transactions):
 
 
 def get_transaction(pk):
-    """A transaction by id, or None — for validating a posted link."""
+    """A spending transaction by id, or None — for validating a posted link.
+
+    Held to the same `spend_filter` as the suggestions, so a posted
+    transfer or paycheck id can't be linked either: a project's actual must
+    never count what finance's own reports wouldn't.
+    """
     try:
         pk = int(pk)
     except (TypeError, ValueError):
         return None
-    return Transaction.objects.select_related("account", "category").filter(pk=pk).first()
+    return Transaction.objects.select_related("account", "category").filter(spend_filter(), pk=pk).first()
 
 
 def spending_candidates(*, start, end, query="", exclude_ids=(), home_only=True):

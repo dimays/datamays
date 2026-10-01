@@ -573,6 +573,21 @@ input[type="checkbox"],
   accent-color: #4F46E5;
 }
 
+/* One visible keyboard-focus ring for everything clickable. The browsers'
+     default ring is a thin dark-blue line that all but vanishes on this
+     background, and most buttons here style hover but not focus — so a
+     keyboard user tabbing through a checklist couldn't see where they were.
+     :focus-visible, so a mouse or finger tap never shows it. Text inputs
+     keep their own focus:ring styling. */
+
+a:focus-visible,
+  button:focus-visible,
+  summary:focus-visible,
+  [role="switch"]:focus-visible {
+  outline: 2px solid #14B8A6;
+  outline-offset: 2px;
+}
+
 .container {
   width: 100%;
 }

@@ -20,6 +20,15 @@ from ..models import OccurrenceStatus, ProjectExpense
 
 ZERO = Decimal("0")
 
+
+def as_id(value):
+    """A posted id as an int, or None. A non-numeric id is "not found",
+    not a 500."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
 # How far around a date to look for the purchase behind it.
 PROJECT_LEAD_DAYS = 30
 JOB_WINDOW_DAYS = 14
@@ -116,7 +125,7 @@ def link_expense(project, transaction_id, budget_line_id=None):
     txn = finance.get_transaction(transaction_id)
     if txn is None:
         return None
-    line = project.budget_lines.filter(pk=budget_line_id).first() if budget_line_id else None
+    line = project.budget_lines.filter(pk=as_id(budget_line_id)).first() if as_id(budget_line_id) else None
 
     try:
         with transaction.atomic():
@@ -193,10 +202,22 @@ def _due_dates_within(item, today, end):
     schedule = chore.schedule
     count = 1
     if schedule.is_fixed:
-        count += sum(1 for day in scheduling.fixed_dates(schedule) if current.due_on < day <= end)
+        # fixed_dates() already honors the count and end date; stop at the
+        # window's end rather than walking the rest of the schedule.
+        for day in scheduling.fixed_dates(schedule):
+            if day > end:
+                break
+            if day > current.due_on:
+                count += 1
     elif schedule.repeats:
+        # The current open occurrence is already among those created, so
+        # this is how many more the schedule allows.
+        remaining = (
+            schedule.max_occurrences - item.occurrence_count
+            if schedule.max_occurrences else None
+        )
         day = max(current.due_on, today)
-        while True:
+        while remaining is None or count - 1 < remaining:
             day = scheduling.advance(schedule, day)
             if schedule.season:
                 day = scheduling.start_of_season_on_or_after(day, schedule.season)

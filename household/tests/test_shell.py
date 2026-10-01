@@ -168,3 +168,15 @@ class PrivacyTests(TestCase):
 
         self.assertNotIn("request", scrubbed)
         self.assertNotIn("user", scrubbed)
+
+
+class HelpTests(TestCase):
+    def test_every_section_is_explained_and_finance_help_is_linked(self):
+        sign_in(self.client, make_member("david"))
+
+        response = self.client.get(reverse("household:help"))
+
+        for heading in ["Today", "Chores", "How chores repeat", "Upkeep", "Projects", "Morning digest"]:
+            with self.subTest(heading=heading):
+                self.assertContains(response, f'<h2 class="font-semibold">{heading}</h2>', html=False)
+        self.assertContains(response, reverse("finance:help"))

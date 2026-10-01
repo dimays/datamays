@@ -366,3 +366,19 @@ class PreferencesTests(TestCase):
         self.assertRedirects(response, reverse("household:preferences"))
         self.assertTrue(HouseholdPreference.for_user(david).share_new_chores)
         self.assertFalse(HouseholdPreference.for_user(david).show_partner_chores)
+
+
+class ScriptContextTests(TestCase):
+    def test_a_posted_value_cannot_break_out_of_the_alpine_expression(self):
+        """Found in review: a bad value re-rendered into x-data was only
+        HTML-escaped, which the browser undoes before Alpine evaluates it."""
+        sign_in(self.client, make_member("david"))
+
+        response = self.client.post(reverse("household:chore_create"),
+                                    form_data(whose="' + alert(1) + '", title=""))
+
+        body = response.content.decode()
+        start = body.index('x-data="{ whose:')
+        x_data = body[start:body.index('">', start)]
+        self.assertNotIn("&#x27;", x_data)
+        self.assertIn("\\u0027 + alert(1) + \\u0027", x_data)

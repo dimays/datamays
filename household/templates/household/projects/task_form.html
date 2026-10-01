@@ -5,7 +5,7 @@
 <p class="page-subtitle">A task in <a href="{% url 'household:project_detail' project.pk %}" class="text-primary hover:underline">{{ project.name }}</a> — it lands on the checklist of whoever you pick.</p>
 
 <form method="post" class="mt-8 max-w-2xl space-y-6"
-      x-data="{ frequency: '{{ form.frequency.value|default:'once' }}', anchor: '{{ form.anchor.value|default:'fixed' }}' }">
+      x-data="{ frequency: '{{ form.frequency.value|default:'once'|escapejs }}', anchor: '{{ form.anchor.value|default:'fixed'|escapejs }}' }">
   {% csrf_token %}
   {% if form.non_field_errors %}
     <div class="rounded-button border border-error/40 bg-error/10 px-4 py-3 text-sm text-error" role="alert">
