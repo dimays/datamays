@@ -53,3 +53,12 @@ def money(value, places=2):
         return f"{Decimal(str(value)):,.{int(places)}f}"
     except (InvalidOperation, TypeError, ValueError):
         return "—"
+
+
+@register.filter
+def absolute(value):
+    """The size of an amount without its sign — "$252 over", not "$-252 over"."""
+    try:
+        return abs(Decimal(str(value)))
+    except (InvalidOperation, TypeError, ValueError):
+        return value

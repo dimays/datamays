@@ -39,6 +39,10 @@ Enforced by `tests/test_boundaries.py`, which parses every module's imports:
   done with household-side rows; finance tables are never altered.
 - Tests are exempt on both sides, and so is `services/demo.py`, the local
   demo seed.
+- At the database level, household rows may point at finance rows
+  (`ProjectExpense.transaction`, `Occurrence.transaction`) — by string
+  reference, so no import is involved. Finance rows never point at household
+  ones. See [finance-bridge.md](finance-bridge.md).
 
 If you need something new from finance, add a function to the bridge module
 rather than importing finance where you are.

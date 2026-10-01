@@ -2282,6 +2282,10 @@ input[type="checkbox"],
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+.pl-4 {
+  padding-left: 1rem;
+}
+
 .pr-2 {
   padding-right: 0.5rem;
 }
@@ -2751,6 +2755,10 @@ input[type="checkbox"],
 
   .sm\:grid-cols-\[1fr_10rem_auto\] {
     grid-template-columns: 1fr 10rem auto;
+  }
+
+  .sm\:grid-cols-\[1fr_8rem_auto\] {
+    grid-template-columns: 1fr 8rem auto;
   }
 
   .sm\:grid-cols-\[8rem_1fr_auto\] {

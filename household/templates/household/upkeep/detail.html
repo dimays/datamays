@@ -98,6 +98,16 @@
             </span>
           </div>
           {% if occurrence.note %}<p class="mt-0.5 text-xs text-text-muted">{{ occurrence.note }}</p>{% endif %}
+          {% if occurrence.status == "done" %}
+            <p class="mt-0.5 text-xs">
+              {% if occurrence.transaction %}
+                <span class="text-text-muted">Paid at {{ occurrence.transaction.merchant|default:occurrence.transaction.description_raw }}, {{ occurrence.transaction.posted_on|date:"M j" }} ·</span>
+                <a href="{% url 'household:job_link' item.pk occurrence.pk %}" class="text-primary hover:underline">change</a>
+              {% else %}
+                <a href="{% url 'household:job_link' item.pk occurrence.pk %}" class="text-primary hover:underline">Link the purchase</a>
+              {% endif %}
+            </p>
+          {% endif %}
         </li>
       {% endfor %}
     </ul>

@@ -11,11 +11,13 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.functional import cached_property
+from django.utils.http import urlencode
 from django.views import View
 from django.views.generic import CreateView, DeleteView, UpdateView
 
 from ..dates import household_today
 from ..forms.projects import (
+    BudgetLineForm,
     LinkForm,
     MilestoneForm,
     NoteForm,
@@ -23,8 +25,8 @@ from ..forms.projects import (
     ProjectTaskForm,
     QuickMilestoneForm,
 )
-from ..models import Chore, Milestone, Project, ProjectLink, ProjectNote
-from ..services import occurrences, projects
+from ..models import BudgetLine, Chore, Milestone, Project, ProjectExpense, ProjectLink, ProjectNote
+from ..services import occurrences, projects, spending
 from .base import HouseholdPageMixin, HouseholdView
 
 
@@ -114,6 +116,8 @@ class ProjectDetailView(HouseholdView):
             milestone_form=QuickMilestoneForm(prefix="milestone"),
             link_form=LinkForm(prefix="link"),
             note_form=NoteForm(prefix="note"),
+            budget=spending.budget_summary(project),
+            budget_line_form=BudgetLineForm(prefix="line"),
             show_assignee=True,
         )
         return context
@@ -275,3 +279,75 @@ class TaskUpdateView(TaskFormMixin, UpdateView):
         if before != (self.object.schedule, self.object.is_active):
             occurrences.reschedule(self.object)
         return response
+
+
+class BudgetLineCreateView(ProjectChildView):
+    def post(self, request, pk):
+        form = BudgetLineForm(request.POST, prefix="line")
+        if not form.is_valid():
+            return self.invalid(form, "#budget")
+        form.instance.project = self.project
+        form.save()
+        return self.back("#budget")
+
+
+class BudgetLineDeleteView(ProjectChildView):
+    def post(self, request, pk, line_pk):
+        line = get_object_or_404(BudgetLine, pk=line_pk, project=self.project)
+        # Spending linked to it stays linked to the project, just unassigned.
+        line.delete()
+        return self.back("#budget")
+
+
+class ProjectSpendingView(HouseholdView):
+    """Pick the purchases that belong to a project."""
+
+    template_name = "household/projects/spending.html"
+
+    @cached_property
+    def project(self):
+        return get_object_or_404(Project, pk=self.kwargs["pk"])
+
+    def get_page_title(self):
+        return f"Spending for {self.project.name}"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        query = self.request.GET.get("q", "").strip()[:100]
+        context.update(
+            project=self.project,
+            query=query,
+            candidates=spending.project_candidates(self.project, household_today(), query),
+            lines=self.project.budget_lines.all(),
+            window=spending.project_window(self.project, household_today()),
+        )
+        return context
+
+    def post(self, request, pk):
+        expense = spending.link_expense(
+            self.project, request.POST.get("transaction"), request.POST.get("budget_line") or None
+        )
+        if expense is None:
+            messages.error(request, "That transaction couldn't be found.")
+        else:
+            messages.success(request, f"Linked {expense.transaction.merchant or expense.transaction.description_raw}.")
+        query = request.POST.get("q", "").strip()[:100]
+        url = reverse("household:project_spending", args=[pk])
+        return redirect(f"{url}?{urlencode({'q': query})}" if query else url)
+
+
+class ExpenseUpdateView(ProjectChildView):
+    """Put a linked purchase against a different budget line (or none)."""
+
+    def post(self, request, pk, expense_pk):
+        expense = get_object_or_404(ProjectExpense, pk=expense_pk, project=self.project)
+        line_pk = request.POST.get("budget_line") or None
+        expense.budget_line = self.project.budget_lines.filter(pk=line_pk).first() if line_pk else None
+        expense.save(update_fields=["budget_line", "updated_at"])
+        return self.back("#budget")
+
+
+class ExpenseDeleteView(ProjectChildView):
+    def post(self, request, pk, expense_pk):
+        get_object_or_404(ProjectExpense, pk=expense_pk, project=self.project).delete()
+        return self.back("#budget")

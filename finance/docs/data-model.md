@@ -78,6 +78,15 @@ Dropdowns use `Category.objects.alphabetical()`, **not** the model's default
 nested-tree insertion order, which is right for a tree and wrong for a flat
 dropdown.
 
+### Referenced from the household app
+
+Household rows point at transactions (never the reverse): a project's
+linked spending (`household.ProjectExpense`) and the purchase behind a
+maintenance job (`household.Occurrence.transaction`). Deleting a transaction
+deletes its project links and clears its job links — correct, since it is
+no longer spending, but worth knowing before a bulk delete. See
+[`household/docs/finance-bridge.md`](../../household/docs/finance-bridge.md).
+
 ## Budgets
 
 ```

@@ -378,6 +378,17 @@ def _projects(david, maddie, today):
     task("Buy painter's tape and drop cloths", david, paint, starts_on=days(5))
     task("Pick a grout color", None, backsplash, starts_on=None)
 
+    # A budget, and the one big home-improvement purchase in the demo ledger
+    # counted toward it.
+    from household.models import BudgetLine, ProjectExpense
+
+    paint_line = BudgetLine.objects.create(project=kitchen, label="Paint and supplies", estimated=Decimal("600.00"))
+    BudgetLine.objects.create(project=kitchen, label="Cabinet hardware", estimated=Decimal("400.00"))
+    BudgetLine.objects.create(project=kitchen, label="Tile and backsplash install", estimated=Decimal("2800.00"))
+    purchase = Transaction.objects.filter(category__slug="housing-improvement").first()
+    if purchase is not None:
+        ProjectExpense.objects.create(project=kitchen, budget_line=paint_line, transaction=purchase)
+
     Project.objects.create(
         name="Vegetable garden",
         summary="Two raised beds by the fence.",

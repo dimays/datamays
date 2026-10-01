@@ -17,9 +17,11 @@
 <dl class="mt-6 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
   <div><dt class="text-text-muted">Start</dt><dd class="mt-0.5">{{ project.start_on|date:"M j, Y"|default:"—" }}</dd></div>
   <div><dt class="text-text-muted">Target</dt><dd class="mt-0.5">{{ project.target_on|date:"M j, Y"|default:"—" }}</dd></div>
-  <div><dt class="text-text-muted">Budget</dt><dd class="mt-0.5 font-mono">{% if project.budget_total is not None %}${{ project.budget_total|money:0 }}{% else %}—{% endif %}</dd></div>
+  <div><dt class="text-text-muted">Spent</dt><dd class="mt-0.5 font-mono {% if budget.is_over %}text-error{% endif %}">${{ budget.actual|money:0 }}{% if budget.target is not None %} <span class="text-text-muted">/ ${{ budget.target|money:0 }}</span>{% endif %}</dd></div>
 </dl>
 {% include "household/projects/_progress.html" %}
+
+{% include "household/projects/_budget.html" %}
 
 <div class="mt-10 grid gap-10 lg:grid-cols-2">
   <section id="timeline" aria-labelledby="timeline-heading">

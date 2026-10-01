@@ -73,6 +73,9 @@ All behind the full gate, and open to both members.
 | `projects/<pk>/milestones/<id>/delete/` | `MilestoneDeleteView` | — POST; its tasks stay |
 | `projects/<pk>/links/new/`, `…/links/<id>/delete/` | `LinkCreateView`, `LinkDeleteView` | — POST |
 | `projects/<pk>/notes/new/`, `…/notes/<id>/delete/` | `NoteCreateView`, `NoteDeleteView` | — POST; delete is author-only |
+| `projects/<pk>/budget/lines/new/`, `…/lines/<id>/delete/` | `BudgetLineCreateView`, `BudgetLineDeleteView` | — POST |
+| `projects/<pk>/spending/` | `ProjectSpendingView` | `projects/spending.html` — suggestions, search, link (POST) |
+| `projects/<pk>/spending/<id>/`, `…/<id>/delete/` | `ExpenseUpdateView`, `ExpenseDeleteView` | — POST: move to another line, or unlink |
 | `projects/<pk>/tasks/new/` | `TaskCreateView` | `projects/task_form.html` — `?milestone=<id>` preselects |
 | `projects/<pk>/tasks/<id>/edit/` | `TaskUpdateView` | `projects/task_form.html` |
 
@@ -90,6 +93,7 @@ work — open to both members.
 | `upkeep/new/` | `UpkeepCreateView` | `upkeep/form.html` — the chore form (`household_only`) and the item form, saved together |
 | `upkeep/<pk>/` | `UpkeepDetailView` | `upkeep/detail.html` — now, mark done with cost and note, how, supplies, history, spend by year |
 | `upkeep/<pk>/edit/` | `UpkeepUpdateView` | `upkeep/form.html` |
+| `upkeep/<pk>/jobs/<id>/purchase/` | `JobLinkView` | `upkeep/link.html` — link (or unlink) the purchase behind a done job |
 | `upkeep/<pk>/delete/` | `UpkeepDeleteView` | `upkeep/confirm_delete.html` — deletes the chore and its history too |
 | `upkeep/starter/` | `LibraryView` | `upkeep/library.html` |
 | `upkeep/starter/<key>/` | `LibraryAdoptView` | — POST, adopts one starter entry |

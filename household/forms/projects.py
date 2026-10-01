@@ -1,6 +1,6 @@
 from django import forms
 
-from ..models import Milestone, Project, ProjectLink, ProjectNote
+from ..models import BudgetLine, Milestone, Project, ProjectLink, ProjectNote
 from .base import StyledFormMixin
 from .chores import ChoreForm
 
@@ -79,3 +79,14 @@ class ProjectTaskForm(ChoreForm):
         self.fields["milestone"].queryset = project.milestones.all()
         self.fields["milestone"].required = False
         self.fields["milestone"].empty_label = "No milestone"
+
+
+class BudgetLineForm(StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = BudgetLine
+        fields = ["label", "estimated"]
+        labels = {"estimated": "Estimate ($)"}
+        widgets = {
+            "label": forms.TextInput(attrs={"placeholder": "e.g. Tile"}),
+            "estimated": forms.NumberInput(attrs={"step": "0.01", "min": 0, "inputmode": "decimal", "placeholder": "0.00"}),
+        }
