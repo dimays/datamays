@@ -329,6 +329,26 @@ class ValidationTests(SimpleTestCase):
         self.assertEqual(validate(weekly(date(2026, 10, 5), 0, 3)), {})
         self.assertEqual(validate(Schedule(Frequency.ONCE, None)), {})
 
+    def test_a_schedule_that_never_falls_in_season_is_refused(self):
+        """Found in review: this used to loop until year 10000 and crash."""
+        never = Schedule(Frequency.YEARLY, date(2026, 1, 15), season=(4, 10))
+        every_year_in_january = monthly(date(2026, 1, 15), interval=12, season=(4, 10))
+        quarterly_reaches_april = monthly(date(2026, 1, 15), interval=3, season=(4, 10))
+
+        self.assertIn("season_start_month", validate(never))
+        self.assertIn("season_start_month", validate(every_year_in_january))
+        self.assertEqual(validate(quarterly_reaches_april), {})
+
+    def test_even_an_unvalidated_one_ends_rather_than_crashing(self):
+        never = Schedule(Frequency.YEARLY, date(2026, 1, 15), season=(4, 10))
+        self.assertEqual(dates(never), [])
+        self.assertIsNone(first_due(never, date(2026, 9, 30)))
+
+    def test_last_weekday_needs_a_last_weekday_to_start_on(self):
+        """Found in review: Oct 9 silently became Oct 30."""
+        self.assertIn("starts_on", validate(monthly(date(2026, 10, 9), MonthlyMode.LAST_WEEKDAY)))
+        self.assertEqual(validate(monthly(date(2026, 10, 30), MonthlyMode.LAST_WEEKDAY)), {})
+
     def test_each_problem_names_its_field(self):
         cases = [
             (Schedule(Frequency.WEEKLY, None), "starts_on"),

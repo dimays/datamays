@@ -1,0 +1,47 @@
+{% extends "household/base.html" %}
+
+{% block section_nav %}{% include "household/chores/_section_nav.html" %}{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3">
+  <h1 class="page-title">Chores</h1>
+  <a href="{% url 'household:chore_create' %}"
+     class="rounded-button bg-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600">
+    New chore
+  </a>
+</div>
+
+{% include "household/partials/messages.html" %}
+
+<div class="mt-4">{% include "household/chores/_partner_toggle.html" %}</div>
+
+<section class="mt-6" aria-labelledby="mine-heading">
+  <h2 id="mine-heading" class="text-lg font-bold">Yours</h2>
+  {% if mine %}
+    {% include "household/chores/_buckets.html" with groups=mine %}
+  {% else %}
+    <div class="empty-state mt-3">
+      <p class="text-text-secondary">Nothing on your list.</p>
+    </div>
+  {% endif %}
+</section>
+
+{% if shared %}
+  <section class="mt-10" aria-labelledby="shared-heading">
+    <h2 id="shared-heading" class="text-lg font-bold">Shared</h2>
+    <p class="text-sm text-text-muted">Household chores either of you can do.</p>
+    {% include "household/chores/_buckets.html" with groups=shared %}
+  </section>
+{% endif %}
+
+{% if theirs is not None %}
+  <section class="mt-10" aria-labelledby="theirs-heading">
+    <h2 id="theirs-heading" class="text-lg font-bold">{{ partner_name }}’s</h2>
+    {% if theirs %}
+      {% include "household/chores/_buckets.html" with groups=theirs %}
+    {% else %}
+      <p class="mt-2 text-sm text-text-muted">Nothing on {{ partner_name }}’s list.</p>
+    {% endif %}
+  </section>
+{% endif %}
+{% endblock %}

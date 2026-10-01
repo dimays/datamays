@@ -49,6 +49,16 @@ otherwise disagree about where "whenever" chores go.
 `is_overdue(today)`, `days_overdue(today)`, and `effective_deadline()` are
 the one definition of overdue; see [scheduling.md](scheduling.md#overdue-and-today).
 
+## HouseholdPreference
+
+Per-person settings for the household sections; finance keeps its own.
+
+| Field | |
+|---|---|
+| `user` → User | One-to-one |
+| `show_partner_chores` | The "Show Maddie's chores" switch on Today and the checklist |
+| `share_new_chores` | Default for a new chore's "let the other person manage it" |
+
 ## Relationships at a glance
 
 ```

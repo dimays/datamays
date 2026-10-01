@@ -1,0 +1,24 @@
+{% extends "household/base.html" %}
+
+{% block content %}
+<h1 class="page-title">{{ page_title }}</h1>
+<p class="page-subtitle">Yours alone — the other person has their own. Finance has its own preferences too.</p>
+
+{% include "household/partials/messages.html" %}
+
+<form method="post" class="mt-8 max-w-2xl space-y-5">
+  {% csrf_token %}
+  <fieldset class="space-y-3 rounded-card border border-border bg-surface p-4">
+    <legend class="px-1 text-sm font-medium">Chores</legend>
+    {% for field in form %}
+      <label class="flex items-start gap-2.5 text-sm">
+        <span class="mt-0.5">{{ field }}</span> <span>{{ field.label }}</span>
+      </label>
+    {% endfor %}
+  </fieldset>
+
+  <button type="submit" class="rounded-button bg-primary px-6 py-3 font-medium text-white transition hover:bg-primary-600">
+    Save preferences
+  </button>
+</form>
+{% endblock %}

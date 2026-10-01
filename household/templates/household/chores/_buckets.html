@@ -1,0 +1,19 @@
+{% comment %}
+  A checklist's rows under their bucket headings. Takes `groups`, the
+  [(key, label, rows)] list from services/checklist.py::grouped().
+{% endcomment %}
+{% for key, label, rows in groups %}
+  <div class="mt-5 first:mt-3">
+    <h3 class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide {% if key == 'overdue' %}text-error{% else %}text-text-muted{% endif %}">
+      {{ label }}
+      {% if key == "overdue" %}
+        <span class="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-error px-1.5 text-[11px] font-bold leading-5 text-white">{{ rows|length }}</span>
+      {% endif %}
+    </h3>
+    <ul class="mt-2 space-y-2">
+      {% for row in rows %}
+        {% include "household/chores/_row.html" %}
+      {% endfor %}
+    </ul>
+  </div>
+{% endfor %}

@@ -1,0 +1,15 @@
+{% comment %}The chore form's live "what this means", from SchedulePreviewView.{% endcomment %}
+{% if errors %}
+  {% for error in errors %}<p class="text-error">{{ error }}</p>{% endfor %}
+{% else %}
+  <p class="font-medium">{{ words }}</p>
+  {% if dates %}
+    <p class="mt-1 text-text-muted">
+      {% if schedule.repeats %}Due {% for day in dates %}{{ day|date:"D M j" }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if schedule.is_fixed %}, …{% else %}, then again each time it's done{% endif %}{% else %}Due {{ dates.0|date:"l, F j" }}{% endif %}
+    </p>
+  {% elif schedule.repeats %}
+    <p class="mt-1 text-error">That schedule has no dates left — check the end date or count.</p>
+  {% else %}
+    <p class="mt-1 text-text-muted">No due date — it stays on the list until it's done.</p>
+  {% endif %}
+{% endif %}

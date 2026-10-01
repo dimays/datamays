@@ -44,6 +44,14 @@ A **one-off** has a single occurrence, due on a date or "whenever".
   and Fri starting on a Wednesday: the first is that Friday.
 - **The season filters before the count.** "Ten times, April to October"
   means ten in-season dates.
+- **The count starts when the chore was created.** "Ten times" from a start
+  date in June, for a chore made in September, means ten from September —
+  dates before the chore existed don't use it up.
+- **A schedule that can never fall in its season is refused.** Yearly on
+  Jan 15 with an April–October season has no dates at all; validation says
+  so rather than accepting a chore that would never appear.
+- **"The last Friday" must start on a last Friday.** Otherwise the first due
+  date would silently move later; validation asks for the right date instead.
 - **An after-completion chore waits for its season.** Done in October with a
   90-day interval and an April–October season: next due April 1.
 
@@ -71,6 +79,10 @@ occurrence's deadline has not passed.
 
 **Undo.** `reopen()` reverses the most recent done or skipped occurrence and
 removes the untouched next one it opened. Anything older is history.
+
+**One-offs.** A done one-off stays done — unless it is given a new date
+("do it again on the 10th"), which puts it back on the list. Converting a
+repeating chore to a one-off does the same.
 
 **Editing.** Changing a schedule replaces the open occurrence with a fresh
 one from today (an after-completion chore still counts from when it was last

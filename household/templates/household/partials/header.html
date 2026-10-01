@@ -14,7 +14,7 @@
         <a href="{{ section.href }}"
            class="transition hover:text-text-primary {% if section.is_active %}font-semibold text-text-primary{% endif %}"
            {% if section.is_active %}aria-current="page"{% endif %}>
-          {{ section.label }}
+          {{ section.label }}{% if section.badge_count %}<span class="ml-1.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-error px-1.5 text-[11px] font-bold leading-5 text-white"><span class="sr-only">, </span>{{ section.badge_count }}<span class="sr-only"> overdue</span></span>{% endif %}
         </a>
       {% endfor %}
     </nav>
@@ -37,8 +37,10 @@
            class="absolute right-0 mt-2 w-52 overflow-hidden rounded-card border border-border bg-surface py-1 shadow-xl">
         <a href="{% url 'finance:alerts' %}" role="menuitem"
            class="block px-4 py-2.5 text-sm text-text-secondary transition hover:bg-muted hover:text-text-primary">Alerts &amp; reports</a>
+        <a href="{% url 'household:preferences' %}" role="menuitem"
+           class="block px-4 py-2.5 text-sm text-text-secondary transition hover:bg-muted hover:text-text-primary">Household preferences</a>
         <a href="{% url 'finance:preferences' %}" role="menuitem"
-           class="block px-4 py-2.5 text-sm text-text-secondary transition hover:bg-muted hover:text-text-primary">Preferences</a>
+           class="block px-4 py-2.5 text-sm text-text-secondary transition hover:bg-muted hover:text-text-primary">Finance preferences</a>
         <a href="{% url 'finance:help' %}" role="menuitem"
            class="block px-4 py-2.5 text-sm text-text-secondary transition hover:bg-muted hover:text-text-primary">Help</a>
         <a href="{% url 'core:home' %}" role="menuitem"

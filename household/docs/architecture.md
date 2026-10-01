@@ -80,6 +80,8 @@ Two levels of navigation:
   `templatetags/household_nav.py::SECTIONS`. A section joins the list in the
   phase that builds it, never before; a link to a section that does not exist
   would be a dead end on a phone.
+- **Badges** — a section can show a count on its nav item; Chores shows
+  your overdue count (yours and shared), worked out once per request.
 - **Section nav** — a section's own screens as a strip of pills, via
   `partials/section_nav.html`, the `.section-nav` component class in
   `assets/css/input.css`. On a phone it scrolls sideways with a faded right
@@ -87,12 +89,25 @@ Two levels of navigation:
 
 ## Today
 
-`views/today.py`. Right now it shows a greeting, the household date, and
-finance's own budget widget — the same builder and template as the finance
-homepage, honoring each person's budget selection in finance preferences —
-through `integrations/finance.py::budget_glance`. The chores phase adds
-overdue chores, today's chores, and the next seven days of one-off and
-low-frequency chores above it (see the plan, section 3.7).
+`views/today.py`, built from `services/checklist.py::today_summary` — the
+same rows and buckets as the checklist, so the two can never disagree about
+what is overdue. Overdue first, then today, then the coming week's
+easy-to-forget chores, then finance's own budget widget (the same builder
+and template as the finance homepage, through
+`integrations/finance.py::budget_glance`). [screens.md](screens.md#today)
+has the details.
+
+Both Today and the checklist load every chore with its open occurrence in
+two queries and apply the missed-occurrence collapse on read
+(`occurrences.refresh`), so neither depends on the scheduler having run.
+Query counts are tested flat as chores are added.
+
+## Confirmation dialog
+
+`household/base.html` holds one `<dialog>` and a few lines of script that
+route every `hx-confirm` through it, in place of the browser's native
+`confirm()` — which draws a light system box over this dark app. It is used
+when marking someone else's chore done ([permissions.md](permissions.md)).
 
 ## Privacy
 
