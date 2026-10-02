@@ -369,3 +369,45 @@ class PausedProgressTests(TestCase):
 
         self.assertEqual((progress.tasks_done, progress.task_count), (0, 2))
         self.assertEqual({c.title: c.state for c in others}, {"Water seedlings": "paused", "Too late": "ended"})
+
+
+class ListedStatusTests(TestCase):
+    """Tasks of a project on hold, done, or still an idea are off the lists
+    (decided 2026-10-02), and come back when it resumes."""
+
+    def setUp(self):
+        self.david = make_member("david", first_name="David")
+        self.today = household_today()
+        self.project = make_project()
+        self.task = make_task(self.project, "Buy paint", assignee=self.david,
+                              starts_on=self.today - timedelta(days=2), today=self.today)
+
+    def listed(self):
+        return [chore.pk for chore in checklist.load(self.today)]
+
+    def test_a_paused_projects_tasks_leave_every_list(self):
+        for status in (ProjectStatus.ON_HOLD, ProjectStatus.DONE, ProjectStatus.IDEA):
+            self.project.status = status
+            self.project.save()
+
+            self.assertNotIn(self.task.pk, self.listed(), status)
+            self.assertEqual(checklist.overdue_count(self.david, self.today), 0, status)
+
+    def test_they_come_back_when_it_resumes(self):
+        self.project.status = ProjectStatus.ON_HOLD
+        self.project.save()
+        self.project.status = ProjectStatus.PLANNED
+        self.project.save()
+
+        self.assertIn(self.task.pk, self.listed())
+        self.assertEqual(checklist.overdue_count(self.david, self.today), 1)
+
+    def test_today_and_the_project_page_say_so(self):
+        self.project.status = ProjectStatus.ON_HOLD
+        self.project.save()
+        sign_in(self.client, self.david)
+
+        self.assertNotContains(self.client.get(reverse("household:today")), "Buy paint")
+        page = self.client.get(reverse("household:project_detail", args=[self.project.pk]))
+        self.assertContains(page, "Buy paint")
+        self.assertContains(page, "its tasks are off everyone's lists")

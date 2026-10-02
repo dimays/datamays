@@ -208,6 +208,28 @@ class ChainTests(TestCase):
         self.assertEqual(caught.exception.code, 1)
         self.assertIn(call("send_digests", verbosity=0), mocked.call_args_list)
 
+    def test_a_failing_step_is_logged_so_sentry_sees_it(self):
+        """Pre-merge review: failures went only to stderr and the exit code,
+        which nobody sees unless they read Heroku's logs."""
+        def run(name, **kwargs):
+            if name == "sweep_chores":
+                raise RuntimeError("database went away")
+
+        with patch("household.management.commands._chain.call_command", side_effect=run):
+            with self.assertLogs("household.management.commands._chain", level="ERROR") as logs, \
+                    self.assertRaises(SystemExit):
+                call_command("household_hourly", verbosity=0)
+
+        self.assertIn("sweep_chores", logs.output[0])
+        self.assertIsNotNone(logs.records[0].exc_info)
+
+    def test_finances_chains_log_their_failures_too(self):
+        for chain in ("finance_hourly", "finance_daily"):
+            with patch(f"finance.management.commands.{chain}.call_command", side_effect=RuntimeError("boom")):
+                with self.assertLogs(f"finance.management.commands.{chain}", level="ERROR"), \
+                        self.assertRaises(SystemExit):
+                    call_command(chain, verbosity=0)
+
     def test_daily_wraps_finance_daily(self):
         with patch("household.management.commands._chain.call_command") as run:
             call_command("household_daily", verbosity=0)

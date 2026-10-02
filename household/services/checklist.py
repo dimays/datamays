@@ -15,6 +15,7 @@ from django.db.models.functions import Coalesce
 from .. import scheduling
 from ..dates import household_today
 from ..models import Chore, Occurrence, OccurrenceStatus
+from ..models.projects import LISTED_PROJECT_STATUSES
 from . import occurrences, permissions
 from .members import display_name, partner_of
 
@@ -93,11 +94,17 @@ def with_missed_streak(chores):
     return chores.annotate(missed_streak=Coalesce(Subquery(missed), Value(0)))
 
 
+def on_lists(prefix=""):
+    """Chores that belong on people's lists: any not in a project, and the
+    tasks of a project under way or planned (`LISTED_PROJECT_STATUSES`)."""
+    return Q(**{f"{prefix}project__isnull": True}) | Q(**{f"{prefix}project__status__in": LISTED_PROJECT_STATUSES})
+
+
 def load(today):
     """Every active chore with an open occurrence, collapse applied."""
     chores = occurrences.with_open_occurrence(
         with_missed_streak(
-            Chore.objects.filter(is_active=True).select_related("owner", "assignee", "maintenance_item")
+            Chore.objects.filter(on_lists(), is_active=True).select_related("owner", "assignee", "maintenance_item")
         )
     )
     occurrences.refresh(chores, today)
@@ -202,7 +209,7 @@ def overdue_count(user, today=None):
     """
     today = today or household_today()
     return (
-        Occurrence.objects.filter(status=OccurrenceStatus.OPEN, chore__is_active=True)
+        Occurrence.objects.filter(on_lists("chore__"), status=OccurrenceStatus.OPEN, chore__is_active=True)
         .filter(Q(chore__assignee=user) | Q(chore__assignee__isnull=True))
         .filter(Q(deadline__lt=today) | Q(deadline__isnull=True, due_on__lt=today))
         .count()

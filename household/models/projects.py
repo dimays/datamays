@@ -32,10 +32,21 @@ STATUS_ORDER = [
 ]
 
 
+# A project's tasks are on people's lists only while it is under way or
+# planned. On hold, done, or still an idea, they drop off every checklist,
+# Today, the badge, and the digest — and come back if it resumes. (Decided
+# with David, 2026-10-02.)
+LISTED_PROJECT_STATUSES = (ProjectStatus.ACTIVE, ProjectStatus.PLANNED)
+
+
 class Project(TimestampedModel):
     name = models.CharField(max_length=160)
     summary = models.TextField(blank=True, help_text="What it is and why — a sentence or two.")
     status = models.CharField(max_length=10, choices=ProjectStatus.choices, default=ProjectStatus.PLANNED)
+
+    @property
+    def tasks_are_listed(self):
+        return self.status in LISTED_PROJECT_STATUSES
     start_on = models.DateField(null=True, blank=True)
     target_on = models.DateField(null=True, blank=True, help_text="When you'd like it done.")
     budget_total = money_field(

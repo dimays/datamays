@@ -106,6 +106,22 @@ would then disagree with the data.
 Re-deploying after `zero` re-runs every household migration from the start
 (rehearsed on Postgres: no duplicates, both people let in).
 
+## What tells you something broke
+
+| Failure | How you find out |
+|---|---|
+| A page errors (500) | Sentry, if `SENTRY_DSN` is set on the app |
+| A scheduled step fails (sync, sweep, digest, alerts, reports) | Sentry — each failed step is logged as an error with its traceback — and a non-zero exit in `heroku logs` |
+| A digest can't be sent | Sentry (logged), and it is retried the next hour |
+| A release-phase migration fails | The deploy fails and the old code keeps serving. Heroku shows it in `heroku releases` and the dashboard's Activity tab; check after every deploy |
+| The scheduler isn't running the household jobs at all (e.g. the entries weren't switched) | **Nothing alerts.** Chores still roll forward on read, but digests stop and finance stops syncing. Check the Scheduler dashboard after the first deploy |
+
+Check `SENTRY_DSN` is set before relying on the first three:
+
+```bash
+heroku config:get SENTRY_DSN --app datamays
+```
+
 ## Configuration
 
 | Variable | Purpose |

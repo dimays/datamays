@@ -478,6 +478,9 @@ Agreed 2026-09-30.
 | 5 | Finance URLs | Stay at `/finance/…` |
 | 6 | Starter maintenance library | Yes — start simple, a short generic list |
 | 7 | Review cadence | Each phase's PR is reviewed as it lands |
+| 8 | Migrations on deploy (pre-merge review) | Run in Heroku's release phase on every deploy (`Procfile`) |
+| 9 | Shared chores (pre-merge review) | Stay shared — neither person can make one their own |
+| 10 | Tasks of paused projects (pre-merge review) | Off every list while the project is on hold, done, or an idea; back when it resumes |
 
 Feedback folded in: the Today screen carries finance's budget widget, a
 next-7-days list of one-off and low-frequency chores, and clear overdue

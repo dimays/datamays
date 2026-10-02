@@ -51,6 +51,9 @@
       <a href="{% url 'household:project_task_create' project.pk %}"
          class="rounded-button bg-primary px-3 py-2 text-sm font-medium text-white transition hover:bg-primary-600">Add task</a>
     </div>
+    {% if task_rows and not project.tasks_are_listed %}
+      <p class="mt-3 text-sm text-text-muted">While this project is {{ project.get_status_display|lower }}, its tasks are off everyone's lists. They come back if it's set to in progress or planned.</p>
+    {% endif %}
     {% if task_rows %}
       <ul class="mt-4 space-y-2">
         {% for row in task_rows %}{% include "household/chores/_row.html" %}{% endfor %}
