@@ -17,16 +17,22 @@ Nothing errored. The numbers were just quietly wrong for a few hours a day.
 
 ## Decision
 
-Every date decision in the finance app goes through **`finance/dates.py`**,
-never `django.utils.timezone.localdate()` directly.
+Every household date decision goes through **`household_today()`**, never
+`django.utils.timezone.localdate()` directly.
 
 ```python
-from .dates import household_today
+from household.dates import household_today
 
 today = household_today()
 ```
 
-The zone comes from `FINANCE_TIME_ZONE`, defaulting to `America/Chicago`.
+The zone comes from `HOUSEHOLD_TIME_ZONE`, defaulting to `America/Chicago`.
+
+**Amended 2026-09-30** ([ADR 0008](0008-household-shell-owns-sign-in.md)):
+this began as `finance/dates.py` and `FINANCE_TIME_ZONE`. It moved to
+`household/dates.py` when finance became one section of Mays Household, since
+chores and maintenance need the same "today". `finance/dates.py` re-exports
+it, and `FINANCE_TIME_ZONE` is still honored as a fallback.
 
 ## Consequences
 

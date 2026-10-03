@@ -21,18 +21,18 @@ LATE_EVENING = datetime(2026, 9, 1, 1, 30, tzinfo=ZoneInfo("UTC"))
 
 class HouseholdDateTests(SimpleTestCase):
     def test_a_late_evening_in_chicago_is_still_today(self):
-        with patch("finance.dates.timezone.now", return_value=LATE_EVENING):
+        with patch("household.dates.timezone.now", return_value=LATE_EVENING):
             self.assertEqual(household_today(), date(2026, 8, 31))
 
     def test_midday_is_unambiguous(self):
         instant = datetime(2026, 8, 31, 17, 0, tzinfo=ZoneInfo("UTC"))
 
-        with patch("finance.dates.timezone.now", return_value=instant):
+        with patch("household.dates.timezone.now", return_value=instant):
             self.assertEqual(household_today(), date(2026, 8, 31))
 
     def test_the_timezone_is_configurable(self):
-        with override_settings(FINANCE_TIME_ZONE="UTC"):
-            with patch("finance.dates.timezone.now", return_value=LATE_EVENING):
+        with override_settings(HOUSEHOLD_TIME_ZONE="UTC"):
+            with patch("household.dates.timezone.now", return_value=LATE_EVENING):
                 self.assertEqual(household_today(), date(2026, 9, 1))
 
     def test_aware_datetimes_convert(self):
@@ -73,7 +73,7 @@ class BudgetPeriodBoundaryTests(TestCase):
             name="Groceries", amount=Decimal("700"), anchor_date=date(2026, 1, 1)
         )
 
-        with patch("finance.dates.timezone.now", return_value=LATE_EVENING):
+        with patch("household.dates.timezone.now", return_value=LATE_EVENING):
             start, end = budget.period_for()
 
         # August, not September.

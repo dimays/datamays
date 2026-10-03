@@ -1,0 +1,83 @@
+{% extends "household/base.html" %}
+
+{% block content %}
+<div class="flex flex-wrap items-end justify-between gap-3">
+  <div>
+    <h1 class="page-title">
+      {% if request.user.first_name %}Hi, {{ request.user.first_name }}{% else %}Today{% endif %}
+    </h1>
+    <p class="page-subtitle">{{ today|date:"l, F j" }}</p>
+  </div>
+  {% include "household/chores/_partner_toggle.html" %}
+</div>
+
+{% include "household/partials/messages.html" %}
+
+{% comment %}
+  Top to bottom, per the plan (3.7): what's late, what's today, what's easy to
+  forget in the coming week, then money, then projects. Yours and the shared chores; the
+  other person's alongside when the toggle is on.
+{% endcomment %}
+<div class="mt-6 space-y-8">
+  {% if overdue %}
+    <section aria-labelledby="overdue-heading" class="rounded-card border border-error/40 bg-error/5 p-4">
+      <h2 id="overdue-heading" class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-error">
+        Overdue
+        <span class="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-error px-1.5 text-[11px] font-bold leading-5 text-white">{{ overdue|length }}</span>
+      </h2>
+      <ul class="mt-3 space-y-2">
+        {% for row in overdue %}{% include "household/chores/_row.html" with show_assignee=True %}{% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  <section aria-labelledby="today-heading">
+    <h2 id="today-heading" class="text-sm font-semibold uppercase tracking-wide text-text-muted">Today</h2>
+    {% if due_today %}
+      <ul class="mt-3 space-y-2">
+        {% for row in due_today %}{% include "household/chores/_row.html" with show_assignee=True %}{% endfor %}
+      </ul>
+    {% else %}
+      <p class="mt-2 text-sm text-text-muted">
+        {% if overdue %}Nothing else due today.{% else %}All clear — nothing due today.{% endif %}
+        <a href="{% url 'household:chores' %}" class="text-primary hover:underline">See all chores</a>
+      </p>
+    {% endif %}
+  </section>
+
+  {% if coming_up %}
+    <section aria-labelledby="coming-heading">
+      <h2 id="coming-heading" class="text-sm font-semibold uppercase tracking-wide text-text-muted">Coming up this week</h2>
+      <p class="text-xs text-text-muted">One-offs and the less frequent chores, so they aren't a surprise.</p>
+      <ul class="mt-3 space-y-2">
+        {% for row in coming_up %}{% include "household/chores/_row.html" with show_assignee=True %}{% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if partner_rows %}
+    <section aria-labelledby="partner-heading">
+      <h2 id="partner-heading" class="text-sm font-semibold uppercase tracking-wide text-text-muted">{{ partner_name }}’s today</h2>
+      <ul class="mt-3 space-y-2">
+        {% for row in partner_rows %}{% include "household/chores/_row.html" %}{% endfor %}
+      </ul>
+    </section>
+  {% elif preference.show_partner_chores and partner_name %}
+    <p class="text-sm text-text-muted">Nothing due today on {{ partner_name }}’s list.</p>
+  {% endif %}
+
+  {% include budgets.template with data=budgets.data label=budgets.label %}
+
+  {% if projects %}
+    <section aria-labelledby="projects-heading">
+      <div class="flex items-baseline justify-between gap-3">
+        <h2 id="projects-heading" class="text-sm font-semibold uppercase tracking-wide text-text-muted">Projects in progress</h2>
+        <a href="{% url 'household:projects' %}" class="text-xs text-primary hover:underline">All projects</a>
+      </div>
+      <div class="mt-3 grid gap-3 sm:grid-cols-2">
+        {% for project in projects %}{% include "household/projects/_card.html" %}{% endfor %}
+      </div>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

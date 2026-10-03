@@ -1,0 +1,11 @@
+{% comment %}A project's progress bar and the counts behind it. Takes `progress`.{% endcomment %}
+<div class="mt-3">
+  <div class="h-2 w-full overflow-hidden rounded-full bg-muted" role="progressbar"
+       aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ progress.percent }}"
+       aria-label="{{ progress.percent }}% done">
+    <div class="h-full rounded-full bg-accent" style="width: {{ progress.percent }}%"></div>
+  </div>
+  <p class="mt-1.5 text-xs text-text-muted">
+    {% if progress.milestone_count %}{{ progress.milestones_done }} of {{ progress.milestone_count }} milestone{{ progress.milestone_count|pluralize }}{% endif %}{% if progress.milestone_count and progress.task_count %} · {% endif %}{% if progress.task_count %}{{ progress.tasks_done }} of {{ progress.task_count }} task{{ progress.task_count|pluralize }}{% endif %}{% if not progress.milestone_count and not progress.task_count %}No milestones or tasks yet{% endif %}
+  </p>
+</div>

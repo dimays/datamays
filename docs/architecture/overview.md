@@ -10,17 +10,19 @@ Django 6 · Tailwind 3 · Postgres · Heroku (gunicorn + whitenoise) · Sentry
 Python deps via uv · frontend built with Node, committed as artifacts
 ```
 
-## Three apps
+## Four apps
 
 | App | Size | Public? | What it does |
 |---|---|---|---|
 | `core` | ~530 LOC | Yes | Projects, writing, styleguide. The portfolio. |
 | `contact` | ~100 LOC | Yes | One form, one model, sends an email. |
-| `finance` | ~19k LOC | **No** | The household finance tool at `/finance`. |
+| `household` | ~5k LOC | **No** | Mays Household: the private shell (sign-in, navigation, Today) and the chores, projects, and maintenance sections at `/household`. See [the plan](../plans/household.md). |
+| `finance` | ~19k LOC | **No** | The household finance tool at `/finance`, a section of Mays Household. |
 
 `finance` is the overwhelming majority of the codebase and has its own
-[documentation set](../../finance/docs/README.md). `core` and `contact` are
-small enough to read directly.
+[documentation set](../../finance/docs/README.md). `household` has its own
+[docs](../../household/docs/README.md) too. `core` and `contact` are small
+enough to read directly.
 
 ## Project layout
 
@@ -28,8 +30,10 @@ small enough to read directly.
 datamays/            settings, root urls, wsgi/asgi
   settings.py        the real one — reads .env, initializes Sentry
   settings_test.py   in-memory SQLite, Sentry disabled. Use for every test run.
+  settings_local.py  file-based SQLite for runserver, with a demo seed.
 core/                public site
 contact/             contact form
+household/           Mays Household shell and sections (see household/docs/)
 finance/             the finance app (see finance/docs/)
 assets/css/input.css Tailwind source
 static/              committed build output — css/, js/, img/
@@ -40,15 +44,20 @@ docs/                this folder
 
 Nothing unusual for Django, with one exception worth knowing:
 
-1. `datamays/urls.py` routes `/finance/` to `finance.urls`.
-2. Every finance view sits behind `FinanceAccessMixin`, which enforces three
-   gates in order: authenticated → member of the `finance` group → cleared
-   the TOTP second factor.
+1. `datamays/urls.py` routes `/household/` to `household.urls` and
+   `/finance/` to `finance.urls`.
+2. Every private view sits behind `HouseholdAccessMixin`
+   (`household/access.py`), which enforces three gates in order:
+   authenticated → member of the `household` group → cleared the TOTP second
+   factor.
 3. The first two failures raise `PermissionDenied` and render a 403. **This
    is deliberately not a redirect to a login page** — a stranger probing
-   `/finance` should not learn that a login form exists, nor what it protects.
-   The third failure *is* a redirect, because by then the visitor has proven
-   they hold a household account.
+   `/finance` or `/household` should not learn that a login form exists, nor
+   what it protects. The third failure *is* a redirect, because by then the
+   visitor has proven they hold a household account.
+
+`household/tests/test_access.py` walks the URL resolver and asserts every
+private route refuses a stranger, so a new view cannot quietly skip the gate.
 
 ## Security posture
 

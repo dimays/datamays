@@ -29,10 +29,11 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import ListView
 
+from household.redirects import safe_next
+
 from .base import FinancePageMixin
 from ..categories_seed import UNCATEGORIZED_SLUG
 from ..models import Account, Budget, Category, CategorySource, Transaction
-from ..redirects import safe_next
 from ..services.analytics import spend_filter
 from ..services.categorize import confirm_category
 from ..services.rollups import expand_categories

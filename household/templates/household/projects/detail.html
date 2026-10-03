@@ -1,0 +1,133 @@
+{% extends "household/base.html" %}
+{% load household_extras %}
+
+{% block content %}
+<div class="flex flex-wrap items-start justify-between gap-3">
+  <div class="min-w-0">
+    <p class="text-xs font-semibold uppercase tracking-wide text-text-muted">{{ project.get_status_display }}</p>
+    <h1 class="page-title">{{ project.name }}</h1>
+    {% if project.summary %}<p class="page-subtitle whitespace-pre-line">{{ project.summary }}</p>{% endif %}
+  </div>
+  <a href="{% url 'household:project_edit' project.pk %}"
+     class="rounded-button border border-border px-4 py-2.5 text-sm font-medium text-text-secondary transition hover:bg-muted">Edit</a>
+</div>
+
+{% include "household/partials/messages.html" %}
+
+<dl class="mt-6 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+  <div><dt class="text-text-muted">Start</dt><dd class="mt-0.5">{{ project.start_on|date:"M j, Y"|default:"—" }}</dd></div>
+  <div><dt class="text-text-muted">Target</dt><dd class="mt-0.5">{{ project.target_on|date:"M j, Y"|default:"—" }}</dd></div>
+  <div><dt class="text-text-muted">Spent</dt><dd class="mt-0.5 font-mono {% if budget.is_over %}text-error{% endif %}">{{ budget.actual|usd }}{% if budget.target is not None %} <span class="text-text-muted">/ {{ budget.target|usd }}</span>{% endif %}</dd></div>
+</dl>
+{% include "household/projects/_progress.html" %}
+
+{% include "household/projects/_budget.html" %}
+
+<div class="mt-10 grid gap-10 lg:grid-cols-2">
+  <section id="timeline" aria-labelledby="timeline-heading">
+    <h2 id="timeline-heading" class="text-lg font-bold">Timeline</h2>
+    {% include "household/projects/_timeline.html" %}
+
+    <form method="post" action="{% url 'household:milestone_create' project.pk %}"
+          class="mt-5 grid gap-2 sm:grid-cols-[1fr_10rem_auto] sm:items-end">
+      {% csrf_token %}
+      <div>
+        <label for="{{ milestone_form.name.id_for_label }}" class="sr-only">Milestone</label>
+        <input type="text" name="{{ milestone_form.name.html_name }}" id="{{ milestone_form.name.id_for_label }}"
+               required maxlength="160" placeholder="Add a milestone"
+               class="w-full rounded-button border border-border bg-background px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary" />
+      </div>
+      <div>
+        <label for="{{ milestone_form.target_on.id_for_label }}" class="sr-only">Target date</label>
+        {{ milestone_form.target_on }}
+      </div>
+      <button type="submit" class="rounded-button border border-border px-4 py-2 text-sm font-medium text-text-secondary transition hover:bg-muted">Add</button>
+    </form>
+  </section>
+
+  <section id="tasks" aria-labelledby="tasks-heading">
+    <div class="flex items-center justify-between gap-3">
+      <h2 id="tasks-heading" class="text-lg font-bold">Tasks</h2>
+      <a href="{% url 'household:project_task_create' project.pk %}"
+         class="rounded-button bg-primary px-3 py-2 text-sm font-medium text-white transition hover:bg-primary-600">Add task</a>
+    </div>
+    {% if task_rows and not project.tasks_are_listed %}
+      <p class="mt-3 text-sm text-text-muted">While this project is {{ project.get_status_display|lower }}, its tasks are off everyone's lists. They come back if it's set to in progress or planned.</p>
+    {% endif %}
+    {% if task_rows %}
+      <ul class="mt-4 space-y-2">
+        {% for row in task_rows %}{% include "household/chores/_row.html" %}{% endfor %}
+      </ul>
+    {% elif not finished_tasks %}
+      <p class="mt-3 text-sm text-text-muted">No tasks yet. Each task lands on the checklist of whoever you give it to.</p>
+    {% endif %}
+    {% if finished_tasks %}
+      <p class="mt-5 text-xs font-semibold uppercase tracking-wide text-text-muted">Done, skipped, paused, or ended</p>
+      <ul class="mt-2 space-y-1.5 text-sm">
+        {% for task in finished_tasks %}
+          <li class="flex items-baseline justify-between gap-3">
+            <a href="{% url 'household:project_task_edit' project.pk task.pk %}" class="truncate text-text-muted {% if task.state == 'done' %}line-through{% endif %} hover:underline">{{ task.title }}</a>
+            <span class="shrink-0 text-xs {% if task.state == 'done' %}text-success{% else %}text-text-muted{% endif %}">{{ task.state }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </section>
+
+  <section id="links" aria-labelledby="links-heading">
+    <h2 id="links-heading" class="text-lg font-bold">Links</h2>
+    <p class="text-sm text-text-muted">Drive folders, quotes, inspiration — anything that lives elsewhere.</p>
+    {% if links %}
+      <ul class="mt-3 divide-y divide-border overflow-hidden rounded-card border border-border bg-surface text-sm">
+        {% for link in links %}
+          <li class="flex items-center justify-between gap-3 px-4 py-2.5">
+            <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" class="min-w-0 truncate text-primary hover:underline">{{ link.title }} ↗</a>
+            <form method="post" action="{% url 'household:link_delete' project.pk link.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="text-xs text-text-muted hover:text-error">Remove<span class="sr-only"> “{{ link.title }}”</span></button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    <form method="post" action="{% url 'household:link_create' project.pk %}" class="mt-3 grid gap-2 sm:grid-cols-[10rem_1fr_auto]">
+      {% csrf_token %}
+      <label for="{{ link_form.title.id_for_label }}" class="sr-only">Title</label>{{ link_form.title }}
+      <label for="{{ link_form.url.id_for_label }}" class="sr-only">Link</label>{{ link_form.url }}
+      <button type="submit" class="rounded-button border border-border px-4 py-2 text-sm font-medium text-text-secondary transition hover:bg-muted">Add</button>
+    </form>
+  </section>
+
+  <section id="notes" aria-labelledby="notes-heading">
+    <h2 id="notes-heading" class="text-lg font-bold">Notes &amp; decisions</h2>
+    <form method="post" action="{% url 'household:note_create' project.pk %}" class="mt-3 space-y-2">
+      {% csrf_token %}
+      <label for="{{ note_form.body.id_for_label }}" class="sr-only">{{ note_form.body.label }}</label>
+      {{ note_form.body }}
+      <button type="submit" class="rounded-button border border-border px-4 py-2 text-sm font-medium text-text-secondary transition hover:bg-muted">Add note</button>
+    </form>
+    {% if notes %}
+      <ul class="mt-4 space-y-3">
+        {% for note in notes %}
+          <li class="rounded-card border border-border bg-surface p-3.5">
+            <p class="whitespace-pre-line text-sm">{{ note.body }}</p>
+            <div class="mt-1.5 flex items-center justify-between gap-3 text-xs text-text-muted">
+              <span>{{ note.author.first_name|default:note.author.username }} · {{ note.created_at|date:"M j, Y" }}</span>
+              {% if note.author_id == request.user.pk %}
+                <form method="post" action="{% url 'household:note_delete' project.pk note.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="hover:text-error">Delete<span class="sr-only"> this note</span></button>
+                </form>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </section>
+</div>
+
+<p class="mt-12">
+  <a href="{% url 'household:project_delete' project.pk %}" class="text-sm text-error hover:underline">Delete this project</a>
+</p>
+{% endblock %}

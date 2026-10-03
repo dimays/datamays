@@ -1,0 +1,83 @@
+{% extends "household/base.html" %}
+{% load household_extras %}
+
+{% block section_nav %}{% include "household/chores/_section_nav.html" %}{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-start justify-between gap-3">
+  <div class="min-w-0">
+    <h1 class="page-title">{{ chore.title }}</h1>
+    <p class="page-subtitle">
+      {{ chore.describe_schedule }}
+      {% if not chore.is_active %}· <span class="text-warning">paused</span>{% endif %}
+    </p>
+  </div>
+  {% if can_manage %}
+    <a href="{% url 'household:chore_edit' chore.pk %}"
+       class="rounded-button border border-border px-4 py-2.5 text-sm font-medium text-text-secondary transition hover:bg-muted">
+      Edit
+    </a>
+  {% endif %}
+</div>
+
+{% include "household/partials/messages.html" %}
+
+{% if chore.project %}
+  <p class="mt-4 text-sm text-text-secondary">
+    A task in <a href="{% url 'household:project_detail' chore.project_id %}#tasks" class="text-primary hover:underline">{{ chore.project.name }}</a>{% if chore.milestone %}, toward “{{ chore.milestone.name }}”{% endif %}.
+  </p>
+{% endif %}
+
+<dl class="mt-6 grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
+  <div><dt class="text-text-muted">Owner</dt><dd class="mt-0.5">{{ owner_name }}</dd></div>
+  <div><dt class="text-text-muted">On whose list</dt><dd class="mt-0.5">{% if row %}{{ row.assignee_name }}{% else %}{{ chore.assignee.first_name|default:"Either of us" }}{% endif %}</dd></div>
+  {% if chore.owner %}
+    <div><dt class="text-text-muted">Who can manage it</dt><dd class="mt-0.5">{% if chore.others_can_manage %}Either of you{% else %}{{ owner_name }} only{% endif %}</dd></div>
+  {% endif %}
+</dl>
+
+{% if chore.notes %}
+  <p class="mt-6 whitespace-pre-line text-text-secondary">{{ chore.notes }}</p>
+{% endif %}
+
+<section class="mt-8">
+  <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Now</h2>
+  {% if row %}
+    <ul class="mt-2">{% include "household/chores/_row.html" %}</ul>
+    {% if upcoming %}
+      <p class="mt-2 text-xs text-text-muted">
+        Then {% for day in upcoming %}{{ day|date:"D M j" }}{% if not forloop.last %}, {% endif %}{% endfor %}, …
+      </p>
+    {% endif %}
+  {% elif chore.is_active %}
+    <p class="mt-2 text-sm text-text-muted">Nothing to do — {% if chore.repeats %}the schedule has ended{% else %}it's done{% endif %}.</p>
+  {% else %}
+    <p class="mt-2 text-sm text-text-muted">Paused. Edit it and tick Active to put it back on the list.</p>
+  {% endif %}
+</section>
+
+<section class="mt-8">
+  <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">History</h2>
+  {% if history %}
+    <ul class="mt-2 divide-y divide-border overflow-hidden rounded-card border border-border bg-surface text-sm">
+      {% for occurrence in history %}
+        <li class="flex items-baseline justify-between gap-3 px-4 py-2.5">
+          <span>{{ occurrence.due_on|date:"D, M j, Y"|default:"Undated" }}</span>
+          <span class="text-right {% if occurrence.status == 'done' %}text-success{% elif occurrence.status == 'missed' %}text-error{% else %}text-text-muted{% endif %}">
+            {{ occurrence.get_status_display }}{% if occurrence.completed_by %} · {{ occurrence.completed_by.first_name|default:occurrence.completed_by.username }}, {{ occurrence.completed_at|date:"M j" }}{% endif %}
+            {% if occurrence.note %}<span class="block text-xs text-text-muted">{{ occurrence.note }}</span>{% endif %}
+          </span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="mt-2 text-sm text-text-muted">Not done yet.</p>
+  {% endif %}
+</section>
+
+{% if can_manage %}
+  <p class="mt-10">
+    <a href="{% url 'household:chore_delete' chore.pk %}" class="text-sm text-error hover:underline">Delete this chore</a>
+  </p>
+{% endif %}
+{% endblock %}

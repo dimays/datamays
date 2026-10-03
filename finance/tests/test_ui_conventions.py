@@ -15,7 +15,8 @@ from pathlib import Path
 from django.test import SimpleTestCase
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-TEMPLATES = REPO_ROOT / "finance" / "templates"
+# Both private apps share one UI vocabulary.
+TEMPLATE_DIRS = [REPO_ROOT / "finance" / "templates", REPO_ROOT / "household" / "templates"]
 INPUT_CSS = REPO_ROOT / "assets" / "css" / "input.css"
 BUILT_CSS = REPO_ROOT / "static" / "css" / "tailwind.css"
 
@@ -28,7 +29,7 @@ RETIRED_PATTERNS = {
 
 
 def _templates():
-    return sorted(TEMPLATES.rglob("*.html"))
+    return sorted(path for directory in TEMPLATE_DIRS for path in directory.rglob("*.html"))
 
 
 class ComponentClassTests(SimpleTestCase):

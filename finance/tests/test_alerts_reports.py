@@ -27,6 +27,7 @@ from finance.models import (
     ReportCadence,
     ScheduledReport,
 )
+from finance.periods import monthly_period
 from finance.services.alerts import evaluate_alerts
 from finance.services import alerts as alert_service
 from finance.services import reports as report_service
@@ -66,14 +67,16 @@ class AlertTestCase(TestCase):
         self.groceries = Category.objects.get(slug="food-groceries")
 
     def make_budget_period(self, actual="600.00", target="800.00", name="Groceries"):
-        today = household_today()
+        # The real calendar month. Ending it on the 28th made these tests fail
+        # on the 29th–31st, when today falls outside the period.
+        start, end = monthly_period(date(2026, 1, 1), household_today())
         budget = Budget.objects.create(name=name, amount=Decimal(target))
         budget.categories.set([self.groceries])
 
         period = BudgetPeriod.objects.create(
             budget=budget,
-            period_start=today.replace(day=1),
-            period_end=today.replace(day=28),
+            period_start=start,
+            period_end=end,
             target_amount=Decimal(target),
             actual_amount=Decimal(actual),
         )

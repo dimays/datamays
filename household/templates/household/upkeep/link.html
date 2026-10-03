@@ -1,0 +1,55 @@
+{% extends "household/base.html" %}
+{% load household_extras %}
+
+{% block section_nav %}{% include "household/upkeep/_section_nav.html" %}{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Link a purchase</h1>
+<p class="page-subtitle">
+  For “{{ occurrence.chore.title }}”, done {{ occurrence.completed_at|date:"M j, Y" }}.
+  Linking takes the job's cost from the purchase.
+</p>
+
+{% include "household/partials/messages.html" %}
+
+{% if occurrence.transaction %}
+  <div class="mt-6 flex flex-wrap items-center gap-3 rounded-card border border-border bg-surface p-4">
+    <div class="min-w-0 flex-1">{% include "household/partials/transaction.html" with txn=occurrence.transaction %}</div>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="unlink" value="1" />
+      <button type="submit" class="text-sm text-text-muted hover:text-error">Unlink</button>
+    </form>
+  </div>
+{% endif %}
+
+<form method="get" class="mt-6 flex max-w-lg gap-2" role="search">
+  <label for="job-search" class="sr-only">Search by merchant</label>
+  <input id="job-search" type="search" name="q" value="{{ query }}" placeholder="Search by merchant"
+         class="w-full rounded-button border border-border bg-background px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary" />
+  <button type="submit" class="rounded-button border border-border px-4 py-2 text-sm font-medium text-text-secondary transition hover:bg-muted">Search</button>
+</form>
+
+{% if candidates %}
+  <p class="mt-6 text-xs text-text-muted">{% if query %}Matching “{{ query }}” in the three months before.{% else %}Home-related purchases within two weeks of the job.{% endif %}</p>
+  <ul class="mt-2 divide-y divide-border overflow-hidden rounded-card border border-border bg-surface">
+    {% for txn in candidates %}
+      <li class="flex items-center gap-3 px-4 py-3">
+        <div class="min-w-0 flex-1">{% include "household/partials/transaction.html" %}</div>
+        <p class="shrink-0 font-mono text-sm">${{ txn.spent|money }}</p>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="transaction" value="{{ txn.pk }}" />
+          <button type="submit" class="rounded-button bg-primary px-3 py-1.5 text-xs font-medium text-white transition hover:bg-primary-600">
+            Link<span class="sr-only"> {{ txn.merchant|default:txn.description_raw }}</span>
+          </button>
+        </form>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <div class="empty-state mt-6"><p class="text-text-secondary">No matching purchases{% if query %} for “{{ query }}”{% endif %}.</p></div>
+{% endif %}
+
+<p class="mt-8"><a href="{% url 'household:upkeep_detail' item_pk %}" class="text-sm text-primary hover:underline">← Back to the item</a></p>
+{% endblock %}

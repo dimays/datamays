@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{% block title %}{{ page_title }} — Mays Household{% endblock %}</title>
+  {# viewport-fit=cover lets the bottom nav sit flush against the home indicator on iPhones. #}
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0B0F19" />
+  <meta name="robots" content="noindex, nofollow" />
+  {% load static %}
+  <link href="{% static 'css/tailwind.css' %}" rel="stylesheet" />
+  <link rel="icon" type="image/x-icon" href="{% static 'img/favicon.ico' %}">
+  <script src="{% static 'js/alpine.min.js' %}" defer></script>
+  <script src="{% static 'js/htmx.min.js' %}" defer></script>
+</head>
+
+<body class="min-h-screen bg-background font-sans text-text-primary antialiased">
+  {% include 'household/partials/header.html' %}
+
+  {# Bottom padding clears the fixed mobile tab bar; it collapses on desktop. #}
+  <main class="mx-auto w-full max-w-5xl px-4 pb-28 pt-20 md:px-8 md:pb-16 md:pt-24">
+    {# A section's own navigation — Finance's Home/Activity/Charts/… strip. #}
+    {% block section_nav %}{% endblock %}
+    {% block content %}{% endblock %}
+  </main>
+
+  {% include 'household/partials/nav_bottom.html' %}
+
+  {% comment %}
+    One confirmation dialog for the whole app, in place of the browser's
+    native confirm() — which draws a light-mode system box over this dark
+    page. Anything with hx-confirm routes through it; see the script below.
+  {% endcomment %}
+  <dialog id="confirm-dialog"
+          class="w-[min(24rem,calc(100vw-2rem))] rounded-card border border-border bg-surface p-0 text-text-primary shadow-2xl backdrop:bg-black/60">
+    <form method="dialog" class="p-5">
+      <p data-message class="text-base"></p>
+      <div class="mt-5 flex justify-end gap-2">
+        <button value="cancel" class="rounded-button border border-border px-4 py-2 text-sm font-medium text-text-secondary transition hover:bg-muted">
+          Cancel
+        </button>
+        <button value="confirm" autofocus data-confirm-button class="rounded-button bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-600">
+          Confirm
+        </button>
+      </div>
+    </form>
+  </dialog>
+  {% comment %}
+    Where a failed htmx action says so. htmx doesn't swap an error response,
+    so without this a refused or failed tap did nothing visible at all.
+  {% endcomment %}
+  <div id="action-error" role="alert" hidden
+       class="fixed inset-x-4 bottom-24 z-50 rounded-button border border-error/40 bg-surface px-4 py-3 text-sm text-error shadow-xl md:bottom-8 md:left-auto md:right-8 md:max-w-sm"></div>
+
+  <script>
+    (function () {
+      var timer;
+      function showError(text) {
+        var box = document.getElementById("action-error");
+        box.textContent = text;
+        box.hidden = false;
+        clearTimeout(timer);
+        timer = setTimeout(function () { box.hidden = true; }, 8000);
+      }
+      document.addEventListener("htmx:responseError", function (event) {
+        var status = event.detail.xhr.status;
+        showError(
+          status === 403 ? "That isn't yours to change — its owner can share it with you." :
+          status === 404 ? "That has changed since this page loaded. Refresh to see the latest." :
+          "Something went wrong and nothing was changed. Try again."
+        );
+      });
+      document.addEventListener("htmx:sendError", function () {
+        showError("Couldn't reach the server — check your connection and try again.");
+      });
+    })();
+
+    document.addEventListener("htmx:confirm", function (event) {
+      if (!event.detail.question) return;
+      event.preventDefault();
+
+      var dialog = document.getElementById("confirm-dialog");
+      dialog.querySelector("[data-message]").textContent = event.detail.question;
+      // The asking element may name the action ("Yes, mark it done").
+      dialog.querySelector("[data-confirm-button]").textContent =
+        (event.detail.elt && event.detail.elt.dataset.confirmLabel) || "Confirm";
+      dialog.returnValue = "";
+      dialog.addEventListener("close", function () {
+        if (dialog.returnValue === "confirm") event.detail.issueRequest(true);
+      }, { once: true });
+      dialog.showModal();
+    });
+  </script>
+
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

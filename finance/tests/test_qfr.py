@@ -48,7 +48,7 @@ from .test_access import make_user
 def _fixed_now(year, month, day):
     """A real aware datetime, not a bare MagicMock.
 
-    Patching finance.dates.timezone.now with return_value=Mock() breaks any
+    Patching household.dates.timezone.now with return_value=Mock() breaks any
     model saved during the same context: Django's own auto_now_add/auto_now
     machinery also calls timezone.now(), and binding a Mock as a query
     parameter fails in a confusing way ("F() expressions can only be used to
@@ -497,20 +497,20 @@ class GenerateQFRsCommandTests(TestCase):
         call_command("seed_finance_categories", verbosity=0)
 
     def test_since_backfills_every_completed_quarter(self):
-        with patch("finance.dates.timezone.now", return_value=_fixed_now(2026, 7, 15)):
+        with patch("household.dates.timezone.now", return_value=_fixed_now(2026, 7, 15)):
             call_command("generate_qfrs", "--since", "2025-Q4", verbosity=0)
 
         generated = set(QuarterlyReport.objects.values_list("year", "quarter"))
         self.assertEqual(generated, {(2025, 4), (2026, 1), (2026, 2)})
 
     def test_the_in_progress_quarter_is_never_generated(self):
-        with patch("finance.dates.timezone.now", return_value=_fixed_now(2026, 7, 15)):
+        with patch("household.dates.timezone.now", return_value=_fixed_now(2026, 7, 15)):
             call_command("generate_qfrs", "--since", "2025-Q4", verbosity=0)
 
         self.assertFalse(QuarterlyReport.objects.filter(year=2026, quarter=3).exists())
 
     def test_rerunning_without_regenerate_does_not_recompute(self):
-        with patch("finance.dates.timezone.now", return_value=_fixed_now(2026, 4, 15)):
+        with patch("household.dates.timezone.now", return_value=_fixed_now(2026, 4, 15)):
             call_command("generate_qfrs", "--quarter", "2026-Q1", verbosity=0)
             first_generated_at = QuarterlyReport.objects.get(year=2026, quarter=1).generated_at
 

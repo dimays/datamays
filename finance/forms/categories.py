@@ -4,7 +4,7 @@ from django import forms
 from django.utils.text import slugify
 
 from ..models import Category
-from .base import StyledFormMixin
+from household.forms.base import StyledFormMixin
 
 
 class CategoryForm(StyledFormMixin, forms.ModelForm):

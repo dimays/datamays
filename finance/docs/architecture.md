@@ -36,17 +36,26 @@ finance/
 
 Views live in a `views/` package, one module per screen area, re-exported
 from `views/__init__.py` — check `finance/urls.py` for the full map from URL
-to view. `views/base.py` holds the three things every view shares: the access
-gate, `PageTitleMixin` (set `page_title`, or override `get_page_title()` when
-it depends on the object), and the personal-object mixins for the alert and
+to view. `views/base.py` holds what every view shares: `FinanceView` and
+`FinancePageMixin`, built on the household shell's access gate and
+`PageTitleMixin` (set `page_title`, or override `get_page_title()` when it
+depends on the object), plus the personal-object mixins for the alert and
 report views, which must only ever see the signed-in person's own rows —
 `PersonalQuerysetMixin` to scope, `PersonalObjectMixin` to also stamp the
 owner on create.
 
-Forms live in `forms/`, not alongside the views that render them.
-`forms/base.py`'s `StyledFormMixin` applies the app's field styling by widget
-type, so a form declares `widgets` only for attributes specific to it — a
-step, a min/max, a placeholder. Do not restate the class string.
+Forms live in `forms/`, not alongside the views that render them. The shell's
+`StyledFormMixin` (`household/forms/base.py`) applies the field styling by
+widget type, so a form declares `widgets` only for attributes specific to it —
+a step, a min/max, a placeholder. Do not restate the class string.
+
+## Finance inside the household shell
+
+Finance is one section of Mays Household (ADR 0008). The shell owns sign-in,
+the access gate, the member group, the page chrome (`household/base.html`,
+which `finance/base_finance.html` extends), and `household_today()`. Finance
+may import only those shell modules from `household` — a test enforces it
+(ADR 0009) — and never learns that chores or projects exist.
 
 ## Two conventions everything depends on
 
@@ -146,7 +155,8 @@ QFRs use *calendar* quarters unconditionally (`periods.py::quarter_bounds`),
 deliberately not anchored the way budgets are — "Q1" has to mean the same
 thing to both of you, always.
 
-**Every date decision in this app goes through `finance/dates.py`, never
+**Every date decision in this app goes through `household_today()` (from
+`finance/dates.py`, which re-exports `household/dates.py`), never
 `django.utils.timezone.localdate()` directly.** The project's `TIME_ZONE` is
 UTC, correct for storage and for the public site, wrong for a household budget
 — UTC has already rolled over to tomorrow by around 7pm in Chicago. This bit
