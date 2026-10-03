@@ -5,7 +5,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Count, Prefetch
+from django.db.models import Prefetch
 
 from .. import scheduling
 from ..dates import household_today, to_household_date
@@ -26,7 +26,6 @@ def items_with_state(today=None):
     today = today or household_today()
     items = list(
         MaintenanceItem.objects.select_related("chore", "chore__assignee")
-        .annotate(occurrence_count=Count("chore__occurrences"))
         .prefetch_related(
             Prefetch(
                 "chore__occurrences",

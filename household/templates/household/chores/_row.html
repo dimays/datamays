@@ -6,6 +6,7 @@
   courtesy, not a guard. Without JavaScript the forms still POST and redirect
   back to this page.
 {% endcomment %}
+{% if announce %}<span class="sr-only" role="status">{{ announce }}</span>{% endif %}
 <li id="occurrence-{{ row.occurrence.pk }}"
     class="flex items-start gap-3 rounded-card border bg-surface p-3.5 {% if row.bucket == 'overdue' %}border-error/50 border-l-4 border-l-error{% else %}border-border{% endif %}">
   <form method="post"
@@ -13,7 +14,8 @@
         hx-post="{% url 'household:occurrence_action' row.occurrence.pk 'complete' %}"
         hx-target="#occurrence-{{ row.occurrence.pk }}"
         hx-swap="outerHTML"
-        {% if row.needs_confirmation %}hx-confirm="Mark {{ row.assignee_name }}’s “{{ row.chore.title }}” as done?"{% endif %}>
+        hx-disabled-elt="find button"
+        {% if row.needs_confirmation %}hx-confirm="Mark {{ row.assignee_name }}’s “{{ row.chore.title }}” as done?" data-confirm-label="Yes, mark it done"{% endif %}>
     {% csrf_token %}
     <input type="hidden" name="next" value="{{ next_url|default:request.get_full_path }}" />
       {% if show_assignee %}<input type="hidden" name="show_assignee" value="1" />{% endif %}
@@ -30,6 +32,9 @@
     <p class="mt-0.5 text-xs {% if row.bucket == 'overdue' %}font-semibold text-error{% else %}text-text-muted{% endif %}">
       {% due_words row.occurrence today %}
     </p>
+    {% if row.chore.missed_streak %}
+      <p class="mt-0.5 text-xs font-medium text-warning">Missed {{ row.chore.missed_streak }} time{{ row.chore.missed_streak|pluralize }} before this</p>
+    {% endif %}
     <p class="mt-0.5 truncate text-xs text-text-muted">
       {{ row.schedule_words }}{% if show_assignee %} · {{ row.assignee_name }}{% endif %}
     </p>
@@ -40,7 +45,8 @@
           action="{% url 'household:occurrence_action' row.occurrence.pk 'skip' %}"
           hx-post="{% url 'household:occurrence_action' row.occurrence.pk 'skip' %}"
           hx-target="#occurrence-{{ row.occurrence.pk }}"
-          hx-swap="outerHTML">
+          hx-swap="outerHTML"
+          hx-disabled-elt="find button">
       {% csrf_token %}
       <input type="hidden" name="next" value="{{ next_url|default:request.get_full_path }}" />
       {% if show_assignee %}<input type="hidden" name="show_assignee" value="1" />{% endif %}

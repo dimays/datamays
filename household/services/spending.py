@@ -16,7 +16,8 @@ from django.db import IntegrityError, transaction
 from .. import scheduling
 from ..dates import to_household_date
 from ..integrations import finance
-from ..models import OccurrenceStatus, ProjectExpense
+from ..models import Occurrence, OccurrenceStatus, ProjectExpense
+from . import occurrences
 
 ZERO = Decimal("0")
 
@@ -78,7 +79,9 @@ class BudgetSummary:
     def percent(self):
         if not self.target:
             return 0
-        return min(100, round(100 * self.actual / self.target))
+        # Clamped both ways: a project with only a refund linked has negative
+        # spend, which rendered a "-5%" bar. Found in review.
+        return max(0, min(100, round(100 * self.actual / self.target)))
 
 
 def budget_summary(project):
@@ -88,15 +91,22 @@ def budget_summary(project):
         project.expenses.select_related("transaction", "transaction__account", "transaction__category", "budget_line")
     )
 
+    # Re-checked on every read, not only when linked: if finance later marks
+    # a linked purchase as a transfer or recategorizes it as income, it stops
+    # counting here too, as it has in finance's own reports. Found in review.
+    counting = finance.still_spending({expense.transaction_id for expense in expenses})
+
     by_line = defaultdict(lambda: ZERO)
     for expense in expenses:
         expense.spent = finance.spent(expense.transaction)
-        by_line[expense.budget_line_id] += expense.spent
+        expense.counts = expense.transaction_id in counting
+        if expense.counts:
+            by_line[expense.budget_line_id] += expense.spent
 
     return BudgetSummary(
         budget=project.budget_total,
         estimated=sum((line.estimated for line in lines), ZERO),
-        actual=finance.total_spent(expense.transaction for expense in expenses),
+        actual=finance.total_spent(expense.transaction for expense in expenses if expense.counts),
         lines=[LineRow(line, by_line[line.pk]) for line in lines],
         unassigned=by_line[None],
         expenses=expenses,
@@ -147,26 +157,30 @@ def job_candidates(occurrence, today, query=""):
     end = min(today, done_on + timedelta(days=JOB_WINDOW_DAYS))
     if query:
         start = done_on - timedelta(days=90)
-    return finance.spending_candidates(start=start, end=end, query=query)
+    # A purchase already behind another job isn't offered again: it would
+    # count twice in spend by year.
+    taken = Occurrence.objects.filter(transaction__isnull=False).exclude(pk=occurrence.pk).values_list("transaction_id", flat=True)
+    return finance.spending_candidates(start=start, end=end, query=query, exclude_ids=taken, money_out_only=True)
 
 
 def link_job(occurrence, transaction_id):
     """Tie a done job to its purchase, and take its cost from it.
 
     The transaction is the truth: a cost typed at the time is replaced by
-    what was actually spent. A refund (spent < 0) leaves the cost alone —
-    a job can't have cost a negative amount.
+    what was actually spent. Refused: a refund (a job can't have cost a
+    negative amount) and a purchase already behind another job (it would
+    count twice). Found in review: both were accepted.
     """
     if occurrence.status != OccurrenceStatus.DONE:
         return False
     txn = finance.get_transaction(transaction_id)
-    if txn is None:
+    if txn is None or finance.spent(txn) < 0:
+        return False
+    if Occurrence.objects.filter(transaction=txn).exclude(pk=occurrence.pk).exists():
         return False
 
     occurrence.transaction = txn
-    amount = finance.spent(txn)
-    if amount >= 0:
-        occurrence.cost = amount
+    occurrence.cost = finance.spent(txn)
     occurrence.save(update_fields=["transaction", "cost", "updated_at"])
     return True
 
@@ -210,19 +224,17 @@ def _due_dates_within(item, today, end):
             if day > current.due_on:
                 count += 1
     elif schedule.repeats:
-        # The current open occurrence is already among those created, so
-        # this is how many more the schedule allows.
-        remaining = (
-            schedule.max_occurrences - item.occurrence_count
-            if schedule.max_occurrences else None
-        )
+        # The same rule the lifecycle uses — interval, season, end date, and
+        # count — assuming each one is done on the day it's due.
+        # Counted the way the lifecycle counts: only occurrences since the
+        # schedule was last set. A query only when there is a limit to hit.
+        made = occurrences.occurrences_toward_limit(chore) if schedule.max_occurrences else 0
         day = max(current.due_on, today)
-        while remaining is None or count - 1 < remaining:
-            day = scheduling.advance(schedule, day)
-            if schedule.season:
-                day = scheduling.start_of_season_on_or_after(day, schedule.season)
-            if day > end or (schedule.ends_on and day > schedule.ends_on):
+        while True:
+            day = scheduling.next_after_completion(schedule, day, made)
+            if day is None or day > end:
                 break
+            made += 1
             count += 1
     return count
 

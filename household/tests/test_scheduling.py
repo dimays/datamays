@@ -364,3 +364,21 @@ class ValidationTests(SimpleTestCase):
         for schedule, field in cases:
             with self.subTest(field=field, schedule=schedule):
                 self.assertIn(field, validate(schedule))
+
+
+class OverflowTests(SimpleTestCase):
+    """Round-1 review: "every 9000 years" passed validation, then crashed."""
+
+    def test_a_deadline_past_year_9999_is_no_deadline_not_a_crash(self):
+        schedule = Schedule(frequency=Frequency.DAILY, starts_on=date(9999, 12, 30), deadline_offset_days=5)
+
+        self.assertIsNone(deadline_for(schedule, date(9999, 12, 30)))
+
+    def test_absurd_intervals_are_refused(self):
+        self.assertIn("interval", validate(Schedule(Frequency.YEARLY, date(2026, 1, 1), interval=9000)))
+        self.assertEqual(validate(Schedule(Frequency.YEARLY, date(2026, 1, 1), interval=10)), {})
+
+    def test_and_running_off_the_calendar_ends_quietly(self):
+        far = Schedule(Frequency.YEARLY, date(9998, 1, 1), interval=5)
+        self.assertEqual(list(fixed_dates(far)), [date(9998, 1, 1)])
+        self.assertIsNone(next_after_completion(after(Frequency.YEARLY, date(9998, 1, 1), 5), date(9998, 1, 1), 1))

@@ -44,7 +44,8 @@ class ProjectExpense(TimestampedModel):
         ordering = ["-transaction__posted_on", "-id"]
         constraints = [
             # Counting one purchase twice in the same project would overstate
-            # its spend; the same purchase split across two projects is fine.
+            # its spend. The same purchase may be linked to two projects, but
+            # it then counts in full in each — it is not split between them.
             models.UniqueConstraint(fields=["project", "transaction"], name="one_link_per_project_transaction"),
         ]
 

@@ -35,6 +35,10 @@ from django.db import models
 MAX_STEPS = 20_000
 HORIZON_YEARS = 100
 
+# The longest gap a schedule may have, by unit — ten years in each. Plenty for
+# a household, and well short of running off the end of the calendar.
+MAX_INTERVAL = {"daily": 3650, "weekly": 520, "monthly": 120, "yearly": 10}
+
 WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 ORDINALS = {1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth"}
 
@@ -213,8 +217,15 @@ def fixed_dates(schedule: Schedule):
 
     horizon = schedule.starts_on.year + HORIZON_YEARS
     produced = 0
-    for steps, day in enumerate(_candidates(schedule)):
-        if steps >= MAX_STEPS or day.year > horizon:
+    candidates = _candidates(schedule)
+    for steps in range(MAX_STEPS):
+        try:
+            day = next(candidates)
+        except (OverflowError, ValueError):
+            # A date past year 9999. validate() caps intervals so this can't
+            # come from the form; this keeps anything else from a 500.
+            return
+        if day.year > horizon:
             return
         if schedule.ends_on and day > schedule.ends_on:
             return
@@ -222,9 +233,9 @@ def fixed_dates(schedule: Schedule):
             continue
 
         yield day
-        # Dates before the chore existed are not occurrences of it, so they
-        # don't use up its count: "ten times" means ten from when it was made,
-        # not ten from a start date in the past.
+        # Dates before the schedule was set are not occurrences of it, so
+        # they don't use up its count: "ten times" means ten from when it was
+        # set, not ten from a start date in the past.
         if schedule.counts_from and day < schedule.counts_from:
             continue
         produced += 1
@@ -240,21 +251,27 @@ def next_fixed_after(schedule: Schedule, day: date) -> date | None:
     return next((due for due in fixed_dates(schedule) if due > day), None)
 
 
+def arrived_since(schedule: Schedule, open_due: date, today: date) -> list:
+    """Every due date after `open_due` that has arrived by `today`, in order."""
+    arrived = []
+    for due in fixed_dates(schedule):
+        if due > today:
+            break
+        if due > open_due:
+            arrived.append(due)
+    return arrived
+
+
 def superseding_due(schedule: Schedule, open_due: date, today: date) -> date | None:
     """The newest due date that has arrived since `open_due`, if any.
 
     A fixed chore keeps one open occurrence. When a later due date arrives
     while it is still open, the old one is missed and this newer one takes
     its place — only the newest, so a week away from a daily chore collapses
-    into one overdue item rather than a wall of seven.
+    into one row rather than a wall of seven.
     """
-    latest = None
-    for due in fixed_dates(schedule):
-        if due > today:
-            break
-        if due > open_due:
-            latest = due
-    return latest
+    arrived = arrived_since(schedule, open_due, today)
+    return arrived[-1] if arrived else None
 
 
 # --- after-completion schedules --------------------------------------------
@@ -280,7 +297,10 @@ def next_after_completion(schedule: Schedule, done_on: date, occurrences_so_far:
     if schedule.max_occurrences and occurrences_so_far >= schedule.max_occurrences:
         return None
 
-    due = advance(schedule, done_on)
+    try:
+        due = advance(schedule, done_on)
+    except (OverflowError, ValueError):
+        return None
     if schedule.season:
         due = start_of_season_on_or_after(due, schedule.season)
     if schedule.ends_on and due > schedule.ends_on:
@@ -347,7 +367,10 @@ def is_low_frequency(schedule: Schedule) -> bool:
 def deadline_for(schedule: Schedule, due: date | None) -> date | None:
     if due is None or schedule.deadline_offset_days is None:
         return None
-    return due + timedelta(days=schedule.deadline_offset_days)
+    try:
+        return due + timedelta(days=schedule.deadline_offset_days)
+    except OverflowError:  # past year 9999; no deadline rather than a 500
+        return None
 
 
 # --- words -----------------------------------------------------------------
@@ -438,6 +461,10 @@ def validate(schedule: Schedule) -> dict:
         errors["starts_on"] = "A repeating chore needs a first due date."
     if schedule.interval < 1:
         errors["interval"] = "Repeat at least every 1."
+    elif schedule.interval > MAX_INTERVAL.get(schedule.frequency, schedule.interval):
+        # Found in review: "every 9000 years" passed validation and then ran
+        # off the end of the calendar.
+        errors["interval"] = f"That's longer than this app can schedule — at most every {MAX_INTERVAL[schedule.frequency]}."
     if any(day not in range(7) for day in schedule.weekdays):
         errors["weekdays"] = "Weekdays run from Monday (0) to Sunday (6)."
     if schedule.weekdays and schedule.frequency != Frequency.WEEKLY:

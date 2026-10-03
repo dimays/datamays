@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.views import View
@@ -68,6 +69,9 @@ class ChoreListView(HouseholdView):
                 Chore.objects.select_related("owner", "assignee", "maintenance_item")
             )
         )
+        # Same rule as every other screen, so this list can't show a chore as
+        # overdue that Today shows as due today. Found in review.
+        occurrences.refresh(chores, household_today())
 
         def section(title, rows):
             return {"title": title, "chores": rows}
@@ -114,9 +118,10 @@ class ChoreCreateView(ChoreFormMixin, CreateView):
         return response
 
 
-class MaintenanceRedirectMixin:
-    """A maintenance item's chore is viewed and edited on the Upkeep pages,
-    where its instructions, supplies, and costs live alongside the schedule.
+class ElsewhereRedirectMixin:
+    """Sends a chore to the page that owns it: a maintenance item's chore to
+    its Upkeep pages (instructions, supplies, and costs live there), and —
+    for editing — a project task to its project's task form.
 
     Must come *after* the access gate in a view's bases, so it only ever
     runs for a verified member: before the gate, a stranger could tell an
@@ -151,31 +156,25 @@ class ManagedChoreMixin:
         return chore
 
 
-class ChoreUpdateView(ManagedChoreMixin, ChoreFormMixin, MaintenanceRedirectMixin, UpdateView):
+class ChoreUpdateView(ManagedChoreMixin, ChoreFormMixin, ElsewhereRedirectMixin, UpdateView):
     upkeep_url_name = "household:upkeep_edit"
     project_task_url_name = "household:project_task_edit"
 
     def get_page_title(self):
         return f"Edit {self.object.title}"
 
+    @transaction.atomic
     def form_valid(self, form):
         # Read from the database: by now form validation has already copied
         # the new values onto self.object.
-        stored = Chore.objects.get(pk=self.object.pk)
-        before = (stored.schedule, stored.is_active)
+        before = Chore.objects.get(pk=self.object.pk)
         response = super().form_valid(form)
-
-        # Only a schedule change replaces the open occurrence. Doing it on
-        # every save would quietly reset an overdue chore whose title was
-        # merely tidied up.
-        if before != (self.object.schedule, self.object.is_active):
-            occurrences.reschedule(self.object)
-
+        occurrences.apply_edit(self.object, before)
         messages.success(self.request, f"Saved “{self.object.title}”.")
         return response
 
 
-class ChoreDeleteView(ManagedChoreMixin, HouseholdPageMixin, MaintenanceRedirectMixin, DeleteView):
+class ChoreDeleteView(ManagedChoreMixin, HouseholdPageMixin, ElsewhereRedirectMixin, DeleteView):
     upkeep_url_name = "household:upkeep_delete"
 
     model = Chore
@@ -188,7 +187,7 @@ class ChoreDeleteView(ManagedChoreMixin, HouseholdPageMixin, MaintenanceRedirect
         return super().form_valid(form)
 
 
-class ChoreDetailView(HouseholdPageMixin, MaintenanceRedirectMixin, DetailView):
+class ChoreDetailView(HouseholdPageMixin, ElsewhereRedirectMixin, DetailView):
     model = Chore
     template_name = "household/chores/detail.html"
     context_object_name = "chore"
@@ -256,7 +255,8 @@ class OccurrenceActionView(HouseholdPageMixin, View):
         # a job, so a cost is validated as money wherever it is posted from.
         details = LogCompletionForm(request.POST)
         if not details.is_valid():
-            messages.error(request, "That cost doesn't look like an amount — nothing was changed.")
+            problem = "That cost doesn't look like an amount" if "cost" in details.errors else "That note is too long"
+            messages.error(request, f"{problem} — nothing was changed.")
             return redirect(safe_next(request, default=reverse("household:chores")))
         note = details.cleaned_data["note"].strip()
 
@@ -267,19 +267,36 @@ class OccurrenceActionView(HouseholdPageMixin, View):
         elif action == "skip":
             following = occurrences.skip(occurrence, by=request.user, note=note)
         else:
-            occurrences.reopen(occurrence)
+            undone = occurrences.reopen(occurrence)
             following = None
+
+        occurrence.refresh_from_db()
+        # Tapped on a row that had already moved on: its date passed and it
+        # was recorded as missed (by the sweep, or another screen) while the
+        # page sat open. Nothing was done. Found in review: this gave a 500,
+        # or a "Marked done" for nothing.
+        moved_on = action != "undo" and occurrence.status == OccurrenceStatus.MISSED
+        title = occurrence.chore.title
 
         if not is_htmx(request):
             # A full-page post (maintenance's "Mark done", or no JavaScript)
             # gets no swapped row, so say what happened.
-            if action != "undo":
+            if moved_on:
+                messages.error(request, f"“{title}” {self.moved_on_words(occurrence.chore)} — nothing was changed.")
+            elif action == "undo":
+                if undone:
+                    messages.success(request, f"Undone: “{title}” is back on the list.")
+                else:
+                    messages.error(request, f"Couldn't undo “{title}” — {self.undo_refusal(occurrence)}.")
+            elif occurrence.completed_by_id != request.user.pk:
+                who = display_name(occurrence.completed_by)
+                messages.error(request, f"“{title}” was already {occurrence.get_status_display().lower()} by {who}.")
+            else:
                 done = "Marked done" if action == "complete" else "Skipped"
                 upcoming = f" — next due {following.due_on:%b} {following.due_on.day}" if following and following.due_on else ""
-                messages.success(request, f"{done}: “{occurrence.chore.title}”{upcoming}.")
+                messages.success(request, f"{done}: “{title}”{upcoming}.")
             return redirect(safe_next(request, default=reverse("household:chores")))
 
-        occurrence.refresh_from_db()
         today = household_today()
         # The swapped-in row's no-JavaScript fallback should return to the
         # page it sits on, not to this endpoint.
@@ -292,17 +309,49 @@ class OccurrenceActionView(HouseholdPageMixin, View):
             "show_assignee": request.POST.get("show_assignee") == "1",
         }
 
+        if moved_on:
+            # Swap in the row that is open now, if there is one.
+            context["announce"] = f"“{title}” {self.moved_on_words(occurrence.chore)} — nothing was changed."
+            current = occurrence.chore.occurrences.filter(status=OccurrenceStatus.OPEN).first()
+            if current is not None:
+                current.chore = occurrence.chore
+                occurrence = current
+
         if occurrence.is_open:
             occurrence.chore.open_occurrences = [occurrence]
+            # As the row reads on the page it replaces.
+            occurrence.chore.missed_streak = occurrences.missed_streak(occurrence.chore)
             [row] = checklist.rows_for(request.user, [occurrence.chore], today)
+            # Announced to screen readers, which otherwise hear nothing when
+            # a row is swapped back in.
+            context.setdefault("announce", f"“{title}” is back on the list.")
             return render(request, "household/chores/_row.html", {**context, "row": row})
+        if action == "undo":
+            context["undo_refused"] = self.undo_refusal(occurrence)
 
         return render(
             request,
             "household/chores/_row_closed.html",
             {**context, "occurrence": occurrence, "following": following,
-             "can_undo": permissions.can_undo(request.user, occurrence)},
+             # Only a done or skipped one can be undone; a missed row's Undo
+             # could never work. Found in review.
+             "can_undo": occurrence.status in occurrences.CLOSED_BY_A_PERSON
+             and permissions.can_undo(request.user, occurrence)},
         )
+
+    @staticmethod
+    def undo_refusal(occurrence):
+        if not occurrence.chore.is_active:
+            return "it has been paused since"
+        return "it has moved on since"
+
+    @staticmethod
+    def moved_on_words(chore):
+        if not chore.is_active:
+            return "has been paused since"
+        if not chore.occurrences.filter(status=OccurrenceStatus.OPEN).exists():
+            return "has ended since"
+        return "had moved on to its next date"
 
 
 class PartnerToggleView(HouseholdPageMixin, View):

@@ -14,8 +14,9 @@ third failure *is* a redirect — by then the visitor has proven they hold a
 household account, so guiding them through TOTP leaks nothing.
 
 This lived in `finance/access.py` until finance became one section of the
-household shell (ADR 0008). The group was renamed from `finance` to
-`household` by `household/migrations/0001_rename_member_group.py`.
+household shell (ADR 0008). The members of the old `finance` group were
+copied into `household` by `household/migrations/0001_rename_member_group.py`;
+the `finance` group is kept so a code rollback still lets them in.
 """
 
 from django.core.exceptions import PermissionDenied

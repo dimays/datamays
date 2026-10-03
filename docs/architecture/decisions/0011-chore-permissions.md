@@ -48,3 +48,17 @@ protecting anything.
   the real endpoints.
 - Buttons a person can't use aren't drawn, but every endpoint still asks the
   service; the template is a convenience, the service is the rule.
+
+## Amendment — 2026-09-30, pre-merge review
+
+- **The grant is to manage, not to take over.** Only a chore's owner can
+  change whose it is; the field is disabled for the other person. (Switching
+  a shared chore back to personal would otherwise have made the editor its
+  owner.)
+- **A refused member sees a member's page** ("Not yours to change"), not the
+  stranger's 403 — and a refused or failed htmx action now shows a message
+  instead of silently doing nothing.
+- **Shared stays shared** (round 2). Editing a household chore to "mine"
+  made the editor its owner and locked the other person out of it — the
+  same takeover in another direction. The field is now fixed for an existing
+  shared chore, and the granted person can't change the grant either.

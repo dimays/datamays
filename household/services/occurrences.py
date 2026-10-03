@@ -23,12 +23,14 @@ Everything takes `today` explicitly (defaulting to `household_today()`) so
 tests can pin the date rather than patch the clock.
 """
 
+from datetime import timedelta
+
 from django.db import transaction
 from django.db.models import Prefetch
 from django.utils import timezone
 
 from .. import scheduling
-from ..dates import household_today, to_household_date
+from ..dates import household_start_of_day, household_today, to_household_date
 from ..models import Chore, Occurrence, OccurrenceStatus
 
 CLOSED_BY_A_PERSON = (OccurrenceStatus.DONE, OccurrenceStatus.SKIPPED)
@@ -58,12 +60,15 @@ def _open(chore, due_on):
     return Occurrence.objects.create(chore=chore, due_on=due_on, deadline=deadline)
 
 
-def _due_for_a_fresh_start(chore, today):
+def _due_for_a_fresh_start(chore, today, *, starts_on_changed=False):
     schedule = chore.schedule
 
     if schedule.anchor == scheduling.Anchor.AFTER_COMPLETION:
-        # Rescheduling must not forget when the job was last done: the
-        # furnace filter is still due 90 days after it was changed.
+        # A due date set by hand is what the person wants next.
+        if starts_on_changed:
+            return scheduling.first_due(schedule, today)
+        # Otherwise rescheduling must not forget when the job was last done:
+        # the furnace filter is still due 90 days after it was changed.
         last = (
             chore.occurrences.filter(status__in=CLOSED_BY_A_PERSON, completed_at__isnull=False)
             .order_by("-completed_at")
@@ -71,23 +76,91 @@ def _due_for_a_fresh_start(chore, today):
         )
         if last is not None:
             return scheduling.next_after_completion(
-                schedule, to_household_date(last.completed_at), chore.occurrences.count()
+                schedule, to_household_date(last.completed_at), occurrences_toward_limit(chore)
             )
+        return scheduling.first_due(schedule, today)
 
-    return scheduling.first_due(schedule, today)
+    # A fixed schedule starts from today, passing over dates already settled
+    # (`_settled_dates`). Found in review: editing (or pausing and resuming)
+    # a chore done today reopened today's occurrence, as if undone. Whatever
+    # was done or skipped today — even early, for a later date — settles
+    # today too: an edit right after doing it shouldn't put it straight back.
+    start = max(today, schedule.starts_on)
+    if chore.occurrences.filter(
+        status__in=CLOSED_BY_A_PERSON,
+        completed_at__gte=household_start_of_day(today),
+        completed_at__lt=household_start_of_day(today + timedelta(days=1)),
+    ).exists():
+        start = max(start, today + timedelta(days=1))
+    settled = _settled_dates(chore, start)
+    return next((due for due in scheduling.fixed_dates(schedule) if due >= start and due not in settled), None)
+
+
+def _settled_dates(chore, since):
+    """Due dates from `since` on that already have a closed occurrence —
+    done, skipped, or missed.
+
+    The one rule every path that picks a fixed date follows (fresh start,
+    advance, collapse): a settled date is never opened again or recorded
+    twice. Found in review: each path had its own rule, and a date done
+    early came back as open, or as a second, missed row beside the done one.
+    """
+    return set(
+        chore.occurrences.exclude(status=OccurrenceStatus.OPEN)
+        .filter(due_on__gte=since)
+        .values_list("due_on", flat=True)
+    )
+
+
+def _record_misses(chore, days):
+    """Record dates that came and went with nothing done as missed rows."""
+    Occurrence.objects.bulk_create(
+        Occurrence(chore=chore, due_on=day, deadline=scheduling.deadline_for(chore.schedule, day),
+                   status=OccurrenceStatus.MISSED)
+        for day in days[-MISSED_RECORD_LIMIT:]
+    )
+
+
+def missed_streak(chore):
+    """`checklist.with_missed_streak` for one chore already loaded."""
+    last_kept = (
+        chore.occurrences.filter(status__in=CLOSED_BY_A_PERSON).order_by("-id").values_list("id", flat=True).first()
+    )
+    return chore.occurrences.filter(status=OccurrenceStatus.MISSED, id__gt=last_kept or 0).count()
+
+
+def occurrences_toward_limit(chore):
+    """How many occurrences count against an after-completion chore's limit.
+
+    Those opened since the day the schedule was set (`Schedule.counts_from`,
+    a date — so one opened earlier that same day counts too), the same rule
+    fixed schedules follow — found in review: counting the whole
+    history meant changing a chore to "3 times" after ten done ones opened
+    nothing, and the chore silently vanished.
+
+    Missed rows don't count: they are dates of a fixed schedule that came
+    and went, recorded when one is changed to after-completion.
+    """
+    since = household_start_of_day(chore.schedule.counts_from)
+    return chore.occurrences.filter(created_at__gte=since).exclude(status=OccurrenceStatus.MISSED).count()
 
 
 @transaction.atomic
-def reschedule(chore, today=None):
+def reschedule(chore, today=None, *, starts_on_changed=False, was_fixed=None):
     """Bring a chore's open occurrence in line with its schedule.
 
     Call it after creating a chore, and after editing one *only if the
     schedule changed* — replacing the open occurrence resets it, so an
     overdue chore that merely had its title edited would lose its place.
 
+    `was_fixed` is whether the open occurrence was made under a fixed
+    schedule (`apply_edit` knows; it defaults to the chore's own).
+
     Returns the open occurrence, or None when there is nothing to do.
     """
     today = today or household_today()
+    if was_fixed is None:
+        was_fixed = chore.schedule.is_fixed
     current = chore.occurrences.select_for_update().filter(status=OccurrenceStatus.OPEN).first()
 
     if not chore.repeats:
@@ -107,15 +180,60 @@ def reschedule(chore, today=None):
         return _open(chore, chore.starts_on)
 
     if current is not None:
-        current.delete()
+        if current.is_overdue(today) and was_fixed:
+            # An overdue fixed occurrence is a miss, and history should say
+            # so, rather than the edit erasing it. (After-completion work is
+            # never missed, only overdue.) Found in review.
+            current.status = OccurrenceStatus.MISSED
+            current.save(update_fields=["status", "updated_at"])
+        else:
+            current.delete()
 
     # Pausing a repeating chore takes it off every checklist; resuming it
     # starts afresh from today.
     if not chore.is_active:
         return None
 
-    due = _due_for_a_fresh_start(chore, today)
+    due = _due_for_a_fresh_start(chore, today, starts_on_changed=starts_on_changed)
     return _open(chore, due) if due is not None else None
+
+
+def edit_signature(chore):
+    """Everything about a chore that decides its open occurrence.
+
+    Includes a one-off's deadline, which `Schedule` doesn't carry — found in
+    review: changing only that left the open occurrence on the old date.
+    """
+    return (chore.schedule, chore.is_active, chore.deadline)
+
+
+@transaction.atomic
+def apply_edit(chore, before, today=None):
+    """After a chore is saved from a form: bring its occurrence in line,
+    but only if something that decides it changed.
+
+    `before` is the stored chore as it was (re-read from the database before
+    the form ran). Editing only a title or notes must not reschedule — it
+    would reset an overdue chore. A schedule change restarts any occurrence
+    limit from today (`schedule_set_on`).
+    """
+    today = today or household_today()
+    if edit_signature(before) == edit_signature(chore):
+        return None
+
+    # Bring it up to date under the schedule it had, so dates that came and
+    # went before the edit are recorded as missed, as a screen would have.
+    if before.is_active and before.schedule.is_fixed:
+        before.open_occurrences = list(before.occurrences.filter(status=OccurrenceStatus.OPEN))
+        refresh([before], today)
+
+    if before.schedule != chore.schedule:
+        chore.schedule_set_on = today
+        chore.save(update_fields=["schedule_set_on", "updated_at"])
+
+    return reschedule(
+        chore, today, starts_on_changed=before.starts_on != chore.starts_on, was_fixed=before.schedule.is_fixed
+    )
 
 
 def _advance(closed, today):
@@ -125,19 +243,29 @@ def _advance(closed, today):
         return None
 
     schedule = chore.schedule
-    due = scheduling.next_due(
-        schedule,
-        previous_due=closed.due_on,
-        done_on=to_household_date(closed.completed_at),
-        occurrences_so_far=chore.occurrences.count(),
-    )
+    if not schedule.is_fixed:
+        due = scheduling.next_due(
+            schedule,
+            previous_due=closed.due_on,
+            done_on=to_household_date(closed.completed_at),
+            occurrences_so_far=occurrences_toward_limit(chore),
+        )
+        return _open(chore, due) if due is not None else None
+
+    # Fixed: the next date the calendar gives that isn't already settled
+    # (one done early, say).
+    previous = closed.due_on or to_household_date(closed.completed_at)
+    settled = _settled_dates(chore, previous)
+    due = next((day for day in scheduling.fixed_dates(schedule) if day > previous and day not in settled), None)
     if due is None:
         return None
 
-    # Done very late, the next due date may itself be long gone.
-    if schedule.is_fixed:
-        due = scheduling.superseding_due(schedule, due, today) or due
-
+    # Done very late, the next due date may itself be long gone: the newest
+    # arrived date opens, and the ones before it are recorded as missed.
+    arrived = [day for day in scheduling.arrived_since(schedule, due, today) if day not in settled]
+    if arrived:
+        _record_misses(chore, [due, *arrived[:-1]])
+        due = arrived[-1]
     return _open(chore, due)
 
 
@@ -183,8 +311,12 @@ def reopen(occurrence):
     untouched next occurrence this one opened, the history stands and this
     returns False.
     """
-    locked = Occurrence.objects.select_for_update().get(pk=occurrence.pk)
+    locked = Occurrence.objects.select_for_update().select_related("chore").get(pk=occurrence.pk)
     if locked.status not in CLOSED_BY_A_PERSON:
+        return False
+    # A paused chore holds no open occurrence; undoing would give it one
+    # that no list shows. Found in review.
+    if not locked.chore.is_active:
         return False
 
     # Locked too: a concurrent completion of the next occurrence must either
@@ -205,6 +337,10 @@ def reopen(occurrence):
     return True
 
 
+# A chore left alone for years records at most this many misses at once.
+MISSED_RECORD_LIMIT = 366
+
+
 def refresh(chores, today=None):
     """Apply the missed-occurrence collapse to chores already loaded.
 
@@ -221,17 +357,38 @@ def refresh(chores, today=None):
         if not chore.schedule.is_fixed:
             continue
 
-        newer = scheduling.superseding_due(chore.schedule, current.due_on, today)
-        if newer is None:
+        arrived = scheduling.arrived_since(chore.schedule, current.due_on, today)
+        if arrived:
+            # Only now, for a chore actually stale, the query for this.
+            settled = _settled_dates(chore, arrived[0])
+            arrived = [day for day in arrived if day not in settled]
+        if not arrived:
             continue
+        newer, skipped_over = arrived[-1], arrived[:-1]
 
         with transaction.atomic():
             # Conditional, so a concurrent completion is never overwritten.
             missed = Occurrence.objects.filter(pk=current.pk, status=OccurrenceStatus.OPEN).update(
                 status=OccurrenceStatus.MISSED, updated_at=timezone.now()
             )
-            if missed:
-                chore.open_occurrences = [_open(chore, newer)]
+            if not missed:
+                # Someone else got there first (a completion, or another
+                # request collapsing it): show what is open now, not the stale
+                # row. Found in review: tapping the stale row gave a 500.
+                chore.open_occurrences = list(chore.occurrences.filter(status=OccurrenceStatus.OPEN))
+                if hasattr(chore, "missed_streak"):
+                    chore.missed_streak = missed_streak(chore)
+                continue
+
+            # Every date that came and went is recorded as missed, not only
+            # the one that was open — so history and "Missed N times" are
+            # right even when the sweep didn't run each day. Found in review.
+            _record_misses(chore, skipped_over)
+            chore.open_occurrences = [_open(chore, newer)]
+            # The streak was counted in SQL before these misses existed;
+            # count them, or the request that collapses shows too few.
+            if hasattr(chore, "missed_streak"):
+                chore.missed_streak += 1 + min(len(skipped_over), MISSED_RECORD_LIMIT)
 
     return chores
 

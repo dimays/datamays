@@ -65,3 +65,33 @@ history.
   not, or an overdue chore would be quietly reset.
 - The semantics, with worked examples, are in
   [`household/docs/scheduling.md`](../../../household/docs/scheduling.md).
+
+## Amendment — 2026-09-30, pre-merge review
+
+**What the collapse looks like.** The text above (and the decision as first
+described) said a week away from a daily chore "leaves one overdue item". It
+doesn't: the newest arrived date opens, so the collapsed row is *due today*,
+not overdue, and a daily chore without a deadline is never overdue at all.
+The collapse itself is as agreed. To keep a missed week from being silent,
+every checklist row now says "Missed N times before this" — the misses since
+the last one done or skipped (`checklist.with_missed_streak`).
+
+**Edits.** Review found three edit-path bugs, now fixed and tested:
+editing or pausing/resuming never reopens a date already done or skipped
+(a fresh start passes over closed dates); a schedule change records
+`Chore.schedule_set_on`, and an occurrence limit — fixed or after-completion
+— counts from there, so an edit can't use up "10 times" on dates before it;
+and every edit form goes
+through one atomic service, `occurrences.apply_edit`, which also notices a
+one-off's deadline changing. A fixed schedule with no dates left from today
+(or an after-completion one whose end date has passed) is refused by the
+form rather than silently opening nothing.
+
+**Every miss is recorded; no date is settled twice** (rounds 2–3). The
+collapse used to mark only the open occurrence missed, so a week the sweep
+didn't see left one missed row, and "Missed N" said 1. Now a missed row is
+recorded for each date that came and went — by the collapse (up to a year's
+worth at once), a late completion, or a schedule edit — which is what "the
+missed rows remain as history" above always meant. And every path that
+picks a fixed date passes over dates already done, skipped, or missed, so a
+date done early is never reopened or recorded as missed beside its done row.

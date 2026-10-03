@@ -12,9 +12,9 @@
 
   <div class="mt-4 rounded-card border {% if budget.is_over %}border-error/50{% else %}border-border{% endif %} bg-surface p-4">
     <div class="flex flex-wrap items-baseline justify-between gap-2">
-      <p class="font-mono text-2xl font-bold {% if budget.is_over %}text-error{% endif %}">${{ budget.actual|money:0 }}</p>
+      <p class="font-mono text-2xl font-bold {% if budget.is_over %}text-error{% endif %}">{{ budget.actual|usd }}</p>
       <p class="text-sm text-text-muted">
-        {% if budget.target is not None %}spent of <span class="font-mono">${{ budget.target|money:0 }}</span>{% if budget.budget is None %} (the lines' estimates){% endif %}{% else %}spent — set a budget to track against it{% endif %}
+        {% if budget.target is not None %}spent of <span class="font-mono">{{ budget.target|usd }}</span>{% if budget.budget is None %} (the lines' estimates){% endif %}{% else %}spent — set a budget to track against it{% endif %}
       </p>
     </div>
     {% if budget.target %}
@@ -22,7 +22,7 @@
         <div class="h-full rounded-full {% if budget.is_over %}bg-error{% else %}bg-accent{% endif %}" style="width: {{ budget.percent }}%"></div>
       </div>
       <p class="mt-2 text-sm {% if budget.is_over %}text-error{% else %}text-success{% endif %}">
-        {% if budget.is_over %}${{ budget.remaining|absolute|money:0 }} over{% else %}${{ budget.remaining|money:0 }} left{% endif %}
+        {% if budget.is_over %}{{ budget.remaining|absolute|usd }} over{% else %}{{ budget.remaining|usd }} left{% endif %}
       </p>
     {% endif %}
   </div>
@@ -41,8 +41,8 @@
         {% for row in budget.lines %}
           <tr>
             <td class="py-2">{{ row.line.label }}</td>
-            <td class="py-2 pl-4 text-right font-mono">${{ row.line.estimated|money:0 }}</td>
-            <td class="py-2 pl-4 text-right font-mono {% if row.is_over %}text-error{% endif %}">${{ row.actual|money:0 }}</td>
+            <td class="py-2 pl-4 text-right font-mono">{{ row.line.estimated|usd }}</td>
+            <td class="py-2 pl-4 text-right font-mono {% if row.is_over %}text-error{% endif %}">{{ row.actual|usd }}</td>
             <td class="py-2 pl-4 text-right">
               <form method="post" action="{% url 'household:budget_line_delete' project.pk row.line.pk %}">
                 {% csrf_token %}
@@ -55,7 +55,7 @@
           <tr class="text-text-muted">
             <td class="py-2">Not on a line</td>
             <td class="py-2"></td>
-            <td class="py-2 pl-4 text-right font-mono">${{ budget.unassigned|money:0 }}</td>
+            <td class="py-2 pl-4 text-right font-mono">{{ budget.unassigned|usd }}</td>
             <td></td>
           </tr>
         {% endif %}
@@ -75,8 +75,11 @@
     <ul class="mt-2 divide-y divide-border overflow-hidden rounded-card border border-border bg-surface">
       {% for expense in budget.expenses %}
         <li class="flex flex-wrap items-center gap-3 px-4 py-3">
-          <div class="min-w-0 flex-1">{% include "household/partials/transaction.html" with txn=expense.transaction %}</div>
-          <p class="shrink-0 font-mono text-sm">${{ expense.spent|money }}</p>
+          <div class="min-w-0 flex-1">
+            {% include "household/partials/transaction.html" with txn=expense.transaction %}
+            {% if not expense.counts %}<p class="text-xs text-warning">Not counted — finance no longer treats this as spending (now a transfer or income).</p>{% endif %}
+          </div>
+          <p class="shrink-0 font-mono text-sm">{{ expense.spent|usd }}</p>
           <div class="flex w-full items-center justify-between gap-2 sm:w-auto">
             {% if budget.lines %}
               <form method="post" action="{% url 'household:expense_edit' project.pk expense.pk %}" x-data>

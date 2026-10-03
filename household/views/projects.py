@@ -8,6 +8,7 @@ stranger which ids exist (see docs/architecture.md).
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.functional import cached_property
@@ -272,12 +273,11 @@ class TaskUpdateView(TaskFormMixin, UpdateView):
     def get_page_title(self):
         return f"Edit {self.object.title}"
 
+    @transaction.atomic
     def form_valid(self, form):
-        stored = Chore.objects.get(pk=self.object.pk)
-        before = (stored.schedule, stored.is_active)
+        before = Chore.objects.get(pk=self.object.pk)
         response = super().form_valid(form)
-        if before != (self.object.schedule, self.object.is_active):
-            occurrences.reschedule(self.object)
+        occurrences.apply_edit(self.object, before)
         return response
 
 

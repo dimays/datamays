@@ -74,8 +74,13 @@ correctly while production was serving a commit from two merges earlier.
 
 ## Migrations
 
-There is no automatic `migrate` on release. Run it after deploying a
-migration:
+Migrations run automatically in Heroku's **release phase**
+(`release: python manage.py migrate --noinput` in the `Procfile`), *before*
+the new code takes traffic. A failing migration fails the release, and the
+previous release keeps serving. This was added with Mays Household, whose
+first deploy needs its migrations in place before the new access gate goes
+live — otherwise both members would be refused until someone ran `migrate`
+by hand. If a release is ever stuck, run it manually:
 
 ```bash
 heroku run python manage.py migrate --app datamays
@@ -99,7 +104,10 @@ heroku rollback v<N> --app datamays
 
 Rollback reverts **code, not data**. If the bad release ran a migration or a
 data-mutating command, roll the code back first to stop the bleeding, then fix
-the data deliberately — see [`incidents.md`](incidents.md).
+the data deliberately — see [`incidents.md`](incidents.md). Write migrations so
+the *previous* code still works against the migrated database (add, don't
+rename or drop, until a later release); Mays Household's rollback specifics
+are in [`household/docs/runbook.md`](../../household/docs/runbook.md#rolling-back).
 
 ## Scheduled jobs
 

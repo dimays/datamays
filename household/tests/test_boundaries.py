@@ -93,3 +93,26 @@ class BoundaryTests(SimpleTestCase):
 
         self.assertIn("household.integrations.finance", imported_modules(sample))
         self.assertIn("household.models", imported_modules(sample))
+
+
+class FinanceFieldContractTests(SimpleTestCase):
+    """The bridge hands back finance's own Transaction objects, and household
+    templates and services read these fields from them. A finance rename
+    would otherwise fail silently in a template; it fails here instead.
+    Round-1 review: ADR 0009 overstated what the single import guarded."""
+
+    FIELDS_HOUSEHOLD_READS = {
+        "Transaction": ["amount", "posted_on", "merchant", "description_raw", "is_transfer", "account", "category"],
+        "Account": ["name"],
+        "Category": ["name", "slug", "kind"],
+    }
+
+    def test_every_field_household_reads_exists(self):
+        from finance import models as finance_models
+
+        for model_name, fields in self.FIELDS_HOUSEHOLD_READS.items():
+            model = getattr(finance_models, model_name)
+            names = {field.name for field in model._meta.get_fields()}
+            for field in fields:
+                with self.subTest(model=model_name, field=field):
+                    self.assertIn(field, names)

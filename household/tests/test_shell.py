@@ -119,21 +119,31 @@ class TodayTests(TestCase):
 
 
 class MemberGroupMigrationTests(TestCase):
-    """The rename that carries both people across on deploy."""
+    """The migration that carries both people across on deploy — and keeps a
+    rollback from locking them out."""
 
     def setUp(self):
         Group.objects.filter(name=HOUSEHOLD_GROUP).delete()
 
-    def test_members_of_the_old_group_can_still_get_in(self):
+    def test_members_of_the_old_group_can_get_in(self):
         user = make_member("david", in_group=False)
         user.groups.add(Group.objects.create(name="finance"))
 
         rename_group.forwards(apps, None)
 
         self.assertTrue(is_household_member(user))
-        self.assertFalse(Group.objects.filter(name="finance").exists())
 
-    def test_an_existing_household_group_is_merged_into(self):
+    def test_the_old_group_is_kept_so_rolled_back_code_still_works(self):
+        """Found in review: renaming locked both people out of /finance after
+        a code rollback, since the old code checks for the `finance` group."""
+        user = make_member("david", in_group=False)
+        user.groups.add(Group.objects.create(name="finance"))
+
+        rename_group.forwards(apps, None)
+
+        self.assertTrue(user.groups.filter(name="finance").exists())
+
+    def test_an_existing_household_group_is_added_to(self):
         david = make_member("david", in_group=False)
         maddie = make_member("maddie", in_group=False)
         david.groups.add(Group.objects.create(name="finance"))
@@ -143,17 +153,36 @@ class MemberGroupMigrationTests(TestCase):
 
         self.assertTrue(is_household_member(david))
         self.assertTrue(is_household_member(maddie))
-        self.assertFalse(Group.objects.filter(name="finance").exists())
 
-    def test_it_reverses_cleanly_and_is_harmless_on_an_empty_database(self):
-        user = make_member("david", in_group=False)
-        user.groups.add(Group.objects.create(name=HOUSEHOLD_GROUP))
+    def test_reversing_strands_nobody(self):
+        """A member added after the deploy (only in `household`) is put in
+        `finance`, so the rolled-back code lets them in."""
+        old_member = make_member("david", in_group=False)
+        old_member.groups.add(Group.objects.create(name="finance"))
+        rename_group.forwards(apps, None)
+        new_member = make_member("maddie")  # household only
 
         rename_group.backwards(apps, None)
-        self.assertTrue(user.groups.filter(name="finance").exists())
 
-        Group.objects.all().delete()
+        for user in (old_member, new_member):
+            self.assertTrue(user.groups.filter(name="finance").exists())
+
+    def test_reversing_keeps_the_household_code_open_until_it_is_rolled_back(self):
+        """Found in the Postgres rehearsal: `migrate household zero` runs
+        while the household code is still deployed, and deleting the group
+        locked both people out until the code rollback finished."""
+        user = make_member("david", in_group=False)
+        user.groups.add(Group.objects.create(name="finance"))
         rename_group.forwards(apps, None)
+
+        rename_group.backwards(apps, None)
+
+        self.assertTrue(is_household_member(user))
+
+    def test_harmless_on_an_empty_database(self):
+        rename_group.forwards(apps, None)
+        rename_group.backwards(apps, None)
+
         self.assertFalse(Group.objects.exists())
 
 

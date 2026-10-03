@@ -1,5 +1,8 @@
 {% comment %}
-  The schedule half of a chore form, shared by chores and maintenance items.
+  The schedule half of a chore form, shared by chores, upkeep items, and
+  project tasks. No x-cloak on the show/hide blocks: without JavaScript every
+  field stays visible and usable (found in review — with x-cloak they never
+  appeared), and with it Alpine hides the irrelevant ones on load.
   Expects `form` (a ChoreForm) and an Alpine scope on the enclosing <form>
   with `frequency` and `anchor`. The preview posts the whole form; `_prefix`
   tells the preview view which field names to read.
@@ -15,7 +18,7 @@
         </label>
         {{ form.starts_on }}
         <p class="mt-1.5 text-xs text-text-muted" x-show="frequency === 'once'">Leave blank for whenever.</p>
-        <p class="mt-1.5 text-xs text-text-muted" x-show="frequency !== 'once'" x-cloak>Also sets the weekday or day of the month it repeats on.</p>
+        <p class="mt-1.5 text-xs text-text-muted" x-show="frequency !== 'once'">Also sets the weekday or day of the month it repeats on.</p>
         {% if form.starts_on.errors %}<p class="mt-1.5 text-sm text-error">{{ form.starts_on.errors.0 }}</p>{% endif %}
       </div>
     </div>
@@ -24,9 +27,9 @@
       {% include "household/partials/field.html" with field=form.deadline %}
     </div>
 
-    <div x-show="frequency !== 'once'" x-cloak class="space-y-4">
-      <div>
-        <p class="mb-1.5 text-sm font-medium">{{ form.anchor.label }}</p>
+    <div x-show="frequency !== 'once'" class="space-y-4">
+      <fieldset>
+        <legend class="mb-1.5 text-sm font-medium">{{ form.anchor.label }}</legend>
         <div class="space-y-2">
           {% for choice in form.anchor %}
             <label class="flex items-center gap-2.5 text-sm">{{ choice.tag }} <span>{{ choice.choice_label }}</span></label>
@@ -35,7 +38,7 @@
         <p class="mt-1.5 text-xs text-text-muted" x-show="anchor === 'after_completion'">
           The next one is due a set time after the last was done — right for filters and deep cleans.
         </p>
-      </div>
+      </fieldset>
 
       <div>
         <label for="{{ form.interval.id_for_label }}" class="mb-1.5 block text-sm font-medium">
@@ -44,13 +47,13 @@
         <div class="flex items-center gap-3">
           <div class="w-24">{{ form.interval }}</div>
           <span class="text-sm text-text-secondary"
-                x-text="{ daily: 'day(s)', weekly: 'week(s)', monthly: 'month(s)', yearly: 'year(s)' }[frequency]"></span>
+                x-text="{ daily: 'day(s)', weekly: 'week(s)', monthly: 'month(s)', yearly: 'year(s)' }[frequency]">day(s), week(s), month(s), or year(s), per the frequency</span>
         </div>
         {% if form.interval.errors %}<p class="mt-1.5 text-sm text-error">{{ form.interval.errors.0 }}</p>{% endif %}
       </div>
 
-      <div x-show="frequency === 'weekly' && anchor === 'fixed'">
-        <p class="mb-1.5 text-sm font-medium">{{ form.weekdays.label }}</p>
+      <fieldset x-show="frequency === 'weekly' && anchor === 'fixed'">
+        <legend class="mb-1.5 text-sm font-medium">{{ form.weekdays.label }} <span class="font-normal text-text-muted">(weekly only)</span></legend>
         <div class="flex flex-wrap gap-2">
           {% for choice in form.weekdays %}
             <label class="flex items-center gap-1.5 rounded-button border border-border px-2.5 py-1.5 text-sm">
@@ -60,7 +63,7 @@
         </div>
         <p class="mt-1.5 text-xs text-text-muted">{{ form.weekdays.help_text }}</p>
         {% if form.weekdays.errors %}<p class="mt-1.5 text-sm text-error">{{ form.weekdays.errors.0 }}</p>{% endif %}
-      </div>
+      </fieldset>
 
       <div x-show="frequency === 'monthly' && anchor === 'fixed'">
         {% include "household/partials/field.html" with field=form.monthly_mode %}

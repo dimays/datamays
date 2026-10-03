@@ -9,6 +9,7 @@ from itertools import islice
 
 from django.contrib import messages
 from django.db import transaction
+from django.db.models import F
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
@@ -74,10 +75,7 @@ class UpkeepFormView(HouseholdPageMixin, TemplateView):
                 self.get_context_data(chore_form=chore_form, item_form=item_form)
             )
 
-        before = None
-        if self.item:
-            stored = Chore.objects.get(pk=self.item.chore_id)
-            before = (stored.schedule, stored.is_active)
+        before = Chore.objects.get(pk=self.item.chore_id) if self.item else None
 
         with transaction.atomic():
             chore = chore_form.save()
@@ -85,16 +83,17 @@ class UpkeepFormView(HouseholdPageMixin, TemplateView):
             item.chore = chore
             item.save()
 
-            # As with chores: only a schedule change resets the open occurrence.
-            if before != (chore.schedule, chore.is_active):
+            if before is None:
                 occurrences.reschedule(chore)
+            else:
+                occurrences.apply_edit(chore, before)
 
         messages.success(request, f"Saved “{chore.title}”.")
         return redirect("household:upkeep_detail", item.pk)
 
 
 class UpkeepCreateView(UpkeepFormView):
-    page_title = "New maintenance item"
+    page_title = "New upkeep item"
 
 
 class UpkeepUpdateView(UpkeepFormView):
@@ -146,7 +145,11 @@ class UpkeepDetailView(HouseholdView):
             log_form=LogCompletionForm(initial={"cost": item.estimated_cost}),
             history=chore.occurrences.exclude(status=OccurrenceStatus.OPEN)
             .select_related("completed_by", "transaction")
-            .order_by("-completed_at", "-due_on", "-id")[:20],
+            # Done jobs first, newest first. Missed rows have no completion
+            # time, and Postgres sorts NULLs first on a descending order —
+            # found in review: a year of misses pushed every job (and its
+            # cost) out of the twenty.
+            .order_by(F("completed_at").desc(nulls_last=True), "-due_on", "-id")[:20],
             cost_by_year=maintenance.cost_by_year(item),
         )
         return context
@@ -158,7 +161,7 @@ class UpkeepDeleteView(HouseholdPageMixin, DeleteView):
     model = MaintenanceItem
     template_name = "household/upkeep/confirm_delete.html"
     success_url = reverse_lazy("household:upkeep")
-    page_title = "Delete maintenance item"
+    page_title = "Delete upkeep item"
 
     def form_valid(self, form):
         name = self.object.name
@@ -230,5 +233,9 @@ class JobLinkView(HouseholdView):
             cost = self.occurrence.cost
             messages.success(request, "Linked the purchase." + (f" The cost is now ${cost:,.2f}." if cost is not None else ""))
         else:
-            messages.error(request, "That transaction couldn't be found.")
+            messages.error(
+                request,
+                "That can't be linked — it isn't a purchase finance counts as spending, "
+                "it's a refund, or it's already the purchase behind another job.",
+            )
         return redirect("household:upkeep_detail", pk)

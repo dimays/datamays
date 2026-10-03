@@ -17,6 +17,12 @@ imports finance (tested). It offers:
 | `spent(txn)`, `total_spent(txns)` | The **one place** a signed amount becomes "spent" |
 | `get_transaction(pk)` | Validating a posted link — `None` for a missing or non-numeric id, and for anything that isn't spending (a transfer, a paycheck), so no posted id can put one on a project |
 | `spending_candidates(start=, end=, query=, exclude_ids=)` | Purchases that could be linked |
+| `still_spending(ids)` | Which linked transactions finance still counts as spending — re-checked on every read |
+
+The bridge returns finance's own `Transaction` objects, and household
+templates read their fields directly. Those fields are listed in
+`tests/test_boundaries.py::FinanceFieldContractTests`, so a finance rename
+fails a test rather than leaving a blank in a template.
 
 **"Spent" is always `-amount`.** Finance stores money leaving as negative
 (ADR 0003), so a $42.50 purchase spent 42.50 and a $10 refund spent -10.00,
@@ -51,7 +57,14 @@ A transaction can count toward several projects but only once per project
 - **Lines** (`BudgetLine`) are the plan: a label and an estimate.
 - **Actual** is the sum of linked transactions' spend; per line, plus
   anything linked without a line ("Not on a line"). Line actuals plus
-  unassigned always equal the total — tested to the cent.
+  unassigned always equal the total — tested to the cent. Shown with cents:
+  whole dollars once printed "$0 over" for a project $0.40 over budget.
+- A linked purchase that finance **later** marks as a transfer or
+  recategorizes as income stops counting, and is labelled "Not counted" —
+  linked rows are checked against `spend_filter` on every read, not only
+  when linked.
+- A purchase linked to two projects counts **in full in each**; it isn't
+  split.
 - **Target** is the project's overall budget if set, otherwise the sum of
   the lines' estimates. "Over" and "left" are measured against it.
 - Removing a line keeps its spending on the project, unassigned.
@@ -65,8 +78,10 @@ looks a further year back.
 A done job's history row offers **Link the purchase**: home spending within
 two weeks of the day it was done (or a search across the previous three
 months). Linking sets the job's cost from the transaction — the purchase is
-the truth — unless it was a refund, which can't be a job's cost. Unlinking
-keeps the cost as the best figure there is.
+the truth. A refund can't be linked to a job, and **a purchase can be behind
+only one job** (`one_job_per_transaction`; already-linked purchases aren't
+offered), so spend by year never counts one twice. Unlinking keeps the cost
+as the best figure there is.
 
 ## Upcoming maintenance costs
 

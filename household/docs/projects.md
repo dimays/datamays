@@ -31,6 +31,13 @@ A task is created and edited from its project (`projects/<pk>/tasks/…`),
 where the milestone choice lives; the generic chore edit page redirects
 there. Its detail page is the ordinary chore page, which names the project.
 
+**Only while the project is under way.** A task is on the lists while its
+project is *In progress* or *Planned*. Set the project to *On hold*, *Done*,
+or *Idea* and its tasks drop off every checklist, Today, the badge, and the
+digest (`checklist.on_lists`); the project page says so, and still lists
+them. Set it back and they return. (Decided 2026-10-02: a paused project's
+tasks were cluttering Today.)
+
 A milestone must belong to the task's own project (`Chore.clean`).
 Deleting a milestone keeps its tasks in the project; deleting a project
 deletes its tasks, taking them off every checklist.

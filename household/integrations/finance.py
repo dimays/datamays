@@ -69,6 +69,18 @@ def total_spent(transactions):
     return sum((spent(txn) for txn in transactions), Decimal("0"))
 
 
+def still_spending(transaction_ids):
+    """Which of these transactions finance still counts as spending.
+
+    Linked rows are re-checked on every read, not only when linked, so a
+    purchase finance later marks as a transfer stops counting in household
+    totals too.
+    """
+    return set(
+        Transaction.objects.filter(spend_filter(), pk__in=list(transaction_ids)).values_list("pk", flat=True)
+    )
+
+
 def get_transaction(pk):
     """A spending transaction by id, or None — for validating a posted link.
 
@@ -83,14 +95,16 @@ def get_transaction(pk):
     return Transaction.objects.select_related("account", "category").filter(spend_filter(), pk=pk).first()
 
 
-def spending_candidates(*, start, end, query="", exclude_ids=(), home_only=True):
+def spending_candidates(*, start, end, query="", exclude_ids=(), home_only=True, money_out_only=False):
     """Transactions that could be linked: spend within [start, end].
 
     Uses finance's own definition of spend (`spend_filter`) — no transfers,
     refunds netting against expense categories — so a project's "actual"
     can never count something finance's own reports wouldn't. With a
     `query`, matches merchant or description across every category;
-    without one, suggests only the home categories above.
+    without one, suggests only the home categories above. `money_out_only`
+    leaves out refunds — for a maintenance job, which can't have cost a
+    negative amount.
     """
     candidates = (
         Transaction.objects.filter(spend_filter(), posted_on__gte=start, posted_on__lte=end)
@@ -98,6 +112,8 @@ def spending_candidates(*, start, end, query="", exclude_ids=(), home_only=True)
         .select_related("account", "category")
         .order_by("-posted_on", "-id")
     )
+    if money_out_only:
+        candidates = candidates.filter(amount__lt=0)  # money out is negative (ADR 0003)
     if query:
         candidates = candidates.filter(Q(merchant__icontains=query) | Q(description_raw__icontains=query))
     elif home_only:

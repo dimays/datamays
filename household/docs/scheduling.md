@@ -44,9 +44,15 @@ A **one-off** has a single occurrence, due on a date or "whenever".
   and Fri starting on a Wednesday: the first is that Friday.
 - **The season filters before the count.** "Ten times, April to October"
   means ten in-season dates.
-- **The count starts when the chore was created.** "Ten times" from a start
+- **The count starts when the schedule was set.** "Ten times" from a start
   date in June, for a chore made in September, means ten from September —
-  dates before the chore existed don't use it up.
+  dates before the chore existed don't use it up. Changing the schedule
+  restarts the count from that day (`Chore.schedule_set_on`).
+- **A fixed schedule with nothing left from today is refused** by the form
+  (an end date or count already passed), rather than creating a chore that
+  appears on no list.
+- **Intervals are capped at ten years** in any unit, well short of the end of
+  the calendar.
 - **A schedule that can never fall in its season is refused.** Yearly on
   Jan 15 with an April–October season has no dates at all; validation says
   so rather than accepting a chore that would never appear.
@@ -73,28 +79,64 @@ after-completion chores, a skip restarts the clock just as done does.
 
 **Missed.** When a fixed chore's next due date arrives and the current one is
 still open, the current one becomes *missed* and the **newest** arrived date
-opens — only the newest. A week away from a daily chore leaves one overdue
-item, not seven. This happens at the next due date even if the old
-occurrence's deadline has not passed.
+opens — only the newest. A week away from a daily chore leaves one row, not
+seven, and that row is **due today, not overdue**: the newest date is today.
+Every date that came and went is still recorded as a missed row — whether
+the sweep caught each one, a screen caught them all at once (up to a year's
+worth), a late completion jumped over them, or a schedule edit replaced the
+schedule they belonged to — so history is complete and the row can say
+**"Missed 7 times before this"**: the misses since the last one done or
+skipped. A settled date is never recorded twice or reopened: every path
+that picks a fixed date (`_due_for_a_fresh_start`, `_advance`, `refresh`)
+passes over dates already done, skipped, or missed. This happens at the next due
+date even if the old occurrence's deadline has not passed, so a deadline
+longer than the gap between due dates has no effect.
 
 **Undo.** `reopen()` reverses the most recent done or skipped occurrence and
-removes the untouched next one it opened. Anything older is history.
+removes the untouched next one it opened. Anything older is history, and a
+chore paused since can't be undone (it would hold an open occurrence no list
+shows).
+
+**A tap on a row that has moved on** — a phone left open overnight, while the
+sweep recorded the row as missed — does nothing. The current row is swapped
+in with a "moved on to its next date" note (or, without JavaScript, the same
+as a message). Marking done something the other person just did says so,
+rather than "Marked done".
 
 **One-offs.** A done one-off stays done — unless it is given a new date
 ("do it again on the 10th"), which puts it back on the list. Converting a
 repeating chore to a one-off does the same.
 
-**Editing.** Changing a schedule replaces the open occurrence with a fresh
-one from today (an after-completion chore still counts from when it was last
-done). Editing only the title or notes must *not* call `reschedule()` — it
-would reset an overdue chore. **Pausing** (`is_active = False`) removes a
-repeating chore from every checklist; resuming starts it afresh.
+**Editing.** Every edit form goes through one service,
+`occurrences.apply_edit(chore, before)`, atomically. It does nothing unless
+something that decides the open occurrence changed — the schedule, whether
+the chore is active, or a one-off's deadline — so tidying a title never
+resets an overdue chore. When it does reschedule:
+
+- a **fixed** chore starts from today, passing over any **settled** date
+  (one already done, skipped, or missed) — and over today itself if
+  anything was done or skipped today, even early for a later date. So
+  editing a chore just done doesn't bring it straight back, and one done
+  early for Friday doesn't bring Friday back. Only those dates are passed
+  over: a one-off done early and then made weekly starts at its next date,
+  not after the old due date;
+- an **after-completion** chore still counts from when it was last done —
+  unless its due date was changed by hand, which is honored;
+- a schedule change restarts any occurrence limit from today, for both
+  anchors: only occurrences opened since the day of the change count
+  (`occurrences.occurrences_toward_limit`; missed rows never count). The form refuses a changed
+  schedule with nothing left to do — a fixed one with no dates left, or an
+  end date already past.
+
+**Pausing** (`is_active = False`) removes a repeating chore from every
+checklist; resuming starts it afresh by the same rules.
 
 ## Overdue and "today"
 
 An occurrence is **overdue** when it is open and its deadline — or its due
 date, if it has no deadline — is before today. Due today is not overdue. An
-undated one-off is never overdue.
+undated one-off is overdue only if it has a deadline and that has passed;
+it then shows as overdue everywhere, as the nav badge counts it.
 
 "Today" is always `household_today()`, and a completion's date is its
 *household* date: done at 10:30pm in Chicago counts for that day, not for
@@ -105,9 +147,11 @@ tomorrow in UTC.
 Twice, deliberately:
 
 - **On read.** `refresh()` applies the missed-occurrence rule to chores
-  already loaded, in bulk, writing only when something is stale — two queries
-  whatever the number of chores. A screen is never wrong because the
-  scheduler skipped a run.
+  already loaded, in bulk, reading nothing more unless something is stale —
+  two queries whatever the number of chores. A stale chore then costs a few
+  writes of its own (the miss, the dates recorded, the new open row). A screen is never wrong because the
+  scheduler skipped a run. Two requests collapsing the same chore at once
+  both end up showing the one row that opened.
 - **Hourly.** `manage.py sweep_chores` applies it to every chore, so a missed
   week is recorded on the day it happened even if nobody opened the app. It
   runs in both scheduler chains, `household_hourly` and `household_daily`.

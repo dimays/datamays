@@ -447,12 +447,12 @@ Recorded so the answer to "why doesn't it…" is on file:
 
 ## Status against the definition of done
 
-As of the end of phase 8. ✅ verified · ⏳ waiting on review, deploy, or use.
+As of the pre-merge review (2026-09-30). ✅ verified · ⏳ waiting on deploy or use.
 
 | # | Criterion | Status |
 |---|---|---|
-| 1 | Every phase's "done when" met, PRs merged into `feature/household`, then `main` | ✅ built, one PR per phase (dimays/datamays#77–#85) · ⏳ review and merge |
-| 2 | Production running it; existing sign-ins work; finance links work | ✅ locally: group migration rehearsed on the demo database, old `/finance/login/` redirects keep `?next=`, every finance screen renders · ⏳ deploy |
+| 1 | Every phase's "done when" met, PRs merged into `feature/household`, then `main` | ✅ dimays/datamays#77–#85 merged into `feature/household`; independent pre-merge review and its fixes · ⏳ merge to `main` |
+| 2 | Production running it; existing sign-ins work; finance links work | ✅ migrations run on a throwaway **Postgres 15** database with a populated `finance` group (members and permissions carried across), plus the code rolled back against the migrated database; old `/finance/login/` redirects keep `?next=`; every finance screen renders · ⏳ deploy |
 | 3 | Scheduler on the wrapper commands; first digest arrives | ✅ `household_hourly` run end to end locally with the digest printed to the console · ⏳ swap the two Heroku Scheduler entries ([runbook](../../household/docs/runbook.md)) |
 | 4a | Weekly chore: create, complete, next appears | ✅ browser, 375px |
 | 4b | Partner toggle; edits refused until shared; then editable | ✅ permission table test through real endpoints; toggle and confirmation dialog in the browser |
@@ -462,7 +462,7 @@ As of the end of phase 8. ✅ verified · ⏳ waiting on review, deploy, or use.
 | 4f | Today: budget widget, overdue flagged, a low-frequency chore under "Coming up" | ✅ browser, 375px and 1280px |
 | 4g | Mark the other person's chore done after the dialog | ✅ browser |
 | 4h | Receive a morning digest | ✅ rendered and "sent" to the console locally · ⏳ first real email after the scheduler switch |
-| 5 | Suite green; docs and ADRs describe what shipped; in-app Help covers every section | ✅ 860 tests · `household/docs/` (9 files), ADRs 0008–0011, amendments to 0004 and 0006 · in-app Help |
+| 5 | Suite green; docs and ADRs describe what shipped; in-app Help covers every section | ✅ 900+ tests (and the suite run on Postgres) · `household/docs/` (10 files; the planned `extending.md` was not written — its recipes live in the topic docs) · ADRs 0008–0011 with pre-merge amendments, and amendments to 0004 and 0006 · in-app Help |
 | 6 | A week of real use by both of you without a blocking issue | ⏳ yours to call |
 
 ## Decisions
@@ -473,11 +473,14 @@ Agreed 2026-09-30.
 |---|---|---|
 | 1 | Navigation | Global section bar (Today · Chores · Projects · Upkeep · Finance); each section has its own sub-nav |
 | 2 | Checking off the other person's chore | Allowed for both of you, behind a confirmation dialog, recorded as done-by. Edit/delete stay with the owner unless shared |
-| 3 | Missed recurring chores | Collapse into one current occurrence; older ones marked missed |
+| 3 | Missed recurring chores | Collapse into one current occurrence; older ones marked missed. *Clarified in review:* the collapsed row is due today rather than overdue, so it now says "Missed N times before this" (ADR 0010 amendment) |
 | 4 | Name | **Mays Household** |
 | 5 | Finance URLs | Stay at `/finance/…` |
 | 6 | Starter maintenance library | Yes — start simple, a short generic list |
 | 7 | Review cadence | Each phase's PR is reviewed as it lands |
+| 8 | Migrations on deploy (pre-merge review) | Run in Heroku's release phase on every deploy (`Procfile`) |
+| 9 | Shared chores (pre-merge review) | Stay shared — neither person can make one their own |
+| 10 | Tasks of paused projects (pre-merge review) | Off every list while the project is on hold, done, or an idea; back when it resumes |
 
 Feedback folded in: the Today screen carries finance's budget widget, a
 next-7-days list of one-off and low-frequency chores, and clear overdue
