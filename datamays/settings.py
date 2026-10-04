@@ -89,6 +89,7 @@ INSTALLED_APPS = [
     'core',
     'contact',
     'finance',
+    'games',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',

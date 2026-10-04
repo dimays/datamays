@@ -24,4 +24,5 @@ urlpatterns = [
     path("", include("core.urls")),
     path("contact/", include("contact.urls")),
     path("finance/", include("finance.urls")),
+    path("games/", include("games.urls")),
 ]
