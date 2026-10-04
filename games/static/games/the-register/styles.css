@@ -455,6 +455,8 @@ body.printing #print-root .page { margin: 0 auto 24px; box-shadow: 0 6px 24px rg
   .brand-title { font-size: 56px; }
   .diff-grid { grid-template-columns: 1fr; }
   .desk { grid-template-columns: 0 1fr; }
+  /* The Casebook floats over the page here, so the stage must keep the wide column. */
+  .stage { grid-column: 2; }
   .casebook { visibility: hidden; }
   .game:not(.no-sidebar) .casebook { visibility: visible; position: absolute; top: 56px; bottom: 56px; left: 0; width: min(360px, 90vw); z-index: 10; box-shadow: 20px 0 40px rgba(0,0,0,.4); }
   .tb-actions [data-act="mark-pages"], .tb-actions [data-act="print"], .scrub-label { display: none; }
@@ -478,3 +480,174 @@ body.printing #print-root .page { margin: 0 auto 24px; box-shadow: 0 6px 24px rg
 .pos-cols { display: flex; gap: 16px; }
 .pos-cols .check { margin: 0; }
 .results-more { font-size: 12.5px; margin: 6px 0 0; }
+
+/* ── Phone layout (.game.compact — see COMPACT in game.js) ─────────────────
+   One page at a time, reflowed to the screen's width: each column becomes a
+   list under its own heading. Tap to strike, long-press for options, swipe
+   to turn. Print is untouched: it renders its own pages in #print-root. */
+.game:not(.compact) .m-only { display: none !important; }
+.game.compact .d-only { display: none !important; }
+.game.compact {
+  height: 100dvh; grid-template-rows: 48px auto minmax(0, 1fr) 56px;
+  touch-action: manipulation; position: relative;
+}
+.game.compact .topbar { gap: 2px; padding: 0 4px; }
+.game.compact .topbar .btn { padding: 8px 10px; }
+.game.compact .topbar [data-act="home"] { font-size: 22px; line-height: 1; padding: 6px 12px; }
+.game.compact .tb-title { flex: 0 0 auto; }
+.game.compact .tb-name, .game.compact .tb-title .pill { display: none; }
+.game.compact .save-state { font-size: 0; }
+.game.compact .save-state::before { margin: 0; }
+.game.compact .save-state[data-state="offline"], .game.compact .save-state[data-state="conflict"] { font-size: 11px; white-space: normal; line-height: 1.2; max-width: 120px; }
+.game.compact .tb-count { display: grid; gap: 1px; padding: 0 6px; flex: 1; min-width: 0; line-height: 1; }
+.game.compact .tb-num { font-size: 22px; }
+.game.compact .tb-lbl { display: block; font-size: 10.5px; }
+.game.compact .tb-actions .btn.icon { font-size: 19px; min-width: 40px; padding: 6px 8px; }
+.game.compact .tb-actions .btn.icon span { display: none; }
+.game.compact .tb-actions .btn.primary { margin-left: 4px; padding: 8px 12px; }
+
+/* the active clue */
+.clue-strip {
+  display: flex; align-items: stretch; gap: 10px; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line);
+  background: var(--panel); padding: 8px 10px 8px 8px; min-width: 0; z-index: 4;
+}
+.cs-bar { flex: none; width: 6px; border-radius: 3px; background: var(--c); }
+.cs-body { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.cs-text { font: 15px/1.35 var(--book); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cs-text b { font: 600 15px var(--display); margin-right: 4px; color: var(--brass); }
+.cs-next { font-size: 12px; color: var(--brass); }
+.cs-next:empty { display: none; }
+.cs-more { flex: none; align-self: center; font-size: 12.5px; color: var(--ui-muted); white-space: nowrap; }
+
+/* the page: reflowed, one at a time */
+.game.compact .desk { display: block; position: relative; min-height: 0; }
+.game.compact .stage { display: flex; flex-direction: column; height: 100%; }
+.game.compact .flip, .game.compact .thumbs { display: none; }
+.game.compact .page-actions {
+  order: -1; flex: none; display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 6px; padding: 6px 10px;
+  border-bottom: 1px solid var(--line); background: var(--desk-2);
+}
+.pa-where { margin-right: auto; background: none; border: 0; padding: 6px 4px; font: 17px var(--display); color: var(--ui-ink); }
+.pa-where span { font: 13px var(--ui); color: var(--ui-muted); }
+.game.compact .page-actions .btn { padding: 7px 11px; }
+.game.compact .scroller { display: block; flex: 1; padding: 0; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.game.compact .book-wrap { width: auto !important; height: auto !important; margin: 0; filter: none; }
+.game.compact .book { position: static; width: auto; height: auto; transform: none; display: block; }
+.game.compact .slot { width: auto; height: auto; }
+.game.compact .slot .page { border-radius: 0; }
+.game.compact .book .page { width: auto; height: auto; min-height: 100%; overflow: visible; padding: 14px 14px 40px; animation: none; }
+.game.compact .page .folio { display: none; }
+.game.compact .book { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+
+.game.compact .rh { height: auto; font-size: 12.5px; padding-bottom: 6px; }
+.game.compact .opener { height: auto; padding: 10px 0 4px; }
+.game.compact .ch-word { font-size: 44px; }
+.game.compact .ch-letter { font-size: 72px; }
+.game.compact .ch-blurb { font-size: 15px; }
+.game.compact .cols, .game.compact .cols.c3 { display: block; margin-top: 4px; }
+.col-wrap { margin-top: 10px; }
+.col-head {
+  position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px;
+  margin: 0 -14px; padding: 6px 14px; background: var(--paper-2); border-bottom: 1px solid var(--rule);
+  font: 13px var(--ui); color: var(--ink-soft);
+}
+.col-name { font: 600 13px var(--ui); letter-spacing: .06em; text-transform: uppercase; color: var(--ink); }
+.col-count { margin-right: auto; font-variant-numeric: tabular-nums; }
+.col-head .pa-pair { border-color: var(--rule); }
+.col-head .btn { color: var(--ink); background: var(--paper); border-color: var(--rule); padding: 6px 10px; }
+.col-head .btn.ghost { background: transparent; border-color: transparent; }
+.game.compact .col { display: block; }
+.game.compact .nm { height: 42px; border-bottom: 1px solid rgba(214, 199, 167, .45); }
+.game.compact .cols .ln, .game.compact .cols.c3 .ln, .game.compact .cols.c3.full .ln { width: 34px; padding-right: 12px; font-size: 12px; }
+.game.compact .cols .tx, .game.compact .cols.c3 .tx, .game.compact .cols.c3.full .tx { font-size: 19px; letter-spacing: 0; }
+.game.compact .book .nm:hover .tx { box-shadow: none; }
+
+/* front matter, reflowed */
+.game.compact .title-wrap { height: auto; padding: 28px 0 8px; }
+.game.compact .tp-rule { margin: 18px 0 24px; }
+.game.compact .tp-title { font-size: 30px; }
+.game.compact .tp-title small { font-size: 19px; }
+.game.compact .tp-title span { font-size: 40px; }
+.game.compact .tp-sub { font-size: 17px; }
+.game.compact .tp-orn { margin: 24px 0; }
+.game.compact .tp-foot { margin: 28px 0 0; }
+.game.compact .fm-heading { font-size: 27px; margin: 8px 0 18px; }
+.game.compact .prose p { font-size: 16.5px; text-align: left; hyphens: manual; }
+.game.compact .prose .dropcap::first-letter { font-size: 52px; }
+.game.compact .ev-intro { margin: -6px 0 18px; }
+.game.compact .clue { grid-template-columns: 40px 1fr; }
+.game.compact .toc li { height: 40px; font-size: 16px; }
+.game.compact .toc.chapters li { height: 40px; }
+.game.compact .blank-note { position: static; padding: 80px 0; }
+
+/* bottom bar: turn pages, choose a highlighter */
+.game.compact .bottombar { gap: 0; padding: 0 2px; }
+.mnav-btn { flex: none; width: 48px; height: 48px; font-size: 30px; line-height: 1; padding: 0 !important; }
+.game.compact .tray { flex: 1; max-width: none; padding: 8px 6px 6px; gap: 6px; scroll-padding: 0 12px; }
+.game.compact .chip { min-width: 38px; height: 36px; border-radius: 18px; font-size: 13px; }
+
+/* toasts float above the bottom bar instead of reserving a strip */
+.game.compact .msg-slot { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 6; padding: 0; justify-content: center; }
+.game.compact .msg-slot > span { white-space: normal; box-shadow: 0 10px 28px rgba(0,0,0,.45); }
+
+/* the Casebook as a sheet over the page */
+.game.compact .casebook {
+  position: fixed; left: 0; right: 0; bottom: 0; top: 56px; width: auto; z-index: 30; visibility: hidden;
+  border: 1px solid var(--line-2); border-bottom: 0; border-radius: 16px 16px 0 0; box-shadow: 0 -20px 50px rgba(0,0,0,.5);
+  transform: translateY(105%); transition: transform .25s ease, visibility .25s;
+}
+.game.compact.sheet-open .casebook { visibility: visible; transform: none; }
+.sheet-backdrop { position: fixed; inset: 0; z-index: 29; background: rgba(10, 7, 5, .55); opacity: 0; pointer-events: none; transition: opacity .25s; }
+.game.compact.sheet-open .sheet-backdrop { opacity: 1; pointer-events: auto; }
+.cb-close { flex: none; background: none; border: 0; color: var(--brass); font-weight: 650; padding: 12px 10px 10px; }
+.game.compact .ev-main { padding: 10px 8px 11px 2px; }
+.game.compact .swatch { width: 22px; }
+.game.compact .ev-text { font-size: 16px; }
+
+/* phone dialogs */
+.nav-sheet .nav-go { margin-bottom: 12px; }
+.nav-sheet .nav-go .input { flex: 1; }
+.nav-front { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.nav-chapters { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 46vh; overflow-y: auto; }
+.nav-chapters button { position: relative; overflow: hidden; width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; text-align: left; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.nav-chapters b { font: 400 17px var(--display); position: relative; z-index: 1; }
+.nav-chapters span { font-size: 12.5px; color: var(--ui-muted); position: relative; z-index: 1; }
+.nav-chapters i { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--done) * 100%); background: rgba(209, 171, 98, .16); }
+.nav-chapters .cleared b { text-decoration: line-through; opacity: .6; }
+.touch-tips { margin: 0 0 14px; padding-left: 20px; display: grid; gap: 6px; color: var(--ui-muted); font-size: 14px; }
+
+@media (max-width: 720px) {
+  .home { padding: 28px 16px 24px; }
+  .brand-title { font-size: 48px; }
+  .brand-sub { font-size: 17px; }
+  .files { margin-top: 40px; }
+  .files-head { flex-wrap: wrap; gap: 8px; }
+  .files-tools { justify-content: flex-start; }
+  .file { flex-wrap: wrap; padding-bottom: 8px; }
+  .file-main { flex-basis: 100%; }
+  .mode-grid { grid-template-columns: 1fr; }
+  .modal { padding: 18px 16px 14px; }
+  .modal-title { font-size: 23px; }
+  .keys { grid-template-columns: 1fr; }
+  .pos-field { grid-template-columns: 64px 1fr; }
+  .pos-cols { flex-wrap: wrap; gap: 4px 12px; }
+  .results b { font-size: 17px; }
+  .solved-name { font-size: 40px; }
+  .stats.inline { gap: 2px 16px; }
+}
+/* Phones on their side: every bar slimmer, so the page keeps most of the height. */
+@media (max-height: 520px) {
+  .game.compact { grid-template-rows: 44px auto minmax(0, 1fr) 48px; }
+  .game.compact .clue-strip { padding: 5px 10px 5px 8px; }
+  .game.compact .cs-text { -webkit-line-clamp: 1; font-size: 14px; }
+  .game.compact .page-actions { padding: 3px 10px; }
+  .game.compact .page-actions .btn { padding: 4px 10px; }
+  .game.compact .pa-where { padding: 3px 4px; font-size: 15px; }
+  .game.compact .rh { display: none; }
+  .game.compact .col-head { padding: 3px 14px; }
+  .game.compact .col-head .btn { padding: 3px 9px; }
+  .game.compact .nm { height: 38px; }
+  .game.compact .chip { height: 32px; min-width: 34px; }
+  .game.compact .mnav-btn { height: 44px; }
+  .game.compact .casebook { top: 8px; }
+}
