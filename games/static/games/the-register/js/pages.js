@@ -8,7 +8,8 @@ const ORDINAL_WORDS = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', '
 
 /**
  * Render one page of the book. Used verbatim for the screen and for print.
- * opts: { side: 'recto'|'verso', marks, solved, forPrint, revealed }
+ * opts: { side: 'recto'|'verso', marks, solved, forPrint, revealed, compact }
+ * compact: the phone layout, which adds a heading to each column.
  */
 export function renderPage(model, seqIdx, opts = {}) {
   const item = model.seq[seqIdx];
@@ -141,9 +142,14 @@ function registerPage(model, page, opts) {
   return `${header}
     ${opener}
     <div class="cols c${page.cols.length}${book.fullNames ? ' full' : ''}" style="--rows:${page.rows}">
-      ${page.cols.map(c => `<ol class="col">${col(c)}</ol>`).join('')}
+      ${page.cols.map((c, k) => opts.compact
+        // Phones read one column at a time, each under a heading with its own strike buttons.
+        ? `<section class="col-wrap"><div class="col-head" data-col="${k}"><span class="col-name">${columnName(k, page.cols.length)} column</span><span class="col-count"></span><span class="pa-pair"><button class="btn small" data-act="mark-col" data-page="${page.page}" data-col="${k}"><i class="pen-dot"></i>Strike</button><button class="btn ghost small" data-act="clear-col" data-page="${page.page}" data-col="${k}">Clear</button></span></div><ol class="col">${col(c)}</ol></section>`
+        : `<ol class="col">${col(c)}</ol>`).join('')}
     </div>`;
 }
+
+export const columnName = (k, n) => (n === 3 ? ['Left', 'Middle', 'Right'] : ['Left', 'Right'])[k];
 
 /** The solution page shown (and printable) once the case is closed. */
 export function renderSolution(model) {

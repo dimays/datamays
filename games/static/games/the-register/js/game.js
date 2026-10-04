@@ -1,7 +1,7 @@
 import { $, $$, h, esc, fmt, debounce, bytesToB64, b64ToBytes, duration, toast, modal } from './util.js';
 import { api, IN_BROWSER } from './api.js';
 import { buildModel, PAGE_W, PAGE_H, ROMAN_UP } from './model.js';
-import { renderPage, renderSolution } from './pages.js';
+import { renderPage, renderSolution, columnName } from './pages.js';
 import { PALETTE, PENCIL, hexOf, penCursor, penStyles, defaultPenColors } from './pens.js';
 import { openPrintDialog } from './print.js';
 import { DIFFICULTIES } from '../engine/generator.js';
@@ -10,6 +10,10 @@ import { letters } from '../engine/book.js';
 import { prologue } from '../engine/story.js';
 
 const UNDO_LIMIT = 300;
+// Phones (and short landscape windows) get the compact layout: one reflowed
+// page at a time, tap to strike, clues in a sheet. Everything else is shared.
+const COMPACT = matchMedia('(max-width: 720px), (max-height: 520px) and (max-width: 1000px)');
+const LONG_PRESS_MS = 500;
 const ALIBIS = ['at the Drowned Bell playing dominoes', 'singing in the choir at evensong', 'stuck on the last ferry across the estuary', 'asleep in the waiting room at the station', 'at the picture house, in the front row', 'helping deliver a calf at Fenwick’s farm', 'in the cells, as it happens, for unpaid parking', 'at a séance on Pilgrim Street, holding hands with six witnesses'];
 
 export class Game {
@@ -51,18 +55,21 @@ export class Game {
     this.root.innerHTML = '';
     this.root.append(h(`<div class="game">
       <header class="topbar">
-        <button class="btn ghost" data-act="home" title="Back to Case Files">‹ Cases</button>
+        <button class="btn ghost" data-act="home" title="Back to Case Files">‹ <span class="d-only">Cases</span></button>
         <div class="tb-title"><span class="tb-name">${esc(c.title)}</span><span class="pill">${DIFFICULTIES[c.difficulty].label}</span><span class="save-state" title="Progress saves automatically"></span></div>
         <div class="tb-count"><span class="tb-num"></span><span class="tb-lbl">suspects remain</span></div>
         <div class="tb-actions">
-          <button class="btn ghost icon" data-act="find" title="Find a name (/)">⌕ <span>Find</span></button>
-          <button class="btn ghost" data-act="mark-pages" title="Strike names by page, column and line (P)">Strike by position…</button>
-          <button class="btn ghost" data-act="sergeant" title="Ask the Sergeant for a hint">Sergeant</button>
-          <button class="btn ghost" data-act="print" title="Print the book">Print</button>
-          <button class="btn ghost icon" data-act="help" title="How to play (?)">?</button>
+          <button class="btn ghost icon" data-act="find" title="Find a name (/)" aria-label="Find a name">⌕ <span>Find</span></button>
+          <button class="btn ghost icon m-only" data-act="undo" title="Undo" aria-label="Undo">↶</button>
+          <button class="btn ghost d-only" data-act="mark-pages" title="Strike names by page, column and line (P)">Strike by position…</button>
+          <button class="btn ghost d-only" data-act="sergeant" title="Ask the Sergeant for a hint">Sergeant</button>
+          <button class="btn ghost d-only" data-act="print" title="Print the book">Print</button>
+          <button class="btn ghost icon d-only" data-act="help" title="How to play (?)">?</button>
+          <button class="btn ghost icon m-only" data-act="more" aria-label="More">⋯</button>
           <button class="btn primary" data-act="accuse">Accuse…</button>
         </div>
       </header>
+      <button class="clue-strip m-only" data-act="sheet" aria-label="Show every clue"><i class="cs-bar"></i><span class="cs-body"><span class="cs-text"></span><span class="cs-next"></span></span><span class="cs-more">Clues ▾</span></button>
       <div class="desk">
         <aside class="casebook"></aside>
         <section class="stage">
@@ -74,10 +81,13 @@ export class Game {
           <nav class="thumbs" aria-label="Chapters"></nav>
         </section>
       </div>
+      <div class="sheet-backdrop m-only" data-act="sheet-close"></div>
       <footer class="bottombar">
+        <button class="btn ghost mnav-btn m-only" data-act="prev" aria-label="Previous page">‹</button>
         <div class="tray" role="toolbar" aria-label="Highlighters"></div>
-        <div class="scrub"><input type="range" min="0" step="1" aria-label="Page"><span class="scrub-label"></span></div>
-        <div class="bb-right">
+        <button class="btn ghost mnav-btn m-only" data-act="next" aria-label="Next page">›</button>
+        <div class="scrub d-only"><input type="range" min="0" step="1" aria-label="Page"><span class="scrub-label"></span></div>
+        <div class="bb-right d-only">
           <div class="zoom" role="group" aria-label="Zoom">
             <button class="btn ghost small" data-act="zoom-out" title="Zoom out (−)">−</button>
             <button class="btn ghost small zoom-level" data-act="zoom-fit" title="Fit the page to the window (Z toggles)">Fit</button>
@@ -97,7 +107,10 @@ export class Game {
       casebook: $('.casebook', this.root), thumbs: $('.thumbs', this.root), tray: $('.tray', this.root),
       range: $('.scrub input', this.root), scrubLabel: $('.scrub-label', this.root), goto: $('.goto', this.root),
       num: $('.tb-num', this.root), saveState: $('.save-state', this.root), penCss: $('.pen-css', this.root),
+      strip: $('.clue-strip', this.root),
     };
+    this.compact = COMPACT.matches;
+    this.el.game.classList.toggle('compact', this.compact);
     this.el.range.max = this.model.seq.length - 1;
     this.bindEvents();
     this.applyPenColors();
@@ -132,9 +145,13 @@ export class Game {
     this.on(window, 'resize', () => this.layout());
     this.on(document, 'keydown', e => this.onKey(e));
     this.on(this.el.book, 'pointerdown', e => this.onPointerDown(e));
-    this.on(window, 'pointermove', e => { this.lastPointer = { x: e.clientX, y: e.clientY }; this.onPointerMove(e); });
-    this.on(window, 'pointerup', () => this.endStroke());
-    this.on(window, 'pointercancel', () => this.endStroke());
+    this.on(this.el.book, 'click', e => this.onBookTap(e));
+    this.on(this.el.scroller, 'touchstart', e => this.onSwipeStart(e), { passive: true });
+    this.on(this.el.scroller, 'touchend', e => this.onSwipeEnd(e), { passive: true });
+    this.on(COMPACT, 'change', () => this.layout());
+    this.on(window, 'pointermove', e => { this.lastPointer = { x: e.clientX, y: e.clientY }; this.cancelLongPress(e); this.onPointerMove(e); });
+    this.on(window, 'pointerup', () => { this.cancelLongPress(); this.endStroke(); this.releaseTap(); });
+    this.on(window, 'pointercancel', () => { this.cancelLongPress(); this.endStroke(); });
     this.on(this.el.book, 'contextmenu', e => this.onContext(e));
     this.on(this.el.thumbs, 'contextmenu', e => this.onThumbContext(e));
     this.on(this.el.range, 'input', () => this.updateScrubLabel(+this.el.range.value));
@@ -153,6 +170,7 @@ export class Game {
     this.on(document, 'visibilitychange', () => { if (document.visibilityState === 'hidden') this.persist(true); });
     this.on(window, 'pagehide', () => this.persist(true));
     this.on(this.el.stage, 'wheel', e => {
+      if (this.compact) return;
       // Pinch on a trackpad arrives as a ctrl-wheel in Chrome.
       if (e.ctrlKey) { e.preventDefault(); return this.setZoom(this.zoom * Math.exp(-e.deltaY * 0.01), e); }
       const pannable = this.el.scroller.scrollWidth > this.el.scroller.clientWidth + 1;
@@ -163,8 +181,8 @@ export class Game {
     }, { passive: false });
     // Safari reports pinches as gesture events.
     let gestureStart = 1;
-    this.on(this.el.stage, 'gesturestart', e => { e.preventDefault(); gestureStart = this.zoom; });
-    this.on(this.el.stage, 'gesturechange', e => { e.preventDefault(); this.setZoom(gestureStart * e.scale, e); });
+    this.on(this.el.stage, 'gesturestart', e => { if (this.compact) return; e.preventDefault(); gestureStart = this.zoom; });
+    this.on(this.el.stage, 'gesturechange', e => { if (this.compact) return; e.preventDefault(); this.setZoom(gestureStart * e.scale, e); });
   }
 
   // ── view & layout ────────────────────────────────────────────────────────
@@ -180,14 +198,35 @@ export class Game {
   }
 
   layout() {
+    if (COMPACT.matches !== this.compact) this.setCompact(COMPACT.matches);
     this.applyScale();
     this.render();
+  }
+
+  /** Switch between the desk layout and the phone layout (on load, resize or rotation). */
+  setCompact(on) {
+    this.compact = on;
+    this.el.game.classList.toggle('compact', on);
+    this.closeSheet();
+    $('.ctx-menu')?.remove();
+    this.renderCasebook();
   }
 
   get zoom() { return this.g.view.zoom || 1; }
 
   /** Fit the book to the stage, then apply the reader's zoom on top. */
   applyScale() {
+    if (this.compact) {
+      // The phone layout reflows each page to the screen's width: no scaling, one page at a time.
+      this.forceSingle = true;
+      this.fitScale = this.scale = 1;
+      this.el.book.classList.add('single');
+      this.el.book.style.transform = '';
+      this.el.wrap.style.width = this.el.wrap.style.height = '';
+      this.el.stage.classList.remove('zoomed');
+      this.renderPageActions();
+      return;
+    }
     const sc = this.el.scroller;
     const availW = sc.clientWidth - 112, availH = sc.clientHeight - 24;
     const spreadScale = Math.min(availW / (PAGE_W * 2), availH / PAGE_H);
@@ -245,6 +284,7 @@ export class Game {
   /** Full-size buttons under each visible page — easy targets at any zoom. */
   renderPageActions() {
     if (!this.el.actions || !this.fitScale) return;
+    if (this.compact) return this.renderCompactActions();
     const vis = this.visible();
     const pageW = PAGE_W * this.fitScale;
     const dot = `<i class="pen-dot" style="--c:${hexOf(this.g.penColors[this.g.activePen])}"></i>`;
@@ -267,6 +307,35 @@ export class Game {
     }).join('');
   }
 
+  /** Phone layout: the page's label (tap to jump), its strike buttons, and each column's. */
+  renderCompactActions() {
+    const item = this.model.seq[this.g.pos];
+    const victim = this.model.caseData.victim;
+    const counts = ids => { let open = 0, marked = 0; for (const i of ids) { if (i === victim) continue; if (this.marks[i]) marked++; else open++; } return { open, marked }; };
+    const dis = cond => cond || this.g.solved ? ' disabled' : '';
+    const dot = `<i class="pen-dot" style="--c:${hexOf(this.g.penColors[this.g.activePen])}"></i>`;
+    const label = item.kind === 'register' ? `Page ${item.page.page} <span>of ${this.model.book.pageCount}</span>` : `${{ title: 'Title page', case: 'The Case', evidence: this.inquiry ? 'The Witnesses' : 'The Evidence', contents: 'Contents', blank: 'Blank page' }[item.kind]} <span>· ${item.folio}</span>`;
+    let html = `<button class="pa-where" data-act="nav" title="Go to a page or chapter">${label} ▾</button>`;
+    if (item.kind === 'register') {
+      const p = item.page, pc = counts(this.pageIds(p.page));
+      html += `<span class="pa-pair"><button class="btn small" data-act="mark-page" data-page="${p.page}"${dis(!pc.open)}>${dot}Page</button><button class="btn ghost small" data-act="clear-page" data-page="${p.page}"${dis(!pc.marked)}>Clear</button></span>`;
+      if (p.opener) {
+        const cc = counts(this.chapterIds(p.ci));
+        html += `<span class="pa-pair"><button class="btn small" data-act="mark-chapter" data-ci="${p.ci}"${dis(!cc.open)}>${dot}Chapter</button><button class="btn ghost small" data-act="clear-chapter" data-ci="${p.ci}"${dis(!cc.marked)}>Clear</button></span>`;
+      }
+      p.cols.forEach((ids, k) => {
+        const head = $(`.col-head[data-col="${k}"]`, this.el.book);
+        if (!head) return;
+        const c = counts(ids);
+        $('.col-count', head).textContent = c.open ? `${c.open} standing` : 'all struck';
+        $('[data-act="mark-col"]', head).disabled = !c.open || !!this.g.solved;
+        $('[data-act="clear-col"]', head).disabled = !c.marked || !!this.g.solved;
+        $('.pen-dot', head).style.setProperty('--c', hexOf(this.g.penColors[this.g.activePen]));
+      });
+    }
+    this.el.actions.innerHTML = html;
+  }
+
   visible() {
     const pos = this.g.pos, n = this.model.seq.length;
     if (!this.spreadMode) return [pos];
@@ -282,7 +351,7 @@ export class Game {
     vis.forEach((seq, slot) => {
       const holder = h(`<div class="slot ${this.spreadMode ? (slot === 0 ? 'left' : 'right') : 'only'}"></div>`);
       if (seq !== null) {
-        const pg = renderPage(this.model, seq, { side: this.spreadMode ? (slot === 0 ? 'verso' : 'recto') : undefined, marks: this.marks, solved, revealed: this.shown });
+        const pg = renderPage(this.model, seq, { side: this.spreadMode ? (slot === 0 ? 'verso' : 'recto') : undefined, marks: this.marks, solved, revealed: this.shown, compact: this.compact });
         holder.append(pg);
       } else holder.classList.add('empty');
       this.el.book.append(holder);
@@ -298,25 +367,35 @@ export class Game {
     this.el.range.value = labelSeq;
     this.updateScrubLabel(labelSeq);
     this.updateThumbActive();
-    $('[data-act="prev"]', this.root).disabled = shown[0] <= 0;
-    $('[data-act="next"]', this.root).disabled = Math.max(...shown) >= this.model.seq.length - 1;
+    for (const b of $$('[data-act="prev"]', this.root)) b.disabled = shown[0] <= 0;
+    for (const b of $$('[data-act="next"]', this.root)) b.disabled = Math.max(...shown) >= this.model.seq.length - 1;
+    this.updateStrip();
   }
 
   goTo(seq, flashI) {
     seq = Math.max(0, Math.min(this.model.seq.length - 1, seq));
-    if (this.g.pos !== seq) { this.g.pos = seq; this.save(); }
+    const moved = this.g.pos !== seq;
+    if (moved) { this.g.pos = seq; this.save(); }
     this.render();
+    // A reflowed page is taller than the screen: start each new one at the top.
+    if (this.compact && moved) this.el.scroller.scrollTop = 0;
     if (flashI !== undefined) {
       const li = this.nodes.get(flashI);
       if (li) {
         li.classList.remove('flash'); void li.offsetWidth; li.classList.add('flash');
-        if (this.zoom > 1.001) li.scrollIntoView({ block: 'center', inline: 'center' });
+        if (this.zoom > 1.001 || this.compact) li.scrollIntoView({ block: 'center', inline: 'center' });
       }
     }
   }
 
   flip(dir) {
     const n = this.model.seq.length;
+    if (this.compact) {
+      // One page at a time, skipping the blank page that only exists so print spreads line up.
+      let to = this.g.pos + dir;
+      if (this.model.seq[to]?.kind === 'blank') to += dir;
+      return this.goTo(to);
+    }
     if (!this.spreadMode) return this.goTo(this.g.pos + dir);
     const k = this.g.pos === 0 ? 0 : Math.floor((this.g.pos + 1) / 2);
     const nk = Math.max(0, Math.min(Math.ceil((n - 1) / 2), k + dir));
@@ -413,6 +492,7 @@ export class Game {
   // ── pointer: highlighter strokes ─────────────────────────────────────────
   onPointerDown(e) {
     if (e.button !== 0) return;
+    if (this.compact) return this.startLongPress(e);
     const toc = e.target.closest('[data-goto]');
     if (toc) { this.goTo(+toc.dataset.goto); return; }
     const li = e.target.closest('.nm');
@@ -443,6 +523,139 @@ export class Game {
       : [i];
     for (const j of between) this.strokeOver(j);
     this.anchor = i;
+  }
+
+  // ── phone: tap to strike, long-press for options, swipe to turn ─────────
+  /** A tap, not a pointerdown: on a phone a touch that turns into a scroll must strike nothing. */
+  onBookTap(e) {
+    if (!this.compact) return;
+    if (this.suppressTap) { this.suppressTap = false; return; }
+    const toc = e.target.closest('[data-goto]');
+    if (toc) return this.goTo(+toc.dataset.goto);
+    const li = e.target.closest('.nm');
+    if (!li || this.g.solved) return;
+    const i = +li.dataset.i;
+    if (i === this.model.caseData.victim) return toast(`${this.model.victim.name} is the victim — not a suspect.`);
+    const pen = this.g.activePen, changes = [];
+    this.set(i, this.marks[i] === pen ? 0 : pen, changes);
+    this.anchor = i;
+    this.commit(changes);
+  }
+
+  startLongPress(e) {
+    const li = e.target.closest('.nm');
+    clearTimeout(this.press?.timer);
+    if (!li) { this.press = null; return; }
+    const x = e.clientX, y = e.clientY;
+    this.press = { x, y, timer: setTimeout(() => {
+      this.press = null;
+      // However long the finger stays down, the tap that ends this press must not strike the name.
+      this.suppressTap = true;
+      navigator.vibrate?.(10);
+      // Open just below the finger, so lifting it doesn't land on a menu button.
+      this.nameMenu(+li.dataset.i, x - 40, y + 18);
+    }, LONG_PRESS_MS) };
+  }
+
+  /** After a long press, let the click that follows its release go by, then accept taps again. */
+  releaseTap() {
+    if (this.suppressTap) setTimeout(() => (this.suppressTap = false), 400);
+  }
+
+  /** A press that moves (a scroll) or lifts early is a scroll or a tap, not a long press. */
+  cancelLongPress(e) {
+    if (!this.press) return;
+    if (e && Math.hypot(e.clientX - this.press.x, e.clientY - this.press.y) < 10) return;
+    clearTimeout(this.press.timer);
+    this.press = null;
+  }
+
+  onSwipeStart(e) {
+    if (!this.compact || e.touches.length !== 1) { this.swipe = null; return; }
+    const t = e.touches[0];
+    this.swipe = { x: t.clientX, y: t.clientY, at: Date.now() };
+  }
+
+  onSwipeEnd(e) {
+    const s = this.swipe;
+    this.swipe = null;
+    if (!s || !this.compact || $('.modal-backdrop')) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - s.x, dy = t.clientY - s.y;
+    // A deliberate sideways swipe: long enough, mostly horizontal, and quick.
+    if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 2 && Date.now() - s.at < 700) this.flip(dx < 0 ? 1 : -1);
+  }
+
+  openSheet(tab) {
+    if (tab && tab !== this.g.view.tab) { this.g.view.tab = tab; this.renderCasebook(); }
+    this.el.game.classList.add('sheet-open');
+  }
+  closeSheet() { this.el.game.classList.remove('sheet-open'); }
+
+  /** The active clue, always in view on a phone; tap it for the whole Casebook. */
+  updateStrip() {
+    if (!this.el.strip) return;
+    const pen = this.g.activePen;
+    this.el.strip.style.setProperty('--c', hexOf(this.g.penColors[pen]));
+    $('.cs-text', this.el.strip).innerHTML = pen === PENCIL
+      ? '<b>✎</b> Pencil: struck, but you haven’t decided which clue clears them.'
+      : `<b>${ROMAN_UP(pen)}</b> ${esc(this.rules[pen - 1].text)}`;
+    const next = $('.cs-next', this.el.strip);
+    if (this.inquiry && !this.g.solved && this.g.revealed < this.rules.length) {
+      const left = this.outstanding();
+      next.textContent = left ? `Witness ${this.g.revealed + 1} comes forward after ${fmt(left)} more name${left === 1 ? '' : 's'}` : 'Every name is struck — the next witness is coming…';
+    } else next.textContent = '';
+  }
+
+  /** Phone: jump to a page, the front matter or a chapter. */
+  navSheet() {
+    const { chapters, pageCount } = this.model.book;
+    const front = this.model.seq.slice(0, this.model.frontCount).map((s, k) => ({ s, k })).filter(({ s }) => s.kind === 'case' || s.kind === 'contents' || (s.kind === 'evidence' && s.part === 0));
+    const frontLabel = s => s.kind === 'case' ? 'The Case' : s.kind === 'contents' ? 'Contents' : this.inquiry ? 'The Witnesses' : 'The Evidence';
+    modal({
+      title: 'Go to…',
+      className: 'nav-sheet',
+      body: `<form class="row nav-go"><input class="input" type="number" inputmode="numeric" min="1" max="${pageCount}" placeholder="Page 1–${pageCount}" aria-label="Page number"><button class="btn primary">Go</button></form>
+        <div class="nav-front">${front.map(({ s, k }) => `<button class="btn small" data-seq="${k}">${frontLabel(s)}</button>`).join('')}</div>
+        <ul class="nav-chapters">${chapters.map(ch => {
+          const frac = this.chapterStruck[ch.ci] / this.chapterSize[ch.ci];
+          return `<li><button data-seq="${this.model.seqOfPage(ch.firstPage)}" style="--done:${frac}" class="${frac >= 1 ? 'cleared' : ''}"><b>${ch.title}</b><span>pp. ${ch.firstPage}–${ch.lastPage} · ${frac >= 1 ? 'all struck' : `${Math.round(frac * 100)}% struck`}</span><i></i></button></li>`;
+        }).join('')}</ul>`,
+      actions: [{ label: 'Close' }],
+      onOpen: (root, close) => {
+        $('.nav-go', root).addEventListener('submit', ev => {
+          ev.preventDefault();
+          const n = parseInt($('input', root).value, 10);
+          if (n >= 1 && n <= pageCount) { close(); this.goTo(this.model.seqOfPage(n)); }
+          else toast(`The ${esc(this.model.word)} runs from page 1 to ${pageCount}.`);
+        });
+        root.addEventListener('click', ev => { const b = ev.target.closest('[data-seq]'); if (b) { close(); this.goTo(+b.dataset.seq); } });
+        // Bring the current chapter into view.
+        const s = this.model.seq[this.g.pos];
+        if (s.kind === 'register') $$('.nav-chapters li', root)[s.page.ci]?.scrollIntoView({ block: 'center' });
+      },
+    });
+  }
+
+  /** Phone: everything that doesn't fit in the top bar. */
+  moreMenu(anchor) {
+    const r = anchor.getBoundingClientRect();
+    this.menu(r.right - 240, r.bottom + 4, `
+      <button class="cm-item" data-cm="mark-pages">Strike by position…</button>
+      <button class="cm-item" data-cm="redo">Redo</button>
+      <button class="cm-item" data-cm="case">The Case and your progress</button>
+      <button class="cm-item" data-cm="sergeant">Ask the Sergeant for a hint</button>
+      <button class="cm-item" data-cm="strike">${this.g.view.strike ? 'Hide' : 'Show'} a line through struck names</button>
+      <button class="cm-item" data-cm="help">How to play</button>`, (b, close) => {
+      close();
+      const cm = b.dataset.cm;
+      if (cm === 'mark-pages') this.markPagesDialog();
+      else if (cm === 'redo') this.redo();
+      else if (cm === 'case') this.openSheet('case');
+      else if (cm === 'sergeant') this.sergeant();
+      else if (cm === 'strike') { this.g.view.strike = !this.g.view.strike; this.save(); this.applyView(); }
+      else if (cm === 'help') this.showHelp();
+    });
   }
 
   strokeOver(i) {
@@ -484,6 +697,7 @@ export class Game {
     this.commit(changes, label);
   }
   pageIds(pageNo) { return this.model.book.pages[pageNo - 1].cols.flat(); }
+  columnIds(pageNo, col) { return this.model.book.pages[pageNo - 1].cols[col]; }
   chapterIds(ci) { return this.model.book.entries.filter(e => e.ci === ci).map(e => e.i); }
 
   // ── clicks ───────────────────────────────────────────────────────────────
@@ -506,13 +720,20 @@ export class Game {
       case 'toggle-view': this.g.view.mode = this.spreadMode ? 'single' : 'spread'; if (this.forceSingle) toast('The window is too narrow for two pages — widen it or close the Casebook.'); this.save(); return this.layout();
       case 'toggle-strike': this.g.view.strike = !this.g.view.strike; this.save(); return this.applyView();
       case 'mark-page': return this.strikeIndices(this.pageIds(pg), `Struck page ${pg}`);
+      case 'mark-col': return this.strikeIndices(this.columnIds(pg, +b.dataset.col), `Struck the ${columnName(+b.dataset.col, this.model.book.cols).toLowerCase()} column of page ${pg}`);
+      case 'clear-col': return this.clearIndices(this.columnIds(pg, +b.dataset.col), `Cleared the ${columnName(+b.dataset.col, this.model.book.cols).toLowerCase()} column of page ${pg}`);
+      case 'undo': return this.undo();
+      case 'more': return this.moreMenu(b);
+      case 'nav': return this.navSheet();
+      case 'sheet': return this.openSheet();
+      case 'sheet-close': return this.closeSheet();
       case 'clear-page': return this.clearIndices(this.pageIds(pg), `Cleared page ${pg}`);
       case 'mark-chapter': return this.strikeIndices(this.chapterIds(ci), `Struck ${this.model.book.chapters[ci].title}`);
       case 'clear-chapter': return this.clearIndices(this.chapterIds(ci), `Cleared ${this.model.book.chapters[ci].title}`);
       case 'zoom-in': return this.zoomStep(1);
       case 'zoom-out': return this.zoomStep(-1);
       case 'zoom-fit': return this.setZoom(1);
-      case 'pen': return this.setPen(+b.dataset.pen);
+      case 'pen': this.setPen(+b.dataset.pen); if (this.compact && b.closest('.casebook')) this.closeSheet(); return;
       case 'swatch': e.stopPropagation(); return this.colorPicker(+b.dataset.pen, b);
       case 'tab': this.g.view.tab = b.dataset.tab; this.save(); return this.renderCasebook();
       case 'thumb': return this.goTo(this.model.seqOfPage(this.model.book.chapters[+b.dataset.ci].firstPage));
@@ -528,6 +749,8 @@ export class Game {
     $$('.ev', this.el.casebook).forEach(li => li.classList.toggle('active', +li.dataset.ev === pen));
     $$('.chip', this.el.tray).forEach(c => c.classList.toggle('on', +c.dataset.pen === pen));
     this.applyPenColors();
+    this.updateStrip();
+    if (this.compact) $('.chip.on', this.el.tray)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
   penName(pen) { return pen === PENCIL ? 'the pencil' : `clue ${ROMAN_UP(pen)}`; }
 
@@ -557,7 +780,7 @@ export class Game {
       };
       const next = this.inquiry && this.shown < this.rules.length
         ? `<li class="ev next-witness"><div class="nw-num">${ROMAN_UP(this.shown + 1)}</div><div class="nw-body"><b>The next witness is waiting</b><span>They’ll come forward once every name the evidence so far rules out has been struck.</span><span class="nw-count"></span></div></li>` : '';
-      body = `<p class="cb-hint">${this.inquiry ? `Witness ${this.shown} of ${this.rules.length}. ` : ''}Choose a clue, then click or drag across names to strike them. Each clue has its own highlighter. Click a struck name again to clear it.</p>
+      body = `<p class="cb-hint">${this.inquiry ? `Witness ${this.shown} of ${this.rules.length}. ` : ''}${this.compact ? 'Tap a clue to use its highlighter, then tap names to strike them. Tap a struck name again to clear it.' : 'Choose a clue, then click or drag across names to strike them. Each clue has its own highlighter. Click a struck name again to clear it.'}</p>
         <ol class="ev-list">${this.rules.slice(0, this.shown).map((r, k) => row(k + 1, ROMAN_UP(k + 1), r.source, r.text, clueLabel(r))).join('')}
         ${next}
         ${row(PENCIL, '✎', 'Pencil', 'Struck, but you haven’t decided which clue clears them.', null)}</ol>`;
@@ -571,7 +794,7 @@ export class Game {
     // Keep the reader's place in the list across re-renders.
     const prev = $('.cb-body', this.el.casebook);
     const keep = prev && this.lastTab === tab ? prev.scrollTop : 0;
-    this.el.casebook.innerHTML = `<div class="cb-tabs">${tabs}</div><div class="cb-body">${body}</div>`;
+    this.el.casebook.innerHTML = `<div class="cb-tabs">${tabs}${this.compact ? '<button class="cb-close" data-act="sheet-close">Done</button>' : ''}</div><div class="cb-body">${body}</div>`;
     $('.cb-body', this.el.casebook).scrollTop = keep;
     this.lastTab = tab;
     this.applyPenColors();
@@ -582,6 +805,7 @@ export class Game {
     const chip = (pen, label) => `<button class="chip ${this.g.activePen === pen ? 'on' : ''}" data-act="pen" data-pen="${pen}" style="--c:${hexOf(this.g.penColors[pen])}" title="${pen === PENCIL ? 'Pencil — struck, reason undecided' : `Clue ${label}: ${esc(this.rules[pen - 1].text)}`}">${label}</button>`;
     this.el.tray.innerHTML = this.rules.slice(0, this.shown).map((_, k) => chip(k + 1, ROMAN_UP(k + 1))).join('') + chip(PENCIL, '✎');
     this.applyPenColors();
+    this.updateStrip();
   }
 
   colorPicker(pen, anchor) {
@@ -625,6 +849,7 @@ export class Game {
 
   updateCounts() {
     this.el.num.textContent = fmt(this.remaining);
+    this.updateStrip();
     if (this.inquiry) {
       const left = this.outstanding();
       const el = $('.nw-count', this.el.casebook);
@@ -681,11 +906,16 @@ export class Game {
     const li = e.target.closest('.nm');
     if (!li) return;
     e.preventDefault();
-    const i = +li.dataset.i;
+    // Phones open the same menu on a long press (startLongPress); don't open it twice.
+    if (this.compact) return;
+    this.nameMenu(+li.dataset.i, e.clientX, e.clientY);
+  }
+
+  nameMenu(i, x, y) {
     const ent = this.model.book.entries[i];
     if (i === this.model.caseData.victim) return toast(`${ent.name} is the victim — not a suspect.`);
     const pens = [...this.rules.slice(0, this.shown).map((_, k) => k + 1), PENCIL];
-    this.menu(e.clientX, e.clientY, `<div class="cm-title">${ent.name} <span>p. ${ent.page}, line ${ent.line}</span></div>
+    this.menu(x, y, `<div class="cm-title">${ent.name} <span>p. ${ent.page}, line ${ent.line}</span></div>
       <div class="cm-label">Strike with</div>
       <div class="cm-pens">${pens.map(p => `<button data-pen="${p}" style="--c:${hexOf(this.g.penColors[p])}" class="${this.marks[i] === p ? 'on' : ''}">${p === PENCIL ? '✎' : ROMAN_UP(p)}</button>`).join('')}</div>
       ${this.marks[i] ? '<button class="cm-item" data-cm="clear">Clear this mark</button>' : ''}
@@ -904,7 +1134,7 @@ export class Game {
       className: 'accuse-modal',
       body: `<p class="muted">Name the killer. ${this.g.accusations.length ? `You have made ${this.g.accusations.length} accusation${this.g.accusations.length > 1 ? 's' : ''} so far.` : 'A wrong accusation is not fatal — but it goes on the record.'}</p>
         ${standing ? `<div class="standing"><div class="cm-label">Still standing (${standing.length})</div>${standing.map(e => `<button data-i="${e.i}">${e.name}<span>p. ${e.page}, l. ${e.line}</span></button>`).join('')}</div>` : ''}
-        <input class="input" placeholder="Type a name, then pick the right page and line…" spellcheck="false" autocomplete="off" ${standing ? '' : 'autofocus'}>
+        <input class="input" placeholder="${this.compact ? 'Type a name…' : 'Type a name, then pick the right page and line…'}" spellcheck="false" autocomplete="off" ${standing ? '' : 'autofocus'}>
         <ul class="results"></ul>
         <div class="accused"></div>`,
       actions: [{ label: 'Not yet' }, {
@@ -991,6 +1221,7 @@ export class Game {
 
   // ── help ─────────────────────────────────────────────────────────────────
   showHelp(first = false) {
+    if (this.compact) return this.showTouchHelp(first);
     modal({
       title: first ? 'Welcome to the Register' : 'How to play',
       wide: true,
@@ -1010,6 +1241,22 @@ export class Game {
           <div><kbd>+</kbd> / <kbd>−</kbd> zoom · <kbd>Z</kbd> zoom in / fit</div><div>Pinch the trackpad to zoom; scroll to pan</div>
         </div>
         <p class="muted">Your progress saves itself after every mark. You can close the window at any time and pick up where you left off.</p>
+      </div>`,
+      actions: [{ label: first ? 'Open the Register' : 'Back to work', primary: true }],
+    });
+  }
+
+  showTouchHelp(first) {
+    modal({
+      title: first ? 'Welcome to the Register' : 'How to play',
+      body: `<div class="help">
+        <ol class="howto">
+          <li><b>Read the evidence.</b> The active clue sits above the page; tap it to see ${this.inquiry ? 'every witness heard so far. The next one comes forward only once you’ve struck every name the evidence so far rules out' : 'every clue'}. Each statement is true of the killer, so any name that breaks even one is innocent.</li>
+          <li><b>Strike the innocent.</b> Choose a clue’s highlighter from the row at the bottom, then tap names to strike them; tap again to clear. <b>Strike</b> buttons take a whole column, page or chapter at once. Start broad.</li>
+          <li><b>Accuse.</b> When one name is left standing, accuse them by page and line — names repeat.</li>
+        </ol>
+        <ul class="touch-tips"><li>Swipe sideways, or use ‹ ›, to turn pages. Tap the page number to jump.</li><li>Long-press a name to strike it with any clue, or to accuse.</li><li>↶ undoes; ⋯ has Strike by position, the Sergeant’s hints and more.</li></ul>
+        <p class="muted">Your progress saves itself after every mark. A bigger screen shows the pages as printed, two at a time.</p>
       </div>`,
       actions: [{ label: first ? 'Open the Register' : 'Back to work', primary: true }],
     });
