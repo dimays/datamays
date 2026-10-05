@@ -3,7 +3,7 @@
 
 /** Small headers so the home screen never parses whole books. */
 export function caseSummary(c) {
-  return { id: c.id, engine: c.engine, mode: c.mode || 'cold', setting: c.setting || null, code: c.code, difficulty: c.difficulty, title: c.title, createdAt: c.createdAt, clues: c.rules?.length, pages: c.stats?.pageCount, valid: c.validation?.ok, victim: c.story?.victim, town: c.story?.town };
+  return { id: c.id, engine: c.engine, mode: c.mode || 'cold', setting: c.setting || null, style: c.style || null, names: c.names?.length || 26000, code: c.code, difficulty: c.difficulty, title: c.title, createdAt: c.createdAt, clues: c.rules?.length, pages: c.stats?.pageCount, valid: c.validation?.ok, victim: c.story?.victim, town: c.story?.town };
 }
 
 export function gameSummary(g) {

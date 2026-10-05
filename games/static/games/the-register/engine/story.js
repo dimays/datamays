@@ -53,11 +53,11 @@ export function prologue(story, book, victimEntry, ruleCount, mode = 'cold') {
   ];
 }
 
-export function epilogue(story, killer) {
+export function epilogue(story, killer, total = 26000) {
   const book = shortTitle(story).replace(/^The /, 'the ');
   return [
     `It was ${killer.name} — page ${killer.page}, line ${killer.line} of ${book}.`,
     `The motive, when it finally came out, was ${story.motive}. ${story.clincher}`,
-    `${story.inspector} closed the ${registerWord(story)} with a soft thump. Out of ${(26000).toLocaleString('en-US')} names, only one had nowhere left to hide.`,
+    `${story.inspector} closed the ${registerWord(story)} with a soft thump. Out of ${total.toLocaleString('en-US')} names, only one had nowhere left to hide.`,
   ];
 }

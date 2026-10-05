@@ -1,6 +1,6 @@
 import { $, $$, h, esc, fmt, duration, timeAgo, modal, toast } from './util.js';
 import { api, IN_BROWSER } from './api.js';
-import { DIFFICULTIES, ENGINE_VERSION, MODES } from '../engine/generator.js';
+import { DIFFICULTIES, ENGINE_VERSION, MODES, STYLES } from '../engine/generator.js';
 import { SETTING } from '../engine/settings.js';
 import { clueLabel } from '../engine/rules.js';
 import { ROMAN_UP } from './model.js';
@@ -11,6 +11,9 @@ import { createCase, unusedCase, newGameFor, caseId, prepareSpare } from './case
 const UNREACHABLE = IN_BROWSER ? 'Can’t open this browser’s storage. Is it in private browsing mode?' : 'Can’t reach the local server. Is it running?';
 const RETRY_HINT = IN_BROWSER ? 'Try again in a moment.' : 'Is the local server still running?';
 const BACKUP_KIND = 'the-register/backup';
+
+/** Suspects in a saved game: everyone but the victim. Games before engine 7 had 26,000 names. */
+const suspects = g => (g.total || 26000) - 1;
 
 export class Home {
   constructor(root, { openGame, showLoading, hideLoading }) {
@@ -27,20 +30,21 @@ export class Home {
     this.root.append(h(`<div class="home">
       <div class="home-grid">
         <div class="brand">
-          <div class="brand-kicker">A murder mystery in 26,000 names</div>
+          <div class="brand-kicker">A murder mystery in 26,000 to 52,000 names</div>
           <h1 class="brand-title">The Register</h1>
-          <p class="brand-sub">Somewhere among twenty-six thousand names — on a liner’s manifest, in a mining town’s census, at a sold-out festival — is a killer. You have the register and a handful of clues. Strike out the innocent, one clue at a time, until a single name is left.</p>
+          <p class="brand-sub">Somewhere among tens of thousands of names — on a liner’s manifest, in a mining town’s census, at a sold-out festival — is a killer. You have the register and a handful of clues. Strike out the innocent, one clue at a time, until a single name is left.</p>
           <div class="home-actions">
             ${current ? `<button class="continue-card" data-open="${current.id}">
                 <span class="cc-kicker">Continue</span>
                 <span class="cc-title">${esc(current.title)}</span>
-                <span class="cc-meta">${MODES[current.mode || 'cold'].label} · ${DIFFICULTIES[current.difficulty]?.label} · ${fmt(current.remaining ?? 25999)} suspects remain · ${duration(current.timePlayed)} on the case · opened ${timeAgo(current.updatedAt)}</span>
-                <span class="cc-bar"><i style="--p:${((current.struck || 0) / 25999).toFixed(4)}"></i></span>
+                <span class="cc-meta">${MODES[current.mode || 'cold'].label} · ${DIFFICULTIES[current.difficulty]?.label} · ${fmt(current.remaining ?? suspects(current))} suspects remain · ${duration(current.timePlayed)} on the case · opened ${timeAgo(current.updatedAt)}</span>
+                <span class="cc-bar"><i style="--p:${((current.struck || 0) / suspects(current)).toFixed(4)}"></i></span>
               </button>` : ''}
             <button class="btn ${current ? '' : 'primary'} big" data-act="new">${games.length ? 'Open a new case' : 'Open your first case'}</button>
           </div>
+          <p class="credit">Inspired by <cite>The Killer Isn’t Alice</cite> by Iris Starling, the puzzle book that started it all. The Register is a free fan game. It is unofficial, and is not affiliated with, endorsed by or connected to the book, its author or its publisher.</p>
         </div>
-        <div class="cover" aria-hidden="true"><div class="cover-inner"><div class="cv-rule"></div><div class="cv-kicker">26,000 names</div><div class="cv-title">The<br>Register</div><div class="cv-num">One killer</div><div class="cv-rule"></div></div></div>
+        <div class="cover" aria-hidden="true"><div class="cover-inner"><div class="cv-rule"></div><div class="cv-kicker">One register</div><div class="cv-title">The<br>Register</div><div class="cv-num">One killer</div><div class="cv-rule"></div></div></div>
       </div>
       <section class="files">
         <div class="files-head"><h2>Case files</h2><div class="files-tools"><button class="btn ghost small" data-act="by-code">Open a case by number…</button><button class="btn ghost small" data-act="backup" title="Save every case file to a file you keep">Back up</button><button class="btn ghost small" data-act="restore" title="Bring case files back from a backup file">Restore…</button></div></div>
@@ -55,11 +59,11 @@ export class Home {
   destroy() { this.root.removeEventListener('click', this.onClick); }
 
   fileRow(g) {
-    const pct = Math.min(1, (g.struck || 0) / 25999);
+    const pct = Math.min(1, (g.struck || 0) / suspects(g));
     return `<li class="file ${g.solved ? 'is-solved' : ''}">
       <button class="file-main" data-open="${g.id}">
         <span class="f-title">${esc(g.title)}</span>
-        <span class="f-meta"><span class="pill">${MODES[g.mode || 'cold'].label}</span> <span class="pill">${DIFFICULTIES[g.difficulty]?.label}</span>${g.setting && SETTING[g.setting] ? ` ${esc(SETTING[g.setting].label)} ·` : ''} No. ${esc(g.code)} · ${g.solved ? `Solved ✓ in ${duration(g.timePlayed)}` : `${fmt(g.remaining ?? 25999)} suspects remain · ${duration(g.timePlayed)}`} · ${timeAgo(g.updatedAt)}</span>
+        <span class="f-meta"><span class="pill">${MODES[g.mode || 'cold'].label}</span> <span class="pill">${DIFFICULTIES[g.difficulty]?.label}</span>${g.setting && SETTING[g.setting] ? ` ${esc(SETTING[g.setting].label)} ·` : ''} No. ${esc(g.code)} · ${g.solved ? `Solved ✓ in ${duration(g.timePlayed)}` : `${fmt(g.remaining ?? suspects(g))} suspects remain · ${duration(g.timePlayed)}`} · ${timeAgo(g.updatedAt)}</span>
         <span class="f-bar"><i style="--p:${g.solved ? 1 : pct.toFixed(4)}"></i></span>
       </button>
       <button class="btn ghost small" data-report="${g.caseId}" title="How this case was built and checked">Case report</button>
@@ -94,8 +98,8 @@ export class Home {
       title: 'Open a new case',
       wide: true,
       body: `<div class="mode-grid">${Object.entries(MODES).map(([k, m]) => `<button class="mode ${k === mode ? 'on' : ''}" data-mode="${k}"><span class="d-name">${m.label}</span><span class="d-blurb">${m.blurb}</span></button>`).join('')}</div>
-        <div class="diff-grid">${Object.entries(DIFFICULTIES).map(([k, d]) => `<button class="diff ${k === 'classic' ? 'rec' : ''}" data-diff="${k}"><span class="d-name">${d.label}</span><span class="d-blurb">${d.blurb}</span><span class="d-meta">${d.clues[0] === d.clues[1] ? d.clues[0] : `${d.clues[0]}–${d.clues[1]}`} clues</span></button>`).join('')}</div>
-        <p class="muted small-print">Each case is set somewhere new — a liner’s manifest, a mining-town census, a festival’s wristband register — chosen at random.</p>`,
+        <div class="diff-grid">${Object.entries(DIFFICULTIES).map(([k, d]) => `<button class="diff ${k === 'classic' ? 'rec' : ''}" data-diff="${k}"><span class="d-name">${d.label}</span><span class="d-blurb">${d.blurb}</span><span class="d-meta">${fmt(d.names)} names · ${d.clues[0] === d.clues[1] ? d.clues[0] : `${d.clues[0]}–${d.clues[1]}`} clues</span></button>`).join('')}</div>
+        <p class="muted small-print">Each case is set somewhere new — a liner’s manifest, a mining-town census, a festival’s wristband register — and leans on its own mix of evidence, so no two read alike.</p>`,
       onOpen: (root, close) => root.addEventListener('click', ev => {
         const m = ev.target.closest('[data-mode]');
         if (m) { mode = m.dataset.mode; $$('[data-mode]', root).forEach(b => b.classList.toggle('on', b === m)); return; }
@@ -174,9 +178,9 @@ export class Home {
     modal({
       title: `Case report · ${esc(c.code)}`,
       wide: true,
-      body: `<p class="muted">${esc(c.title)} · ${MODES[c.mode || 'cold'].label} · ${DIFFICULTIES[c.difficulty].label} · generated ${new Date(c.createdAt).toLocaleString()}${c.stats ? ` in ${(c.stats.ms / 1000).toFixed(1)}s (${c.stats.attempts} attempt${c.stats.attempts > 1 ? 's' : ''})` : ''}.</p>
+      body: `<p class="muted">${esc(c.title)} · ${MODES[c.mode || 'cold'].label} · ${DIFFICULTIES[c.difficulty].label} · ${fmt(c.names?.length || 26000)} names${c.style && STYLES[c.style] ? ` · ${esc(STYLES[c.style].label)}: ${esc(STYLES[c.style].blurb)}` : ''} · generated ${new Date(c.createdAt).toLocaleString()}${c.stats ? ` in ${(c.stats.ms / 1000).toFixed(1)}s (${c.stats.attempts} attempt${c.stats.attempts > 1 ? 's' : ''})` : ''}.</p>
         <ul class="checks">${(c.validation?.checks || []).map(k => `<li class="${k.ok ? 'ok' : 'bad'}"><span>${k.ok ? '✓' : '✗'}</span><div><b>${esc(k.label)}</b>${k.detail ? `<em>${esc(k.detail)}</em>` : ''}</div></li>`).join('')}</ul>
-        ${c.stats ? `<p class="muted">${c.rules.length} ${c.mode === 'inquiry' ? 'witnesses, in the order they come forward' : 'clues'} · ${c.stats.pageCount} pages${c.stats.broadSurvivors ? ` · ${fmt(c.stats.broadSurvivors)} suspects survive the four broad clues` : ''}.</p>` : ''}
+        ${c.stats ? `<p class="muted">${c.rules.length} ${c.mode === 'inquiry' ? 'witnesses, in the order they come forward' : 'clues'} · ${c.stats.pageCount} pages${c.stats.sectionSurvivors ? ` · ${fmt(c.stats.sectionSurvivors)} suspects survive the section clues` : c.stats.broadSurvivors ? ` · ${fmt(c.stats.broadSurvivors)} suspects survive the four broad clues` : ''}.</p>` : ''}
         ${c.metrics ? `<table class="balance"><thead><tr><th></th><th>Type</th><th title="Share of all suspects this clue clears">Clears</th><th title="Names that no other clue clears">Only clue for</th><th title="Read in Casebook order: names newly cleared, and their share of those still standing">In order</th></tr></thead><tbody>
           ${c.rules.map((r, k) => { const p = c.metrics.perClue[k]; return `<tr><td>${ROMAN_UP(k + 1)}</td><td>${esc(clueLabel(r))}</td><td>${(p.clearShare * 100).toFixed(1)}%</td><td>${fmt(p.solo)}</td><td>${fmt(p.marginal)} <span class="muted">(${(p.marginalShare * 100).toFixed(0)}%)</span></td></tr>`; }).join('')}
         </tbody></table>

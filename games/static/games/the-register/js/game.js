@@ -674,6 +674,14 @@ export class Game {
     this.commit(s.changes);
   }
 
+  /** Unmarked suspects from entry a to entry b, inclusive, in Register order. */
+  runCount(a, b) {
+    const [lo, hi] = a < b ? [a, b] : [b, a];
+    let n = 0;
+    for (let i = lo; i <= hi; i++) if (!this.marks[i] && i !== this.model.caseData.victim) n++;
+    return n;
+  }
+
   markRange(a, b) {
     const [lo, hi] = a < b ? [a, b] : [b, a];
     const changes = [];
@@ -915,13 +923,18 @@ export class Game {
     const ent = this.model.book.entries[i];
     if (i === this.model.caseData.victim) return toast(`${ent.name} is the victim — not a suspect.`);
     const pens = [...this.rules.slice(0, this.shown).map((_, k) => k + 1), PENCIL];
+    const run = this.runStart ?? null;
     this.menu(x, y, `<div class="cm-title">${ent.name} <span>p. ${ent.page}, line ${ent.line}</span></div>
       <div class="cm-label">Strike with</div>
       <div class="cm-pens">${pens.map(p => `<button data-pen="${p}" style="--c:${hexOf(this.g.penColors[p])}" class="${this.marks[i] === p ? 'on' : ''}">${p === PENCIL ? '✎' : ROMAN_UP(p)}</button>`).join('')}</div>
       ${this.marks[i] ? '<button class="cm-item" data-cm="clear">Clear this mark</button>' : ''}
+      ${run !== null && run !== i ? `<button class="cm-item" data-cm="run-end">Strike everyone from ${this.model.book.entries[run].name} to here <span>${fmt(this.runCount(run, i))} unmarked, ${this.penName(this.g.activePen)}</span></button>` : ''}
+      <button class="cm-item" data-cm="run-start">${run === i ? 'A run starts here — open another name to end it' : 'Start a run of names here'}</button>
       <button class="cm-item" data-cm="accuse">Accuse ${ent.name}…</button>`, (b, close) => {
       if (b.dataset.pen) { const ch = []; this.set(i, +b.dataset.pen, ch); this.commit(ch); close(); }
       else if (b.dataset.cm === 'clear') { const ch = []; this.set(i, 0, ch); this.commit(ch); close(); }
+      else if (b.dataset.cm === 'run-start') { close(); this.runStart = i; toast(`A run starts at ${ent.name} (page ${ent.page}, line ${ent.line}). Go to the last name of the run and ${this.compact ? 'long-press' : 'right-click'} it.`, { ms: 6000 }); }
+      else if (b.dataset.cm === 'run-end') { close(); this.runStart = null; this.markRange(run, i); }
       else if (b.dataset.cm === 'accuse') { close(); this.accuse(i); }
     });
   }
@@ -987,13 +1000,13 @@ export class Game {
   }
 
   // ── find ─────────────────────────────────────────────────────────────────
-  /** Entries whose first name, surname or full name starts with the query (accents ignored). */
-  searchNames(q, limit = 12) {
+  /** Entries whose first name, surname or full name starts with the query (accents ignored), in Register order. */
+  searchNames(q, limit = 20) {
     q = letters(q);
     if (!q) return { list: [], total: 0 };
     const list = [];
     let total = 0;
-    for (const e of this.model.sorted) {
+    for (const e of this.model.book.entries) {
       if (e.first.lower.startsWith(q) || e.last.lower.startsWith(q) || e.full.lower.startsWith(q)) { total++; if (list.length < limit) list.push(e); }
     }
     return { list, total };
@@ -1002,7 +1015,7 @@ export class Game {
   find() {
     modal({
       title: 'Find a name',
-      body: `<input class="input" autofocus placeholder="A first name, a surname, or both…" spellcheck="false" autocomplete="off"><ul class="results"></ul><p class="muted results-more"></p>`,
+      body: `<input class="input" autofocus placeholder="A first name, a surname, or both…" spellcheck="false" autocomplete="off"><ul class="results"></ul><p class="muted results-more"></p><p class="muted small-print">People are listed in the order they appear in the ${esc(this.model.word)}.</p>`,
       onOpen: (root, close) => {
         const inp = $('input', root), ul = $('.results', root), more = $('.results-more', root);
         let res = [];
@@ -1228,14 +1241,14 @@ export class Game {
       body: `<div class="help">
         <ol class="howto">
           <li><b>Read the evidence.</b> The Casebook on the left lists ${this.inquiry ? 'the witnesses heard so far — in The Inquiry, the next one comes forward only once you’ve struck every name the evidence so far rules out' : 'every clue'}. Each statement is true of the killer, so any name that breaks even one is innocent.</li>
-          <li><b>Strike the innocent.</b> Pick a clue’s highlighter, then click or drag across names to strike them. Start with the broad clues: whole chapters, then whole pages, then lines, then the names themselves.</li>
+          <li><b>Strike the innocent.</b> Pick a clue’s highlighter, then click or drag across names to strike them. Start with the clues about stretches of the Register: find the people they name, then strike the run between them. Then work name by name.</li>
           <li><b>Accuse.</b> When one name is left standing, accuse them by page and line — names repeat. A wrong accusation costs nothing but your pride.</li>
         </ol>
         <div class="keys">
           <div><kbd>←</kbd> <kbd>→</kbd> turn pages</div><div><kbd>[</kbd> <kbd>]</kbd> previous / next chapter</div>
           <div><kbd>1</kbd>–<kbd>0</kbd> clues I–X · <kbd>⇧1</kbd>–<kbd>⇧7</kbd> clues XI–XVII</div><div><kbd>&#96;</kbd> or <kbd>.</kbd> pencil (reason undecided)</div>
           <div>Click a struck name again to clear it</div><div><kbd>⇧</kbd>-click strike a whole run of names</div>
-          <div><kbd>⌥</kbd>-drag recolor marks you drag over</div><div>Right-click a name for more options</div>
+          <div><kbd>⌥</kbd>-drag recolor marks you drag over</div><div>Right-click a name to start or end a run, and more</div>
           <div><kbd>⌘Z</kbd> / <kbd>⇧⌘Z</kbd> undo / redo</div><div><kbd>/</kbd> find a name · <kbd>G</kbd> go to page</div>
           <div><kbd>P</kbd> strike by page, column and line</div><div><kbd>C</kbd> Casebook · <kbd>V</kbd> one or two pages</div>
           <div><kbd>+</kbd> / <kbd>−</kbd> zoom · <kbd>Z</kbd> zoom in / fit</div><div>Pinch the trackpad to zoom; scroll to pan</div>
@@ -1252,10 +1265,10 @@ export class Game {
       body: `<div class="help">
         <ol class="howto">
           <li><b>Read the evidence.</b> The active clue sits above the page; tap it to see ${this.inquiry ? 'every witness heard so far. The next one comes forward only once you’ve struck every name the evidence so far rules out' : 'every clue'}. Each statement is true of the killer, so any name that breaks even one is innocent.</li>
-          <li><b>Strike the innocent.</b> Choose a clue’s highlighter from the row at the bottom, then tap names to strike them; tap again to clear. <b>Strike</b> buttons take a whole column, page or chapter at once. Start broad.</li>
+          <li><b>Strike the innocent.</b> Choose a clue’s highlighter from the row at the bottom, then tap names to strike them; tap again to clear. Start with the clues about stretches of the Register: find the people they name, then strike the run between them. <b>Strike</b> buttons take a whole column or page at once.</li>
           <li><b>Accuse.</b> When one name is left standing, accuse them by page and line — names repeat.</li>
         </ol>
-        <ul class="touch-tips"><li>Swipe sideways, or use ‹ ›, to turn pages. Tap the page number to jump.</li><li>Long-press a name to strike it with any clue, or to accuse.</li><li>↶ undoes; ⋯ has Strike by position, the Sergeant’s hints and more.</li></ul>
+        <ul class="touch-tips"><li>Swipe sideways, or use ‹ ›, to turn pages. Tap the page number to jump.</li><li>Long-press a name to strike it with any clue, to start or finish a run of names (even across pages), or to accuse.</li><li>↶ undoes; ⋯ has Strike by position, the Sergeant’s hints and more.</li></ul>
         <p class="muted">Your progress saves itself after every mark. A bigger screen shows the pages as printed, two at a time.</p>
       </div>`,
       actions: [{ label: first ? 'Open the Register' : 'Back to work', primary: true }],
@@ -1271,6 +1284,7 @@ export class Game {
   snapshot() {
     this.g.marks = bytesToB64(this.marks);
     this.g.remaining = this.remaining;
+    this.g.total = this.model.book.entries.length;
     this.g.struck = this.struck;
     this.g.updatedAt = Date.now();
     this.g.baseUpdatedAt = this.baseUpdatedAt;

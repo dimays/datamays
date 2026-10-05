@@ -7,9 +7,11 @@ export const NOVEL_COLS = 3;     // columns per page in the novel layout
 export const CHAPTER_PAGES = [10, 30];  // allowed chapter length, in pages
 
 const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty'];
+const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
 /** 7 → "Seven", 21 → "Twenty-One" — exactly as the chapter headings print it. */
 export const numberWord = n => n < 20 ? ONES[n] : TENS[Math.floor(n / 10)] + (n % 10 ? '-' + ONES[n % 10] : '');
+/** 26000 → "Twenty-Six Thousand". */
+export const thousandsWord = n => n % 1000 === 0 && n < 100000 ? `${numberWord(n / 1000)} Thousand` : n.toLocaleString('en-US');
 
 /** Lay out either kind of case: legacy alphabetical, or the novel layout. */
 export function layoutCase(caseData) {
@@ -58,7 +60,7 @@ const balance = (n, cols) => {
   return out;
 };
 
-/** Split 26,000 names into chapters of 10–30 pages (mostly 12–26), novel-style. */
+/** Split the register's names into chapters of 10–30 pages (mostly 12–26), novel-style. */
 export function planChapters(rng, total) {
   const full = ROWS_FULL * NOVEL_COLS, open = ROWS_OPENER * NOVEL_COLS;
   const cap = p => open + (p - 1) * full;
@@ -173,3 +175,42 @@ export const toRoman = n => {
   for (const [v, r] of map) while (n >= v) { s += r; n -= v; }
   return s;
 };
+
+// ── lookups the clues need, built once per book ─────────────────────────────
+const indexCache = new WeakMap();
+
+/**
+ * Who is where, by name: for first names, surnames and full names, the entry
+ * indices in register order. Also each entry's family group — the run of
+ * consecutive entries sharing its surname — as [start, end] indices.
+ */
+export function bookIndex(book) {
+  let ix = indexCache.get(book);
+  if (ix) return ix;
+  const byFirst = new Map(), byLast = new Map(), byFull = new Map();
+  const add = (m, k, i) => { let a = m.get(k); if (!a) m.set(k, a = []); a.push(i); };
+  for (const e of book.entries) {
+    add(byFirst, e.first.lower, e.i);
+    add(byLast, e.last.lower, e.i);
+    add(byFull, e.full.lower, e.i);
+  }
+  const N = book.entries.length;
+  const runStart = new Int32Array(N), runEnd = new Int32Array(N);
+  for (let i = 0; i < N;) {
+    let j = i;
+    while (j + 1 < N && book.entries[j + 1].last.lower === book.entries[i].last.lower) j++;
+    for (let k = i; k <= j; k++) { runStart[k] = i; runEnd[k] = j; }
+    i = j + 1;
+  }
+  // Each distinct first name / surname as a small integer, with one entry carrying it.
+  const ids = m => { const id = new Int32Array(N), reps = []; let k = 0; for (const list of m.values()) { for (const i of list) id[i] = k; reps.push(list[0]); k++; } return { id, reps }; };
+  ix = { byFirst, byLast, byFull, runStart, runEnd, part: { first: ids(byFirst), last: ids(byLast) } };
+  indexCache.set(book, ix);
+  return ix;
+}
+
+/** Entries named `value` (letters only, lower case) as a first name or surname, in register order. */
+export const occurrences = (book, part, value) => (part === 'last' ? bookIndex(book).byLast : bookIndex(book).byFirst).get(value) || [];
+
+/** How many people are in e's family group (a surname shared by consecutive entries). */
+export const familySize = (book, e) => { const ix = bookIndex(book); return ix.runEnd[e.i] - ix.runStart[e.i] + 1; };

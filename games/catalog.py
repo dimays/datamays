@@ -41,14 +41,15 @@ GAMES = (
     Game(
         slug="the-register",
         title="The Register",
-        tagline="A murder mystery in 26,000 names.",
+        tagline="A murder mystery in 26,000 to 52,000 names.",
         description=(
-            "Somewhere in a register of twenty-six thousand people — a liner's "
+            "Somewhere in a register of tens of thousands of people — a liner's "
             "manifest, a mining-town census, a festival's wristband list — is "
-            "a killer. You have a handful of clues. Strike out everyone they "
-            "clear until one name is left. Every case is generated fresh and "
-            "checked to have exactly one answer, and any case can be shared "
-            "by its number."
+            "a killer. You have a handful of clues, each a small puzzle of its "
+            "own. Strike out everyone they clear until one name is left. Every "
+            "case is generated fresh, leans on its own mix of evidence, and is "
+            "checked to have exactly one answer. A fan game inspired by Iris "
+            "Starling's The Killer Isn't Alice."
         ),
         template="games/the-register.html",
         thumbnail="games/thumbs/the-register.html",
