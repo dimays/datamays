@@ -753,3 +753,110 @@ class BudgetHomepageLinkTests(TestCase):
         self.assertContains(response, f"budget={self.budget.pk}")
         self.assertContains(response, "2026-04-01")
         self.assertContains(response, "2026-04-30")
+
+
+class ActivitySortOrderTests(TestCase):
+    """Newest first is the default; the toggle is for reading the other way.
+
+    Default ordering comes from Transaction.Meta, so the homepage widgets and
+    the review queue get it without asking. This page is the one that can be
+    flipped, because it is the one you actually read through.
+    """
+
+    def setUp(self):
+        call_command("seed_finance_categories", verbosity=0)
+
+        self.institution = make_institution()
+        self.checking = make_account(self.institution, name="Checking")
+        self.groceries = Category.objects.get(slug="food-groceries")
+
+        # Deliberately created out of order, so a passing test means the view
+        # sorted them rather than happening to read them back in insert order.
+        for day in (10, 1, 20, 5):
+            make_transaction(
+                self.checking,
+                category=self.groceries,
+                description_raw=f"DAY {day:02d}",
+                posted_on=date(2026, 4, day),
+            )
+
+        self.user = make_user("david", with_device=True)
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["otp_device_id"] = TOTPDevice.objects.get(user=self.user).persistent_id
+        session.save()
+
+    def dates_on_page(self, query=""):
+        response = self.client.get(reverse("finance:transactions") + query)
+        return [txn.posted_on for txn in response.context["transactions"]]
+
+    def test_the_default_is_newest_first(self):
+        self.assertEqual(
+            self.dates_on_page(),
+            [date(2026, 4, 20), date(2026, 4, 10), date(2026, 4, 5), date(2026, 4, 1)],
+        )
+
+    def test_oldest_first_reverses_it(self):
+        self.assertEqual(
+            self.dates_on_page("?sort=oldest"),
+            [date(2026, 4, 1), date(2026, 4, 5), date(2026, 4, 10), date(2026, 4, 20)],
+        )
+
+    def test_an_unrecognized_sort_falls_back_to_the_default(self):
+        self.assertEqual(self.dates_on_page("?sort=sideways"), self.dates_on_page())
+
+    def test_the_toggle_link_flips_the_direction(self):
+        response = self.client.get(reverse("finance:transactions"))
+        self.assertIn("sort=oldest", response.context["sort_toggle_url"])
+
+        response = self.client.get(reverse("finance:transactions") + "?sort=oldest")
+        self.assertIn("sort=newest", response.context["sort_toggle_url"])
+
+    def test_the_toggle_keeps_the_active_filters(self):
+        response = self.client.get(
+            reverse("finance:transactions") + "?review=1&q=DAY"
+        )
+        toggle = response.context["sort_toggle_url"]
+
+        self.assertIn("review=1", toggle)
+        self.assertIn("q=DAY", toggle)
+
+    def test_the_toggle_returns_to_the_first_page(self):
+        """Reversing means "start again from the other end" — staying on
+        page 7 would drop you into the middle of a list you have not seen
+        the start of."""
+        response = self.client.get(reverse("finance:transactions") + "?page=1&sort=oldest")
+
+        self.assertNotIn("page=", response.context["sort_toggle_url"])
+
+    def test_the_filter_form_carries_the_sort_forward(self):
+        """Re-filtering while reading oldest-first must not silently flip
+        the list back to newest."""
+        response = self.client.get(reverse("finance:transactions") + "?sort=oldest")
+        body = response.content.decode()
+
+        self.assertIn('name="sort" value="oldest"', body)
+
+    def test_paging_is_stable_when_many_share_a_date(self):
+        """posted_on alone is not a total order. Without the id tiebreaker a
+        row can appear on two pages and another be skipped entirely."""
+        for i in range(60):
+            make_transaction(
+                self.checking,
+                category=self.groceries,
+                description_raw=f"SAME DAY {i}",
+                posted_on=date(2026, 6, 1),
+            )
+
+        for query in ("", "?sort=oldest"):
+            with self.subTest(sort=query or "newest"):
+                first = self.client.get(reverse("finance:transactions") + query)
+                joiner = "&" if query else "?"
+                second = self.client.get(
+                    reverse("finance:transactions") + query + joiner + "page=2"
+                )
+
+                ids = [t.pk for t in first.context["transactions"]]
+                ids += [t.pk for t in second.context["transactions"]]
+
+                self.assertEqual(len(ids), len(set(ids)))

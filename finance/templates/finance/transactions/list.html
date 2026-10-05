@@ -40,6 +40,8 @@
 
 <form method="get" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
   {% if review_only %}<input type="hidden" name="review" value="1" />{% endif %}
+  {# Carried through so re-filtering doesn't silently flip the list back. #}
+  {% if sort != "newest" %}<input type="hidden" name="sort" value="{{ sort }}" />{% endif %}
 
   <input name="q" value="{{ filters.q }}" placeholder="Search descriptions"
          class="rounded-button border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
@@ -120,7 +122,22 @@
        },
      }">
   {% if transactions %}
-    <div class="flex flex-wrap items-center gap-4 text-xs text-text-muted">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <p class="text-xs text-text-muted">
+        {{ page_obj.paginator.count }} transaction{{ page_obj.paginator.count|pluralize }}
+      </p>
+
+      <a href="{{ sort_toggle_url }}"
+         class="flex items-center gap-1.5 rounded-button border border-border bg-surface px-3 py-1.5 text-xs font-medium transition hover:bg-muted">
+        {% if sort == "newest" %}
+          <span aria-hidden="true">↓</span> Newest first
+        {% else %}
+          <span aria-hidden="true">↑</span> Oldest first
+        {% endif %}
+      </a>
+    </div>
+
+    <div class="mt-3 flex flex-wrap items-center gap-4 text-xs text-text-muted">
       <label class="flex items-center gap-1.5">
         <input type="checkbox"
                :checked="selectAllFiltered || (pageIds.length > 0 && selected.length === pageIds.length)"
