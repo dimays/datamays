@@ -1,4 +1,4 @@
-import { beside, lineMates, isVowel, numberWord } from './book.js';
+import { beside, lineMates, isVowel, numberWord, bookIndex, occurrences, familySize } from './book.js';
 
 // ---------------------------------------------------------------------------
 // The clue library. Each family yields concrete clue instances (params), a
@@ -6,15 +6,21 @@ import { beside, lineMates, isVowel, numberWord } from './book.js';
 // the statement is always the authority.
 //
 // Tiers run from coarse to fine, which is how a reader naturally works:
-//   registry   → whole chapters        ledger    → whole pages
-//   placement  → where on the page     name      → the name itself
-//   connection → the name's neighbours, or the victim
+//   record     → stretches of the register, anchored to people in it
+//                (struck in runs once you've found where they start and end)
+//   name       → the name itself         connection → neighbours, family, the victim
+//   reasoning  → two conditions joined by if / either / both, or a name
+//                crossed with its position on the page
+// Cases made before engine 7 also used registry (chapter), ledger (page
+// number) and placement (column, line) clues — simple gates struck a whole
+// page or column at a time. They are kept so those cases still read, but are
+// no longer dealt.
 // ---------------------------------------------------------------------------
 
-export const TIERS = ['registry', 'ledger', 'placement', 'name', 'connection'];
+export const TIERS = ['record', 'registry', 'ledger', 'placement', 'name', 'connection', 'reasoning'];
 export const TIER_LABEL = {
-  registry: 'The Chapter', ledger: 'The Page', placement: 'The Line',
-  name: 'The Name', connection: 'The Company It Keeps',
+  record: 'The Register', registry: 'The Chapter', ledger: 'The Page', placement: 'The Line',
+  name: 'The Name', connection: 'The Company It Keeps', reasoning: 'Reasoning',
 };
 
 const L = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -687,18 +693,296 @@ export const FAMILIES = [
     source: 'The Proof Reader’s Assistant',
     quote: p => p.has ? '“That column had the same name in it twice. I flagged it as a possible error.”' : '“Every name in that column was different. A tidy column.”',
   },
+
+  // ── engine 7: sections of the register, anchored to people in it ──────────
+  // These have too many possible forms to list, so each search attempt draws
+  // a fresh sample that fits its killer (`sample`); `test` and `text` need only
+  // the params. Anchors are people whose full name appears exactly once.
+  {
+    id: 'span', tier: 'record', sampled: true,
+    sample: (rng, ctx, k, n) => {
+      const U = uniqueAnchors(ctx.book), N = ctx.entries.length, out = [];
+      for (let t = 0; t < n * 4 && out.length < n; t++) {
+        const inside = rng.chance(0.5);
+        const len = Math.round(N * (inside ? 0.2 + rng.next() * 0.66 : 0.12 + rng.next() * 0.5));
+        const lo = inside ? Math.max(0, k - rng.int(len)) : rng.int(Math.max(1, N - len));
+        const a = U[lowerBound(U, lo)], b = U[lowerBound(U, Math.min(N - 1, lo + len) + 1) - 1];
+        if (a === undefined || b === undefined || b - a < N * 0.05 || a === k || b === k || a === ctx.victimIdx || b === ctx.victimIdx) continue;
+        if ((k >= a && k <= b) === inside) out.push({ a, b, inside });
+      }
+      return out;
+    },
+    test: (e, p) => (e.i >= p.a && e.i <= p.b) === p.inside,
+    text: (p, ctx) => p.inside
+      ? `The killer is listed between ${who(ctx, p.a)} and ${who(ctx, p.b)} in the Register, or is one of them. (Each of those two names appears only once.)`
+      : `The killer is not listed between ${who(ctx, p.a)} and ${who(ctx, p.b)} in the Register, and is neither of them. (Each of those two names appears only once.)`,
+    source: 'The Archivist',
+    quote: (p, ctx) => p.inside
+      ? `“Someone tore the pages out of my copy — everything from ${who(ctx, p.a)} on, up to ${who(ctx, p.b)}. Why those, unless they were looking for someone?”`
+      : `“I read the Register aloud to the Inspector, from ${who(ctx, p.a)} right through to ${who(ctx, p.b)}. Not one of those had been anywhere near.”`,
+  },
+  {
+    id: 'landmark', tier: 'record', sampled: true,
+    sample: (rng, ctx, k, n) => {
+      const out = [], N = ctx.entries.length;
+      for (let t = 0; t < n * 6 && out.length < n; t++) {
+        const r = ctx.entries[rng.int(N)], part = rng.chance(0.5) ? 'first' : 'last';
+        const value = r[part].lower, occ = occurrences(ctx.book, part, value);
+        if (occ.length < 3 || occ.length > 15) continue;
+        const which = rng.chance(0.5) ? 'first' : 'last', dir = rng.chance(0.5) ? 'after' : 'before';
+        const at = which === 'first' ? occ[0] : occ[occ.length - 1];
+        if (at === k || (dir === 'after' ? k > at : k < at)) out.push({ part, value, which, dir, at });
+      }
+      return out;
+    },
+    test: (e, p) => p.dir === 'after' ? e.i > p.at : e.i < p.at,
+    text: (p, ctx) => `The killer is listed ${p.dir} the ${p.which} person in the Register whose ${PART_WORD[p.part]} is ${partName(ctx, p)}.`,
+    source: 'The Bookseller',
+    quote: (p, ctx) => p.dir === 'after'
+      ? `“I always look up the ${p.which} ${partName(ctx, p)} in a new Register — call it a hobby. The killer’s name was further on.”`
+      : `“I always look up the ${p.which} ${partName(ctx, p)} in a new Register. The killer’s name came before it; I noticed it on the way.”`,
+  },
+  {
+    id: 'victimSpan', tier: 'record', sampled: true,
+    sample: (rng, ctx, k, n) => {
+      const out = [], v = ctx.victim, ke = ctx.entries[k], pages = ctx.book.pageCount;
+      for (let t = 0; t < n * 4 && out.length < n; t++) {
+        const mode = rng.pick(['within', 'within', 'beyond', 'side']);
+        if (mode === 'side') { out.push({ mode, after: ke.i > v.i }); continue; }
+        const d = 2 + rng.int(Math.max(3, Math.floor(pages * 0.45)));
+        const near = Math.abs(ke.page - v.page) <= d;
+        if (near === (mode === 'within')) out.push({ mode, d });
+      }
+      return out;
+    },
+    test: (e, p, ctx) => p.mode === 'side' ? (e.i > ctx.victim.i) === p.after
+      : (Math.abs(e.page - ctx.victim.page) <= p.d) === (p.mode === 'within'),
+    text: (p, ctx) => p.mode === 'side'
+      ? `The killer is listed ${p.after ? 'after' : 'before'} the victim, ${ctx.victim.name}, in the Register.`
+      : p.mode === 'within'
+        ? `The killer’s page is no more than ${p.d} pages from the victim’s page, counting either way (so the victim’s own page, and the ${p.d} pages either side of it).`
+        : `The killer’s page is more than ${p.d} pages from the victim’s page, counting either way.`,
+    source: 'The Inspector', usesVictim: true,
+    quote: (p, ctx) => p.mode === 'side'
+      ? `“${ctx.victim.name} was entered ${p.after ? 'before' : 'after'} the killer. People are creatures of habit: they queue in the order they arrive.”`
+      : p.mode === 'within' ? '“The killer had been watching the victim for weeks. They’d have signed in close by.”' : '“Whoever did it made very sure to be entered nowhere near the victim.”',
+  },
+  {
+    id: 'chapterCompany', tier: 'record', sampled: true,
+    sample: (rng, ctx, k, n) => {
+      const out = [], N = ctx.entries.length;
+      for (let t = 0; t < n * 6 && out.length < n; t++) {
+        const r = ctx.entries[rng.int(N)], part = rng.chance(0.5) ? 'first' : 'last';
+        const value = r[part].lower, occ = occurrences(ctx.book, part, value);
+        if (occ.length < 2 || occ.length > 8) continue;
+        const p = { part, value, at: occ[0], has: rng.chance(0.6) };
+        if (chapterHas(ctx, ctx.entries[k], p) === p.has) out.push(p);
+      }
+      return out;
+    },
+    test: (e, p, ctx) => chapterHas(ctx, e, p) === p.has,
+    text: (p, ctx) => `${p.has ? 'Someone else' : 'No one else'} in the killer’s chapter has the ${PART_WORD[p.part]} ${partName(ctx, p)}.`,
+    source: 'The Census Taker',
+    quote: (p, ctx) => p.has
+      ? `“I took that chapter’s names door to door. I remember a ${partName(ctx, p)} on the same round as the killer.”`
+      : `“Not one ${partName(ctx, p)} on the killer’s round — I’d have remembered the name.”`,
+  },
+
+  // ── engine 7: the first name and surname together ─────────────────────────
+  {
+    id: 'initialsOrder', tier: 'name', whole: true,
+    instances: () => [{ cmp: 'ascending' }, { cmp: 'descending' }],
+    test: (e, p) => { const a = e.first.lower[0], b = e.last.lower[0]; return p.cmp === 'ascending' ? a < b : a > b; },
+    text: p => `The killer’s initials are in ${p.cmp === 'ascending' ? '' : 'reverse '}alphabetical order: the first letter of their first name comes ${p.cmp === 'ascending' ? 'earlier' : 'later'} in the alphabet than the first letter of their surname. (Matching initials don’t count.)`,
+    source: 'The Monogrammer',
+    quote: p => `“I stitched the initials on a handkerchief. They ran ${p.cmp === 'ascending' ? 'A-ward to Z-ward, the natural way' : 'backwards, which I thought rather sinister'}.”`,
+  },
+  {
+    id: 'initialsKind', tier: 'name', whole: true,
+    instances: () => [{ kind: 'consonants' }, { kind: 'mixed' }],
+    test: (e, p) => { const a = isVowel(e.first.lower[0]), b = isVowel(e.last.lower[0]); return p.kind === 'consonants' ? !a && !b : a !== b; },
+    text: p => p.kind === 'consonants'
+      ? 'Both of the killer’s initials are consonants (Y counts as a consonant).'
+      : 'Exactly one of the killer’s initials is a vowel (A, E, I, O or U); the other is a consonant.',
+    source: 'The Monogrammer',
+    quote: p => p.kind === 'consonants' ? '“Two hard initials on the signet ring. No vowels at all.”' : '“One soft initial and one hard one, on the signet ring. A vowel and a consonant.”',
+  },
+  {
+    id: 'initialsWord', tier: 'name', whole: true,
+    instances: () => WORDS.flatMap(word => [{ word, has: true }, { word, has: false }]),
+    test: (e, p) => { const w = p.word.toLowerCase(); return (w.includes(e.first.lower[0]) && w.includes(e.last.lower[0])) === p.has; },
+    text: p => p.has
+      ? `Both of the killer’s initials are letters of the word ${p.word} (${listLetters(uniqLetters(p.word))}).`
+      : `The killer’s initials are not both letters of the word ${p.word} (${listLetters(uniqLetters(p.word))}) — at least one of them is missing from it.`,
+    source: 'The Registrar',
+    quote: p => p.has ? `“The ink blot on the ledger spelled ${p.word}, if you squinted. Both initials were in it.”` : `“The ink blot on the ledger spelled ${p.word}. The killer’s initials didn’t both fit.”`,
+  },
+  {
+    id: 'mirrorLength', tier: 'name', whole: true,
+    instances: () => [{ cmp: 'longer' }, { cmp: 'shorter' }, { cmp: 'same' }],
+    test: (e, p) => p.cmp === 'longer' ? e.first.len > e.last.len : p.cmp === 'shorter' ? e.first.len < e.last.len : e.first.len === e.last.len,
+    text: p => p.cmp === 'same' ? 'The killer’s first name and surname have exactly the same number of letters.' : `The killer’s first name is ${p.cmp} than their surname (count the letters).`,
+    source: 'The Sign Painter',
+    quote: p => p.cmp === 'same' ? '“I painted the name on a door in two lines, and the lines came out exactly even.”' : `“I painted the name on a door in two lines. The top line — the first name — came out ${p.cmp}.”`,
+  },
+  {
+    id: 'mirrorShared', tier: 'name', whole: true,
+    instances: () => [0, 1, 2, 3].map(k => ({ k })).concat([{ k: 4, atLeast: true }]),
+    test: (e, p) => { const n = popcount(e.first.mask & e.last.mask); return p.atLeast ? n >= p.k : n === p.k; },
+    text: p => p.k === 0 ? 'The killer’s first name and surname have no letters in common.'
+      : `The killer’s first name and surname have ${p.atLeast ? `${NUM[p.k]} or more` : `exactly ${NUM[p.k]}`} different letter${p.k > 1 ? 's' : ''} in common (count each shared letter once, however often it appears).`,
+    source: 'The Cryptographer',
+    quote: () => '“I set the first name above the surname and struck out every letter they share. I remember what was left.”',
+  },
+  {
+    id: 'mirrorOrder', tier: 'name', whole: true,
+    instances: () => [{ surnameFirst: true }, { surnameFirst: false }],
+    test: (e, p) => (e.last.lower < e.first.lower) === p.surnameFirst,
+    text: p => p.surnameFirst
+      ? 'In a dictionary, the killer’s surname would come before their first name (as Baker would come before Tom).'
+      : 'In a dictionary, the killer’s first name would come before their surname (as Tom would come before Wilson).',
+    source: 'The Lexicographer',
+    quote: p => p.surnameFirst ? '“I file people under whichever of their names comes first in the alphabet. This one I filed under the surname.”' : '“I file people under whichever of their names comes first in the alphabet. This one I filed under the first name.”',
+  },
+  {
+    id: 'mirrorLink', tier: 'name', whole: true,
+    instances: () => [{ has: true }, { has: false }],
+    test: (e, p) => e.last.lower.includes(e.first.lower[e.first.len - 1]) === p.has,
+    text: p => `The last letter of the killer’s first name ${p.has ? 'appears somewhere in' : 'does not appear anywhere in'} their surname.`,
+    source: 'The Calligrapher',
+    quote: p => p.has ? '“I joined the first name to the surname with a single flourish — the same letter carried straight across.”' : '“I tried to join the two names with one flourish, but the letter at the end of the first name was nowhere in the second.”',
+  },
+
+  // ── engine 7: family groups ───────────────────────────────────────────────
+  {
+    id: 'familySize', tier: 'connection',
+    instances: ctx => ctx?.book?.fullNames ? [2, 3, 4].flatMap(k => [{ k, cmp: 'exactly' }, { k, cmp: 'atLeast' }]).concat([{ k: 2, cmp: 'atMost' }]) : [],
+    test: (e, p, ctx) => { const n = familySize(ctx.book, e); return p.cmp === 'exactly' ? n === p.k : p.cmp === 'atLeast' ? n >= p.k : n <= p.k; },
+    text: p => `The killer is listed in a family group of ${p.cmp === 'exactly' ? 'exactly' : p.cmp === 'atLeast' ? 'at least' : 'at most'} ${NUM[p.k]}. (A family group is a run of consecutive entries sharing a surname; someone whose neighbours both have other surnames is a group of one.)`,
+    source: 'The Boarding-House Keeper',
+    quote: p => p.cmp === 'atMost' ? '“Never more than a couple of them, that lot. Small family.”' : `“They came as a party of ${p.cmp === 'atLeast' ? `${NUM[p.k]} or more` : NUM[p.k]}, all one name. I counted the coats.”`,
+  },
+
+  // ── engine 7: reasoning — names crossed with numbers ──────────────────────
+  {
+    id: 'lineVsLength', tier: 'reasoning',
+    instances: () => ['first', 'last'].flatMap(part => [{ part, cmp: 'greater' }, { part, cmp: 'less' }]),
+    test: (e, p) => p.cmp === 'greater' ? e.line > e[p.part].len : e.line < e[p.part].len,
+    text: p => `The killer’s line number is ${p.cmp === 'greater' ? 'greater' : 'smaller'} than the number of letters in their ${PART_WORD[p.part]}.`,
+    source: 'The Bank Clerk',
+    quote: () => '“I count everything twice: the letters in a name, and the line it sits on. That one didn’t balance.”',
+  },
+  {
+    id: 'parityMatch', tier: 'reasoning',
+    instances: () => ['first', 'last'].flatMap(part => [{ part, same: true }, { part, same: false }]),
+    test: (e, p) => ((e.line % 2) === (e[p.part].len % 2)) === p.same,
+    text: p => p.same
+      ? `The killer’s line number and the number of letters in their ${PART_WORD[p.part]} are either both odd or both even.`
+      : `Of the killer’s line number and the number of letters in their ${PART_WORD[p.part]}, one is odd and the other even.`,
+    source: 'The Croupier',
+    quote: p => p.same ? '“Odd and odd, or even and even. The house always notices a matched pair.”' : '“One odd, one even. Rouge et noir. I never forget a split.”',
+  },
+
+  // ── engine 7: reasoning — two conditions joined ───────────────────────────
+  ...['implies', 'xor', 'or', 'iff'].map(op => ({
+    id: `compound_${op}`, tier: 'reasoning', sampled: true,
+    sample: (rng, ctx, k, n) => {
+      const out = [], ke = ctx.entries[k];
+      for (let t = 0; t < n * 4 && out.length < n; t++) {
+        const A = rng.pick(ATOMS), B = rng.pick(ATOMS);
+        if (A.id === B.id || (!A.name && !B.name)) continue;
+        const a = { id: A.id, ...A.make(rng) }, b = { id: B.id, ...B.make(rng) };
+        const p = { a, b };
+        if (COMPOUND[op](atom(a, ke, ctx), atom(b, ke, ctx))) out.push(p);
+      }
+      return out;
+    },
+    test: (e, p, ctx) => COMPOUND[op](atom(p.a, e, ctx), atom(p.b, e, ctx)),
+    // Fast path for the search: combine the two conditions' cached bitmaps.
+    bitsFor: (p, ctx) => {
+      const A = atomBits(p.a, ctx), B = atomBits(p.b, ctx), f = COMPOUND[op], out = new Uint8Array(A.length);
+      for (let i = 0; i < A.length; i++) out[i] = f(A[i] === 1, B[i] === 1) ? 1 : 0;
+      return out;
+    },
+    text: p => COMPOUND_TEXT[op](say(p.a), say(p.b)),
+    source: { implies: 'The Logician', xor: 'The Bookmaker', or: 'The Barrister', iff: 'The Twins’ Nanny' }[op],
+    quote: () => ({
+      implies: '“It follows, Inspector. It always follows. Take the first part as given and the second is inevitable.”',
+      xor: '“I’d lay odds on one of those being true. Not both — I don’t take mug’s bets.”',
+      or: '“One or the other, m’lud — and the defence won’t say which.”',
+      iff: '“They’re like my twins, those two facts. Where one goes, the other goes; where one stays home, so does the other.”',
+    })[op],
+  })),
 ];
 
 function popcount(x) { let c = 0; while (x) { x &= x - 1; c++; } return c; }
+
+// ── helpers for the engine-7 families ────────────────────────────────────
+const who = (ctx, i) => ctx.entries[i].name;
+const partName = (ctx, p) => ctx.entries[p.at][p.part].name;
+/** Does anyone else in e's chapter have this first name / surname? */
+const chapterHas = (ctx, e, p) => occurrences(ctx.book, p.part, p.value).some(j => j !== e.i && ctx.entries[j].ci === e.ci);
+const anchorCache = new WeakMap();
+/** Indices of people whose full name appears exactly once, in register order. */
+function uniqueAnchors(book) {
+  let a = anchorCache.get(book);
+  if (!a) { a = []; for (const [, ids] of bookIndex(book).byFull) if (ids.length === 1) a.push(ids[0]); a.sort((x, y) => x - y); anchorCache.set(book, a); }
+  return a;
+}
+const lowerBound = (arr, x) => { let lo = 0, hi = arr.length; while (lo < hi) { const m = (lo + hi) >> 1; if (arr[m] < x) lo = m + 1; else hi = m; } return lo; };
+
+// Atoms: the simple conditions that compound clues join. `name` atoms are
+// about the name; the rest about its place on the page (a compound always
+// includes at least one name atom, so none can be struck by position alone).
+const PW = { first: 'first name', last: 'surname' };
+const ATOMS = [
+  { id: 'start', name: true, kind: 'start', make: r => ({ part: r.pick(['first', 'last']), vowel: r.chance(0.5) }), test: (e, p) => isVowel(e[p.part].lower[0]) === p.vowel, say: p => `the killer’s ${PW[p.part]} begins with a ${p.vowel ? 'vowel' : 'consonant'}` },
+  { id: 'end', name: true, kind: 'end', make: r => ({ part: r.pick(['first', 'last']), vowel: r.chance(0.5) }), test: (e, p) => isVowel(e[p.part].lower[e[p.part].len - 1]) === p.vowel, say: p => `the killer’s ${PW[p.part]} ends in a ${p.vowel ? 'vowel' : 'consonant'}` },
+  { id: 'len', name: true, kind: 'len', make: r => { const part = r.pick(['first', 'last']); return { part, k: part === 'first' ? r.range(5, 7) : r.range(6, 8) }; }, test: (e, p) => e[p.part].len >= p.k, say: p => `the killer’s ${PW[p.part]} has ${NUM[p.k]} or more letters` },
+  { id: 'has', name: true, kind: 'has', make: r => ({ part: r.pick(['first', 'last']), c: r.pick('aeinorlst'.split('')) }), test: (e, p) => e[p.part].lower.includes(p.c), say: p => `the killer’s ${PW[p.part]} contains the letter ${p.c.toUpperCase()}` },
+  { id: 'dbl', name: true, kind: 'dbl', make: r => ({ part: r.pick(['first', 'last']) }), test: (e, p) => e[p.part].double, say: p => `the killer’s ${PW[p.part]} has a double letter (the same letter twice in a row)` },
+  { id: 'half', name: true, kind: 'half', make: r => ({ part: r.pick(['first', 'last']) }), test: (e, p) => e[p.part].lower[0] < 'n', say: p => `the killer’s ${PW[p.part]} begins with a letter from A to M` },
+  { id: 'longer', name: true, kind: 'longer', make: () => ({}), test: e => e.first.len > e.last.len, say: () => 'the killer’s first name is longer than their surname' },
+  { id: 'odd', kind: 'odd', make: () => ({}), test: e => e.line % 2 === 1, say: () => 'the killer is on an odd-numbered line' },
+  { id: 'top', kind: 'top', make: () => ({}), test: e => e.line <= 12, say: () => 'the killer is on one of lines 1 to 12' },
+  { id: 'evenPage', kind: 'evenPage', make: () => ({}), test: e => e.page % 2 === 0, say: () => 'the killer’s page number is even' },
+  { id: 'left', kind: 'left', make: () => ({}), test: e => e.col === 1, say: () => 'the killer is in the left-hand column of their page' },
+];
+const ATOM = Object.fromEntries(ATOMS.map(a => [a.id, a]));
+const atom = (p, e, ctx) => ATOM[p.id].test(e, p, ctx);
+const atomCache = new WeakMap();
+/** One condition's verdict for every entry, cached per book. */
+function atomBits(p, ctx) {
+  let m = atomCache.get(ctx.book);
+  if (!m) atomCache.set(ctx.book, m = new Map());
+  const key = JSON.stringify(p);
+  let bits = m.get(key);
+  if (!bits) { bits = new Uint8Array(ctx.entries.length); for (const e of ctx.entries) bits[e.i] = atom(p, e, ctx) ? 1 : 0; m.set(key, bits); }
+  return bits;
+}
+const say = p => ATOM[p.id].say(p);
+const COMPOUND = { implies: (a, b) => !a || b, xor: (a, b) => a !== b, or: (a, b) => a || b, iff: (a, b) => a === b };
+const COMPOUND_TEXT = {
+  implies: (a, b) => `If ${a}, then ${b}. (So it clears only people for whom the first part is true and the second is not.)`,
+  xor: (a, b) => `Exactly one of these is true of the killer, not both: (a) ${a}; (b) ${b}.`,
+  or: (a, b) => `At least one of these is true of the killer, perhaps both: (a) ${a}; (b) ${b}.`,
+  iff: (a, b) => `Either both of these are true of the killer, or neither is: (a) ${a}; (b) ${b}.`,
+};
 
 // ── clue types: at most one clue of each type per case ───────────────────
 // `broad` types are always present; they set the difficulty. Families listed
 // under a type are interchangeable ways of saying something about one subject.
 export const TYPES = [
-  { id: 'chapter',      tier: 'registry',   broad: true, label: 'The Chapter',            families: ['chapterParity', 'chapterPrime', 'chapterMultiple', 'chapterRange', 'chapterSpelled', 'pageInChapter'] },
-  { id: 'page',         tier: 'ledger',     broad: true, label: 'The Page Number',        families: ['pagePrime', 'pageParity', 'pageMultiple', 'pageDigitSum', 'pageLastDigit', 'pageHasDigit', 'pageReversed'] },
-  { id: 'column',       tier: 'placement',  broad: true, label: 'The Column',             families: ['column'] },
-  { id: 'line',         tier: 'placement',  broad: true, label: 'The Line Number',        families: ['lineParity', 'lineHalf', 'lineMultiple', 'linePrime'] },
+  // Engine 7 sections: stretches of the register, anchored to people in it.
+  { id: 'span',         tier: 'record',     label: 'Between Two Names',       families: ['span'] },
+  { id: 'landmark',     tier: 'record',     label: 'A Landmark Name',         families: ['landmark'] },
+  { id: 'nearVictim',   tier: 'record',     label: 'Near the Victim',         families: ['victimSpan'] },
+  { id: 'chapterCompany', tier: 'record',   label: 'The Chapter’s Company',   families: ['chapterCompany'] },
+  // Before engine 7: simple structural gates, struck a page or column at a time. No longer dealt.
+  { id: 'chapter',      tier: 'registry',   legacy: true, label: 'The Chapter',            families: ['chapterParity', 'chapterPrime', 'chapterMultiple', 'chapterRange', 'chapterSpelled', 'pageInChapter'] },
+  { id: 'page',         tier: 'ledger',     legacy: true, label: 'The Page Number',        families: ['pagePrime', 'pageParity', 'pageMultiple', 'pageDigitSum', 'pageLastDigit', 'pageHasDigit', 'pageReversed'] },
+  { id: 'column',       tier: 'placement',  legacy: true, label: 'The Column',             families: ['column'] },
+  { id: 'line',         tier: 'placement',  legacy: true, label: 'The Line Number',        families: ['lineParity', 'lineHalf', 'lineMultiple', 'linePrime'] },
   { id: 'initial',      tier: 'name',       label: 'The Initial',             families: ['word', 'half', 'straight', 'window', 'victimInitial'] },
   { id: 'length',       tier: 'name',       label: 'Length',                  families: ['lengthEq', 'lengthCmp', 'lengthParity'] },
   { id: 'presence',     tier: 'name',       label: 'Letters Present',         families: ['contains', 'containsAny'] },
@@ -718,6 +1002,14 @@ export const TYPES = [
   { id: 'pageCompany',  tier: 'connection', label: 'The Top of the Page',     families: ['pageFirstSecond', 'pageFirstLength'] },
   { id: 'household',    tier: 'connection', label: 'The Family',              families: ['familyNeighbour', 'familyPosition'] },
   { id: 'namesakes',    tier: 'connection', label: 'Namesakes',               families: ['pageNamesake', 'columnNamesake'] },
+  // Engine 7: more ways to read a name, its family, and reasoning puzzles.
+  { id: 'initials',     tier: 'name',       label: 'The Initials',            families: ['initialsOrder', 'initialsKind', 'initialsWord'] },
+  { id: 'mirror',       tier: 'name',       label: 'First Name & Surname',    families: ['mirrorLength', 'mirrorShared', 'mirrorOrder', 'mirrorLink'] },
+  { id: 'familySize',   tier: 'connection', label: 'The Size of the Family',  families: ['familySize'] },
+  { id: 'numbers',      tier: 'reasoning',  label: 'Names & Numbers',         families: ['lineVsLength', 'parityMatch'] },
+  { id: 'ifThen',       tier: 'reasoning',  label: 'If… Then…',               families: ['compound_implies'] },
+  { id: 'eitherOr',     tier: 'reasoning',  label: 'Either… Or…',             families: ['compound_xor', 'compound_or'] },
+  { id: 'bothOrNeither', tier: 'reasoning', label: 'Both or Neither',         families: ['compound_iff'] },
 ];
 export const TYPE = Object.fromEntries(TYPES.map(t => [t.id, t]));
 export const TYPE_LABEL = Object.fromEntries(TYPES.map(t => [t.id, t.label]));
@@ -727,10 +1019,14 @@ for (const t of TYPES) for (const fid of t.families) {
   if (f.type) throw new Error(`Family ${fid} is in two types`);
   f.type = t.id;
   f.tier = t.tier;
+  if (t.legacy) f.retired = true;
 }
 for (const f of FAMILIES) if (!f.type && !f.legacy) throw new Error(`Family ${f.id} has no type`);
-// Families kept only so old two-column cases still evaluate; never generated.
+// Families kept only so old cases still evaluate: the two-column `beside`
+// families (no type at all) and, since engine 7, the structural gates.
 export const ACTIVE_FAMILIES = FAMILIES.filter(f => !f.legacy);
+export const DEALT_FAMILIES = ACTIVE_FAMILIES.filter(f => !f.retired);
+export const DEALT_TYPES = TYPES.filter(t => !t.legacy);
 
 // ── full names ────────────────────────────────────────────────────────────
 // In a full-name register, every clue about "the name" is asked of either the
@@ -741,7 +1037,7 @@ const partText = (s, part) => s
   .replace(/The killer’s name/g, `The killer’s ${PART_WORD[part]}`)
   .replace(/the killer’s name/g, `the killer’s ${PART_WORD[part]}`);
 for (const f of ACTIVE_FAMILIES) {
-  if (f.tier !== 'name') continue;
+  if (f.tier !== 'name' || f.whole) continue;
   const { instances, test, text } = f;
   f.instances = ctx => { const base = instances(ctx); return ctx?.book?.fullNames ? base.flatMap(p => [{ ...p, part: 'first' }, { ...p, part: 'last' }]) : base; };
   f.test = (e, p, ctx) => test(p.part === 'last' ? e.last : p.part === 'first' ? e.first : e, p, ctx);
@@ -790,11 +1086,12 @@ export function describeRule(rule, ctx) {
 }
 
 export const readingGuide = ({ word = 'Register', fullNames = false, alphabetical = false } = {}) => [
-  `Names run down each column in turn, from left to right, then on to the next page. That is the order of the ${word} — “immediately before” and “immediately after” follow it, across pages and chapters.`,
-  alphabetical ? 'Names are in alphabetical order, in chapters by initial letter.' : `The ${word} is not in alphabetical order. To look someone up, use Find.`,
+  `Names run down each column in turn, from left to right, then on to the next page. That is the order of the ${word} — “before”, “after” and “between” follow it, across pages and chapters.`,
+  alphabetical ? 'Names are in alphabetical order, in chapters by initial letter.' : `The ${word} is not in alphabetical order. To look someone up, use Find: it lists people in ${word} order.`,
   'A name’s page is the number printed at the foot of its page. Its line is the small number printed beside it; names on the same line of a page share a line number.',
   ...(fullNames ? [
     'Each entry is a first name and a surname, and each clue says which it means. Names repeat, as they do in real records — every entry is a different person.',
+    'Families are entered together: a family group is a run of consecutive entries sharing a surname (a lone entry is a group of one).',
     'Accented letters count as plain letters (É is E, Ñ is N). Apostrophes and hyphens are ignored when counting or comparing letters.',
   ] : []),
   'Vowels are A, E, I, O and U. Y is always a consonant.',

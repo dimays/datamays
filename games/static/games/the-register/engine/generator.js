@@ -2,15 +2,20 @@ import { Rng } from './rng.js';
 import { validateNames, LETTERS } from './names.js';
 import { SETTINGS } from './settings.js';
 import { generatePeople, MAX_FULL_NAME } from './people.js';
-import { layoutCase, layoutNovel, planChapters, CHAPTER_PAGES, letters } from './book.js';
-import { ACTIVE_FAMILIES as FAMILIES, FAMILY, TYPES, TYPE, TIER_LABEL, describeRule } from './rules.js';
+import { layoutCase, layoutNovel, planChapters, CHAPTER_PAGES, letters, bookIndex } from './book.js';
+import { DEALT_FAMILIES as FAMILIES, DEALT_TYPES, FAMILY, TYPES, TYPE, TIER_LABEL, describeRule } from './rules.js';
 import { generateStory, caseTitle } from './story.js';
-import { DIFFICULTIES, MIN_CLUES, TIER_QUOTA, BALANCE, SEARCH } from './config.js';
+import { DIFFICULTIES, MIN_CLUES, TIER_QUOTA, BALANCE, SEARCH, STYLES, SECTION_CLUES, TYPE_DROPOUT, namesFor } from './config.js';
 
-export const ENGINE_VERSION = 6;
-export { DIFFICULTIES };
+export const ENGINE_VERSION = 7;
+export { DIFFICULTIES, STYLES, namesFor };
 
-const BROAD = TYPES.filter(t => t.broad).map(t => t.id);   // fixed Casebook order
+// Before engine 7 every Cold Case opened with one clue each about the chapter,
+// page number, column and line. Kept for validating those cases.
+const LEGACY_BROAD = ['chapter', 'page', 'column', 'line'];
+// Engine 7 opens with "section" clues: stretches of the register anchored to people in it.
+const SECTION = DEALT_TYPES.filter(t => t.tier === 'record').map(t => t.id);
+const FINE_TIERS = ['name', 'connection', 'reasoning'];
 const TYPE_ORDER = Object.fromEntries(TYPES.map((t, k) => [t.id, k]));
 
 /** Seal the solution so a casual peek at the save file doesn't spoil it. */
@@ -43,22 +48,26 @@ export function generateCase(code, difficulty = 'classic', mode = 'cold', onProg
   if (!MODES[mode]) throw new Error(`Unknown mode ${mode}`);
   const root = caseRng(code, difficulty, mode);
 
-  // The setting decides who these 26,000 people are and how they're listed.
+  // The setting decides who these people are and how they're listed; the
+  // difficulty decides how many of them there are.
   const setting = root.fork('setting').pick(SETTINGS);
-  const label = `Entering 26,000 ${setting.people} into the ${setting.registerWord}`;
+  const total = namesFor(difficulty);
+  const label = `Entering ${total.toLocaleString('en-US')} ${setting.people} into the ${setting.registerWord}`;
   onProgress({ phase: 'names', label, p: 0 });
-  const names = generatePeople(root.fork('people'), setting);
+  const names = generatePeople(root.fork('people'), setting, total);
   onProgress({ phase: 'names', label, p: 1 });
   const chapterPages = planChapters(root.fork('chapters'), names.length);
   const book = layoutNovel(names, chapterPages, { fullNames: true });
 
   onProgress({ phase: 'clues', label: mode === 'inquiry' ? 'Lining up the witnesses' : 'Gathering the evidence', p: 0 });
   const rng = root.fork('clues');
+  const plan = casePlan(root.fork('plan'));
   const build = mode === 'inquiry' ? tryBuildInquiry : tryBuildCase;
   let solved = null, attempts = 0;
   while (!solved && attempts < SEARCH.attempts) {
     attempts++;
-    solved = build(rng, book, difficulty);
+    // If this case's mix of clue types keeps failing, let it draw on all of them.
+    solved = build(rng, book, difficulty, plan, attempts > SEARCH.attempts / 2);
     onProgress({ phase: 'clues', label: mode === 'inquiry' ? 'Lining up the witnesses' : 'Gathering the evidence', p: Math.min(0.95, attempts / 12) });
   }
   if (!solved) throw new Error(`Could not construct a balanced case in ${SEARCH.attempts} attempts — loosen BALANCE or raise SEARCH in config.js`);
@@ -75,6 +84,7 @@ export function generateCase(code, difficulty = 'classic', mode = 'cold', onProg
     difficulty,
     mode,
     setting: setting.id,
+    style: plan.style,
     title: caseTitle(story),
     story,
     layout: 'novel',
@@ -84,7 +94,7 @@ export function generateCase(code, difficulty = 'classic', mode = 'cold', onProg
     victim,
     rules: finalRules,
     solution: seal(killer, code),
-    stats: { pageCount: book.pageCount, attempts, iterations: solved.iterations, ms: 0, broadSurvivors: solved.broadSurvivors },
+    stats: { pageCount: book.pageCount, attempts, iterations: solved.iterations, ms: 0, sectionSurvivors: solved.sectionSurvivors },
   };
   const v = validateCase(caseData);
   caseData.validation = { ok: v.ok, checks: v.checks };
@@ -99,26 +109,81 @@ export function generateCase(code, difficulty = 'classic', mode = 'cold', onProg
 // Each clue instance's verdict for every name, computed once per book (clues
 // that mention the victim are recomputed per attempt).
 // Families flagged `usesVictim` depend on who the victim is, so they're rebuilt per attempt.
-const VICTIM_FAMILIES = new Set(FAMILIES.filter(f => f.usesVictim).map(f => f.id));
+// Families flagged `sampled` have too many forms to enumerate: each attempt draws
+// a fresh sample that is true of its killer.
+const VICTIM_FAMILIES = new Set(FAMILIES.filter(f => f.usesVictim && !f.sampled).map(f => f.id));
 const bitmapCache = new WeakMap();
 
 function bitmapsFor(f, list, book, ctx) {
   return list.map(params => {
-    const bits = new Uint8Array(book.entries.length);
+    let bits;
+    if (f.bitsFor) bits = f.bitsFor(params, ctx);
+    else {
+      bits = new Uint8Array(book.entries.length);
+      // A clue about one part of the name gives the same verdict for every entry
+      // with that first name (or surname), and names repeat a great deal: ask
+      // once per distinct name, then copy the verdicts across.
+      const part = f.tier === 'name' && !f.whole && params.part ? bookIndex(book).part[params.part] : null;
+      if (part) {
+        const verdict = part.reps.map(i => f.test(book.entries[i], params, ctx) ? 1 : 0);
+        for (let i = 0; i < bits.length; i++) bits[i] = verdict[part.id[i]];
+      } else for (const e of book.entries) if (f.test(e, params, ctx)) bits[e.i] = 1;
+    }
     let keep = 0;
-    for (const e of book.entries) if (f.test(e, params, ctx)) { bits[e.i] = 1; keep++; }
+    for (let i = 0; i < bits.length; i++) keep += bits[i];
     return { family: f.id, tier: f.tier, type: f.type, params, bits, keep };
   });
 }
 
-function buildBitmaps(book, victimIdx) {
-  const ctx = { entries: book.entries, book, victim: book.entries[victimIdx] };
+function buildBitmaps(book, victimIdx, killer, rng) {
+  const ctx = { entries: book.entries, book, victim: book.entries[victimIdx], victimIdx };
   if (!bitmapCache.has(book)) {
-    bitmapCache.set(book, FAMILIES.filter(f => !VICTIM_FAMILIES.has(f.id)).flatMap(f => bitmapsFor(f, f.instances(ctx), book, ctx)));
+    bitmapCache.set(book, FAMILIES.filter(f => !f.sampled && !VICTIM_FAMILIES.has(f.id)).flatMap(f => bitmapsFor(f, f.instances(ctx), book, ctx)));
   }
   const victimClues = FAMILIES.filter(f => VICTIM_FAMILIES.has(f.id)).flatMap(f => bitmapsFor(f, f.instances(ctx), book, ctx));
-  return [...bitmapCache.get(book), ...victimClues];
+  const sampled = FAMILIES.filter(f => f.sampled).flatMap(f => {
+    const seen = new Set();
+    const list = f.sample(rng, ctx, killer, SEARCH.sample).filter(p => { const k = JSON.stringify(p); return !seen.has(k) && seen.add(k); });
+    return bitmapsFor(f, list, book, ctx);
+  });
+  return [...bitmapCache.get(book), ...victimClues, ...sampled];
 }
+
+/**
+ * A case's style (which tiers its fine clues lean on) and the fine clue types
+ * it sets aside, so no two cases draw on quite the same mix.
+ */
+function casePlan(rng) {
+  const style = rng.pick(Object.keys(STYLES));
+  const dropped = new Set();
+  for (const tier of FINE_TIERS) {
+    const types = DEALT_TYPES.filter(t => t.tier === tier).map(t => t.id);
+    // Keep enough of each tier to meet the style's quota, with room to spare.
+    const keep = Math.min(types.length, STYLES[style].quota[tier][1] + 2);
+    let left = types.length;
+    for (const t of rng.shuffle(types)) if (left > keep && rng.chance(TYPE_DROPOUT)) { dropped.add(t); left--; }
+  }
+  return { style, dropped };
+}
+
+/** Usable clues for this killer and victim: true of the killer, clearing a sensible share. */
+function cluePool(rng, book, killer, victim, plan, relaxed) {
+  const N = book.entries.length, others = N - 2, out = [];
+  for (const c of buildBitmaps(book, victim, killer, rng)) {
+    if (!c.bits[killer] || (!relaxed && plan.dropped.has(c.type))) continue;
+    const cleared = (N - c.keep) - (c.bits[victim] ? 0 : 1);
+    c.clear = cleared / others;
+    if (c.clear >= BALANCE.minClearShare && c.clear <= maxClearFor(c.type)) out.push(c);
+  }
+  return out;
+}
+
+const pickPair = (rng, book) => {
+  const N = book.entries.length, killer = rng.int(N);
+  let victim;
+  do { victim = rng.int(N); } while (victim === killer || book.entries[victim].ci === book.entries[killer].ci);
+  return [killer, victim];
+};
 
 // ── the search ────────────────────────────────────────────────────────────
 //
@@ -139,55 +204,63 @@ function buildBitmaps(book, victimIdx) {
 export const searchLog = {};
 const why = r => { searchLog[r] = (searchLog[r] || 0) + 1; return null; };
 
-function tryBuildCase(rng, book, difficulty) {
+function tryBuildCase(rng, book, difficulty, plan, relaxed) {
   const diff = DIFFICULTIES[difficulty];
   const N = book.entries.length;
-  const killer = rng.int(N);
-  let victim;
-  do { victim = rng.int(N); } while (victim === killer || book.entries[victim].ci === book.entries[killer].ci);
+  const [killer, victim] = pickPair(rng, book);
   const others = N - 2;
 
   // ── 2. the pool of usable clues, by type
   const pool = {};
-  for (const c of buildBitmaps(book, victim)) {
-    if (!c.bits[killer]) continue;
-    const cleared = (N - c.keep) - (c.bits[victim] ? 0 : 1);
-    c.clear = cleared / others;
-    if (c.clear < BALANCE.minClearShare || c.clear > maxClearFor(c.type)) continue;
-    (pool[c.type] ||= []).push(c);
-  }
-  if (BROAD.some(t => !pool[t]?.length)) return why('broad pool empty');
+  for (const c of cluePool(rng, book, killer, victim, plan, relaxed)) (pool[c.type] ||= []).push(c);
 
-  // ── 3. broad clues
+  // ── 3. section clues, aimed so the survivors land in the difficulty band
+  const kSec = rng.range(SECTION_CLUES[0], SECTION_CLUES[1]);
+  const secTypes = SECTION.filter(t => pool[t]?.length);
+  if (secTypes.length < kSec) return why('too few section clues');
   let broad = null, broadCount = 0;
-  for (let t = 0; t < 1500 && !broad; t++) {
-    const pick = BROAD.map(ty => rng.pick(pool[ty]));
-    let n = 0;
-    outer: for (let i = 0; i < N; i++) {
-      if (i === victim) continue;
-      for (const c of pick) if (!c.bits[i]) continue outer;
-      if (++n > diff.band[1]) break;
+  const bandMid = Math.sqrt(diff.band[0] * diff.band[1]);
+  for (let t = 0; t < 12 && !broad; t++) {
+    let alive = [];
+    for (let i = 0; i < N; i++) if (i !== victim) alive.push(i);
+    const pick = [];
+    for (const [step, ty] of rng.shuffle([...secTypes]).slice(0, kSec).entries()) {
+      // Each step aims for an even share of the remaining cut, on a log scale.
+      const aim = alive.length * Math.pow(bandMid / alive.length, 1 / (kSec - step));
+      const scored = [];
+      for (const c of pool[ty]) {
+        let n = 0;
+        for (const i of alive) if (c.bits[i]) n++;
+        if ((alive.length - n) / alive.length < BALANCE.minMarginalShare) continue;
+        scored.push({ c, n, d: Math.abs(Math.log(n / aim)) });
+      }
+      if (!scored.length) break;
+      scored.sort((x, y) => x.d - y.d);
+      // The last section clue must land the survivors in the band; earlier ones just aim.
+      const inBand = step === kSec - 1 ? scored.filter(x => x.n >= diff.band[0] && x.n <= diff.band[1]) : [];
+      const c = rng.pick(inBand.length ? inBand : scored.slice(0, 3)).c;
+      pick.push(c);
+      alive = alive.filter(i => c.bits[i]);
     }
-    if (n >= diff.band[0] && n <= diff.band[1]) { broad = pick; broadCount = n; }
+    if (pick.length === kSec && alive.length >= diff.band[0] && alive.length <= diff.band[1]) { broad = pick; broadCount = alive.length; }
   }
-  if (!broad) return why('broad band missed');
+  if (!broad) return why('section band missed');
 
-  // ── 4a. initial fine slots
+  // ── 4a. initial fine slots, within the case style's tier quotas
   const [cLo, cHi] = clueRange(difficulty);
   const total = rng.range(cLo, cHi);
   const fineN = total - broad.length;
-  const typesIn = tier => rng.shuffle(TYPES.filter(t => t.tier === tier && pool[t.id]?.length).map(t => t.id));
-  const nameTypes = typesIn('name'), connTypes = typesIn('connection');
+  const typesIn = tier => rng.shuffle(DEALT_TYPES.filter(t => t.tier === tier && pool[t.id]?.length).map(t => t.id));
+  const avail = Object.fromEntries(FINE_TIERS.map(t => [t, typesIn(t)]));
+  const quota = STYLES[plan.style].quota;
   const splits = [];
-  for (let k = TIER_QUOTA.connection[0]; k <= TIER_QUOTA.connection[1]; k++) {
-    const n = fineN - k;
-    if (n >= TIER_QUOTA.name[0] && n <= TIER_QUOTA.name[1] && k <= connTypes.length && n <= nameTypes.length) splits.push(k);
+  for (let a = quota.name[0]; a <= quota.name[1]; a++) for (let b = quota.connection[0]; b <= quota.connection[1]; b++) {
+    const c = fineN - a - b;
+    if (c >= quota.reasoning[0] && c <= quota.reasoning[1] && a <= avail.name.length && b <= avail.connection.length && c <= avail.reasoning.length) splits.push([a, b, c]);
   }
   if (!splits.length) return why('tier quota impossible');
-  const kConn = rng.pick(splits);
-  const slots = [...broad,
-    ...connTypes.slice(0, kConn).map(t => rng.pick(pool[t])),
-    ...nameTypes.slice(0, fineN - kConn).map(t => rng.pick(pool[t]))];
+  const split = rng.pick(splits);
+  const slots = [...broad, ...FINE_TIERS.flatMap((tier, k) => avail[tier].slice(0, split[k]).map(t => rng.pick(pool[t])))];
   const fixed = broad.length;
   const R = slots.length;
 
@@ -251,7 +324,7 @@ function tryBuildCase(rng, book, difficulty) {
     const used = new Set(slots.map(s => s.type));
     const tier = slots[j].tier;
     for (const c of pool[slots[j].type]) if (c !== slots[j] && keep(c)) out.push([j, c]);
-    for (const t of TYPES) if (t.tier === tier && !used.has(t.id) && pool[t.id]) for (const c of pool[t.id]) if (keep(c)) out.push([j, c]);
+    for (const t of DEALT_TYPES) if (t.tier === tier && !used.has(t.id) && pool[t.id]) for (const c of pool[t.id]) if (keep(c)) out.push([j, c]);
     return out;
   };
 
@@ -299,7 +372,7 @@ function tryBuildCase(rng, book, difficulty) {
     if (deep > maxOverlap) return why('overlap too high');
   }
 
-  // ── 5. Casebook order: broad clues first, then the biggest bite each time.
+  // ── 5. Casebook order: section clues first, then the biggest bite each time.
   const alive = new Uint8Array(N).fill(1);
   alive[killer] = 0; alive[victim] = 0;
   let standing = others;
@@ -312,7 +385,7 @@ function tryBuildCase(rng, book, difficulty) {
     order.push(c);
     return true;
   };
-  for (const c of slots.slice(0, fixed)) if (!take(c)) return why('broad marginal too small');
+  for (const c of slots.slice(0, fixed)) if (!take(c)) return why('section marginal too small');
   const rest = slots.slice(fixed);
   while (rest.length) {
     let bestK = 0, bestN = -1;
@@ -325,7 +398,7 @@ function tryBuildCase(rng, book, difficulty) {
   }
 
   return {
-    killer, victim, broadSurvivors: broadCount, iterations: it,
+    killer, victim, sectionSurvivors: broadCount, iterations: it,
     rules: order.map(c => ({ family: c.family, tier: c.tier, type: c.type, params: c.params })),
   };
 }
@@ -337,27 +410,22 @@ function tryBuildCase(rng, book, difficulty) {
 // sequence is built forward, one witness at a time:
 //   • each step aims to clear an even share of what's left (on a log scale),
 //     so the case thins out steadily rather than all at once or all at the end;
-//   • "bulk" clues (chapter, page, column, line — struck with the Strike tools)
-//     come first, until the field is down to the difficulty's working size;
-//     only then do name-by-name clues arrive, alternating name and connection
-//     clues so no two in a row feel alike;
+//   • section clues (stretches of the register, struck in runs) come first,
+//     until the field is down to the difficulty's working size; only then do
+//     name-by-name clues arrive, alternating tiers so no two in a row feel
+//     alike, and leaning toward the case's style;
 //   • the second-to-last witness must leave a group the last one can clear
 //     entirely, so the case always ends on a clean final line-up.
-const BULK_TYPES = new Set(['chapter', 'page', 'column', 'line']);
+const BULK_TYPES = new Set(SECTION);
 
-function tryBuildInquiry(rng, book, difficulty) {
+function tryBuildInquiry(rng, book, difficulty, plan, relaxed) {
   const N = book.entries.length;
-  const killer = rng.int(N);
-  let victim;
-  do { victim = rng.int(N); } while (victim === killer || book.entries[victim].ci === book.entries[killer].ci);
-  const others = N - 2;
-  const cands = [];
-  for (const c of buildBitmaps(book, victim)) {
-    if (!c.bits[killer]) continue;
-    const cleared = (N - c.keep) - (c.bits[victim] ? 0 : 1);
-    c.clear = cleared / others;
-    if (c.clear >= BALANCE.minClearShare && c.clear <= maxClearFor(c.type)) cands.push(c);
-  }
+  const [killer, victim] = pickPair(rng, book);
+  const cands = cluePool(rng, book, killer, victim, plan, relaxed);
+  // The case's style tilts which tier each witness comes from.
+  const q = STYLES[plan.style].quota, mid = t => (q[t][0] + q[t][1]) / 2;
+  const meanMid = FINE_TIERS.reduce((s, t) => s + mid(t), 0) / FINE_TIERS.length;
+  const lean = Object.fromEntries(FINE_TIERS.map(t => [t, Math.sqrt(mid(t) / meanMid)]));
   const [lo, hi] = clueRange(difficulty);
   const n = rng.range(lo, hi);
   let alive = [];
@@ -388,7 +456,7 @@ function tryBuildInquiry(rng, book, difficulty) {
       const bulk = BULK_TYPES.has(c.type);
       const pace = bulkPhase ? (bulk ? 1 : 0.02)
         : bulk ? 0.35
-        : prev && !BULK_TYPES.has(prev.type) && prev.tier === c.tier ? 0.55 : 1;
+        : (prev && !BULK_TYPES.has(prev.type) && prev.tier === c.tier ? 0.55 : 1) * (lean[c.tier] || 1);
       const aim = bulkPhase && bulk ? Math.max(target, bulkTarget) : target;
       scored.push({ c, k, w: pace / (0.04 + Math.abs(k / standing - aim)) });
     }
@@ -410,7 +478,7 @@ function tryBuildInquiry(rng, book, difficulty) {
   if (alive.length) return null;
   if (pairOverlap(seq.map(c => c.bits), killer, victim, N).max > BALANCE.maxPairOverlap) return why('two clues too alike');
   return {
-    killer, victim, broadSurvivors: null, iterations: n,
+    killer, victim, sectionSurvivors: null, iterations: n,
     rules: seq.map(c => ({ family: c.family, tier: c.tier, type: c.type, params: c.params })),
   };
 }
@@ -431,10 +499,10 @@ function pairOverlap(bitsList, killer, victim, N) {
 
 // ── validation ────────────────────────────────────────────────────────────
 
-function validateNameList(names, fullNames) {
+function validateNameList(names, fullNames, expected = 26000) {
   const problems = [];
   const seen = new Set();
-  if (names.length !== 26000) problems.push(`Expected 26,000 names, found ${names.length}`);
+  if (names.length !== expected) problems.push(`Expected ${expected.toLocaleString('en-US')} names, found ${names.length}`);
   const plain = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   for (const n of names) {
     if (fullNames) {
@@ -502,16 +570,18 @@ export function validateCase(caseData) {
   const checks = [];
   const add = (label, ok, detail = '') => checks.push({ label, ok: !!ok, detail });
   const inquiry = caseData.mode === 'inquiry';
+  const engine = caseData.engine || 0, legacy = engine < 7;
+  const expected = namesFor(caseData.difficulty, engine), many = expected.toLocaleString('en-US');
   if (caseData.layout === 'novel') {
-    const nv = validateNameList(caseData.names, caseData.fullNames);
-    add(caseData.fullNames ? '26,000 well-formed full names' : '26,000 names, all unique and well formed', nv.ok, nv.ok ? `${nv.unique.toLocaleString('en-US')} distinct ${caseData.fullNames ? 'full names (repeats are realistic)' : 'names'}` : nv.problems.join('; '));
+    const nv = validateNameList(caseData.names, caseData.fullNames, expected);
+    add(caseData.fullNames ? `${many} well-formed full names` : `${many} names, all unique and well formed`, nv.ok, nv.ok ? `${nv.unique.toLocaleString('en-US')} distinct ${caseData.fullNames ? 'full names (repeats are realistic)' : 'names'}` : nv.problems.join('; '));
   } else {
     const nv = validateNames(caseData.chapters);
     add('26,000 names, all unique, correctly filed and sorted', nv.ok, nv.ok ? `${nv.unique.toLocaleString('en-US')} unique names` : nv.problems.join('; '));
   }
 
   const book = layoutCase(caseData);
-  const pagesOk = book.pages.every((p, i) => p.page === i + 1) && book.entries.length === 26000;
+  const pagesOk = book.pages.every((p, i) => p.page === i + 1) && book.entries.length === expected;
   add('Every name has exactly one page, column and line', pagesOk, `${book.pageCount} pages · ${book.cols} columns`);
   if (book.style === 'novel') {
     const lens = book.chapters.map(c => c.lastPage - c.firstPage + 1);
@@ -531,11 +601,23 @@ export function validateCase(caseData) {
   const dupes = types.filter((t, k) => t && types.indexOf(t) !== k);
   add('No two clues of the same type', !dupes.length, dupes.length ? `repeated: ${[...new Set(dupes)].map(t => TYPE[t]?.label || t).join(', ')}` : `${new Set(types).size} distinct types`);
   const tierCount = tier => types.filter(t => TYPE[t]?.tier === tier).length;
-  if (!inquiry) {
-    const missingBroad = BROAD.filter(t => !types.includes(t));
+  if (legacy && !inquiry) {
+    const missingBroad = LEGACY_BROAD.filter(t => !types.includes(t));
     add('Chapter, page number, column and line are all covered', !missingBroad.length, missingBroad.map(t => TYPE[t].label).join(', '));
     const quotaOk = Object.entries(TIER_QUOTA).every(([tier, [a, b]]) => tierCount(tier) >= a && tierCount(tier) <= b);
     add('Name and connection clues within their quotas', quotaOk, `${tierCount('name')} about the name · ${tierCount('connection')} about connections`);
+  }
+  if (!legacy) {
+    const retired = rules.filter(r => FAMILY[r.family].retired || FAMILY[r.family].legacy);
+    add('No simple page, column, line or chapter gates', !retired.length, retired.length ? `retired: ${retired.map(r => r.typeLabel).join(', ')}` : '');
+    if (!inquiry) {
+      const sec = types.filter(t => TYPE[t]?.tier === 'record').length;
+      const secFirst = types.slice(0, sec).every(t => TYPE[t]?.tier === 'record');
+      add(`${SECTION_CLUES[0]}–${SECTION_CLUES[1]} clues about sections of the register, listed first`, sec >= SECTION_CLUES[0] && sec <= SECTION_CLUES[1] && secFirst, `${sec} section clues`);
+      const st = STYLES[caseData.style];
+      const quotaOk = !!st && FINE_TIERS.every(tier => tierCount(tier) >= st.quota[tier][0] && tierCount(tier) <= st.quota[tier][1]);
+      add(`Clue mix fits the case’s style${st ? ` (${st.label})` : ''}`, quotaOk, `${tierCount('name')} about the name · ${tierCount('connection')} about connections · ${tierCount('reasoning')} reasoning`);
+    }
   }
 
   const tooBig = m.perClue.map((c, k) => c.clearShare > maxClearFor(FAMILY[rules[k].family]?.type) + 1e-9 ? k + 1 : 0).filter(Boolean);

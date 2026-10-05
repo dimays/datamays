@@ -38,7 +38,8 @@ export async function newGameFor(caseRec) {
     id: uid(), caseId: caseRec.id, title: caseRec.title, code: caseRec.code, difficulty: caseRec.difficulty,
     mode: caseRec.mode || 'cold', setting: caseRec.setting || null, revealed: caseRec.mode === 'inquiry' ? 1 : undefined,
     victim: caseRec.story?.victim ?? caseRec.victim, createdAt: now, updatedAt: now,
-    marks: '', remaining: 25999, struck: 0, timePlayed: 0, solved: null, accusations: [], hints: 0,
+    total: caseRec.names?.length || 26000,
+    marks: '', remaining: (caseRec.names?.length || 26000) - 1, struck: 0, timePlayed: 0, solved: null, accusations: [], hints: 0,
   };
   await api.putGame(g);
   return g;

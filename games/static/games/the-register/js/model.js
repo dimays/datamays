@@ -36,11 +36,6 @@ export function buildModel(caseData) {
   return {
     caseData, book, victim, ctx, seq, mode, firstFail,
     word: ctx.registerWord,
-    // Alphabetical index (surname, then first name) for Find and the accusation box.
-    sorted: [...book.entries].sort((a, b) => {
-      const ka = a.last.lower + ' ' + a.first.lower, kb = b.last.lower + ' ' + b.first.lower;
-      return ka < kb ? -1 : ka > kb ? 1 : a.i - b.i;
-    }),
     frontCount: front.length,
     killer: () => book.entries[unseal(caseData.solution)],
     seqOfPage: n => front.length + n - 1,

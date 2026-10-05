@@ -7,29 +7,60 @@
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * Difficulty = how many suspects survive the four broad clues (chapter, page
- * number, column, line), i.e. how much name-by-name checking the reader does.
- * `clues` is the [min, max] clue count — fewer, bigger clues for Cozy, more,
- * finer ones for Hard-boiled. There is at most one clue per type (see TYPES
- * in rules.js), and in Cold Case every clue must still be necessary.
+ * Difficulty sets three things:
+ *   names — how many people are in the register (26,000 for Cozy, rising to
+ *           52,000 for Hard-boiled);
+ *   band  — how many suspects survive the "section" clues (the ones about
+ *           stretches of the register, struck in runs), i.e. how much
+ *           name-by-name checking the reader does;
+ *   clues — the [min, max] clue count.
+ * There is at most one clue per type (see TYPES in rules.js), and in Cold Case
+ * every clue must still be necessary.
  */
 export const DIFFICULTIES = {
-  cozy:       { label: 'Cozy',        blurb: 'A Sunday-afternoon mystery. Fewer suspects survive the broad clues.', band: [250, 500],   clues: [9, 10] },
-  classic:    { label: 'Classic',     blurb: 'The intended experience: a few evenings with the Register.',          band: [600, 1200],  clues: [10, 12] },
-  hardboiled: { label: 'Hard-boiled', blurb: 'Thousands survive the broad clues. Bring coffee.',                   band: [1400, 2800], clues: [12, 15] },
+  cozy:       { label: 'Cozy',        blurb: 'A Sunday-afternoon mystery. A smaller register, and few suspects left once the sections are struck.', names: 26000, band: [300, 600],   clues: [9, 10] },
+  classic:    { label: 'Classic',     blurb: 'The intended experience: a few evenings with the Register.',                                         names: 39000, band: [700, 1400],  clues: [10, 12] },
+  hardboiled: { label: 'Hard-boiled', blurb: 'Fifty-two thousand names, and thousands still standing after the sections. Bring coffee.',          names: 52000, band: [1500, 3000], clues: [12, 15] },
 };
+
+/** How many names a case of this difficulty has. Cases before engine 7 always had 26,000. */
+export const namesFor = (difficulty, engine) => (engine && engine < 7) ? 26000 : DIFFICULTIES[difficulty]?.names ?? 26000;
 
 /** Absolute floor on clues per case, whatever a difficulty says. */
 export const MIN_CLUES = 7;
 
 /**
- * Of the fine (non-broad) clues, how many come from each tier.
- * name: clues about the name itself; connection: neighbours, victim, page-mates.
+ * Of the fine clues (everything but the section clues), how many come from
+ * each tier, for cases made before engine 7. Newer cases take their quotas
+ * from their style (below).
  */
 export const TIER_QUOTA = {
   name: [2, 10],       // of 10 name types
   connection: [1, 7],  // of 9 connection types
 };
+
+/**
+ * How many section clues (stretches of the register: between two named
+ * people, after a landmark name, near the victim, the chapter a name appears
+ * in) a Cold Case uses. They are struck in runs, so they open the case.
+ */
+export const SECTION_CLUES = [2, 3];
+
+/**
+ * Case styles: every case leans a different way, so no two feel alike. Each
+ * style sets the tier quotas for the fine clues — name (the name itself),
+ * connection (neighbours, family, the victim) and reasoning (clues built from
+ * two conditions, or that cross a name with its position) — and how many fine
+ * types it may draw from at all. The reader sees the style in the case report.
+ */
+export const STYLES = {
+  wordsmith:   { label: 'The Wordsmith',   blurb: 'Most of the evidence is about the names themselves.',           quota: { name: [4, 9], connection: [1, 3], reasoning: [1, 2] } },
+  gossip:      { label: 'The Gossip',      blurb: 'Most of the evidence is about who sits near whom, and family.', quota: { name: [2, 4], connection: [3, 6], reasoning: [1, 2] } },
+  logician:    { label: 'The Logician',    blurb: 'Expect evidence that hangs on “if”, “either” and “both”.',     quota: { name: [2, 5], connection: [1, 3], reasoning: [2, 4] } },
+  generalist:  { label: 'The Generalist',  blurb: 'A little of everything.',                                     quota: { name: [2, 6], connection: [2, 4], reasoning: [1, 3] } },
+};
+/** Each case also sets aside this share of the fine types it could use, so the mix differs every time. */
+export const TYPE_DROPOUT = 0.3;
 
 /**
  * Balance thresholds. "Suspects" means everyone except the killer and the
@@ -43,7 +74,8 @@ export const BALANCE = {
   // Tighter caps for clue types that are applied in bulk with a few clicks.
   // A chapter clue struck with "Strike chapter" shouldn't wipe out half the
   // town — it should trim the book, leaving the real work to the other clues.
-  maxClearShareByType: { chapter: 0.35 },
+  // (Engine 7 has no chapter clues; chapterCompany is the nearest relative.)
+  maxClearShareByType: { chapter: 0.35, chapterCompany: 0.6 },
 
   // (1) Overlap: at most `maxShare` of suspects may be cleared by `clues` or
   // more clues.
@@ -82,4 +114,8 @@ export const SEARCH = {
                        // a stuck attempt is usually a hard killer — re-pick)
   candidates: 32,      // moves scored per step
   uphill: 0.04,        // chance of accepting a worse move (escapes dead ends)
+  sample: 40,          // clues drawn per attempt for each sampled family (the
+                       // section clues and compound clues have too many
+                       // possible forms to enumerate, so each attempt draws
+                       // fresh ones that fit its killer)
 };

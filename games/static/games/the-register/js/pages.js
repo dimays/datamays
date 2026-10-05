@@ -3,6 +3,7 @@ import { ROMAN_UP } from './model.js';
 import { DIFFICULTIES, MODES } from '../engine/generator.js';
 import { prologue, epilogue, shortTitle, registerWord, peopleWord } from '../engine/story.js';
 import { readingGuide, clueLabel } from '../engine/rules.js';
+import { thousandsWord } from '../engine/book.js';
 
 const ORDINAL_WORDS = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth', 'Eleventh', 'Twelfth', 'Thirteenth', 'Fourteenth', 'Fifteenth', 'Sixteenth', 'Seventeenth', 'Eighteenth', 'Nineteenth', 'Twentieth', 'Twenty-First', 'Twenty-Second', 'Twenty-Third', 'Twenty-Fourth', 'Twenty-Fifth', 'Twenty-Sixth'];
 
@@ -39,7 +40,7 @@ function titlePage(model) {
     <div class="tp-kicker">Case No. ${esc(c.code)}${modeLabel} · ${esc(DIFFICULTIES[c.difficulty].label)}</div>
     <div class="tp-rule"></div>
     <h1 class="tp-title"><small>${esc(t.top)}</small><span>${esc(t.big)}</span>${st.titles ? `<small>${esc(t.bottom)}</small>` : esc(t.bottom)}</h1>
-    <div class="tp-sub">A Murder in Twenty-Six Thousand Names</div>
+    <div class="tp-sub">A Murder in ${thousandsWord(model.book.entries.length)} Names</div>
     <div class="tp-orn">❦</div>
     <p class="tp-blurb">${esc(blurb)}</p>
     <div class="tp-foot">${c.rules.length} ${c.mode === 'inquiry' ? 'witnesses' : 'clues'} · ${fmt(model.book.entries.length)} names · ${model.book.pageCount} pages</div>
@@ -92,7 +93,7 @@ function contentsPage(model) {
   return `<h2 class="fm-heading small"><span class="fm-kicker">Contents</span></h2>
     <ol class="toc">${fm.map(({ s, k }) => row(label(s), s.folio, k)).join('')}</ol>
     <h3 class="toc-sub">The Register</h3>
-    <ol class="toc chapters">${chapters}</ol>`;
+    <ol class="toc chapters${model.book.chapters.length > 26 ? ' two' : ''}">${chapters}</ol>`;
 }
 
 
@@ -154,5 +155,5 @@ export const columnName = (k, n) => (n === 3 ? ['Left', 'Middle', 'Right'] : ['L
 /** The solution page shown (and printable) once the case is closed. */
 export function renderSolution(model) {
   const k = model.killer();
-  return epilogue(model.caseData.story, k);
+  return epilogue(model.caseData.story, k, model.book.entries.length);
 }
