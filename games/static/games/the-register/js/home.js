@@ -1,5 +1,6 @@
 import { $, $$, h, esc, fmt, duration, timeAgo, modal, toast } from './util.js';
 import { api, IN_BROWSER } from './api.js';
+import { HUB, track, dailyCases, leaderboardUrl, hubUser, accountUrl, signInUrl } from './hub.js';
 import { DIFFICULTIES, ENGINE_VERSION, MODES, STYLES, DEFAULT_MODE } from '../engine/generator.js';
 import { SETTING } from '../engine/settings.js';
 import { clueLabel } from '../engine/rules.js';
@@ -27,7 +28,12 @@ export class Home {
     this.index = index;
     const games = [...index.games].sort((a, b) => b.updatedAt - a.updatedAt);
     const current = games.find(g => !g.solved);
+    // A page can say the game has moved (data-moved="<new address>"): players
+    // are told where, and how to take their case files, which live in this
+    // site's browser storage, along with them.
+    const moved = document.documentElement.dataset.moved;
     this.root.append(h(`<div class="home">
+      ${moved ? `<section class="moved"><div><b>The Register has moved.</b> It now lives at <a href="${esc(moved)}">${esc(moved.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</a>, with daily cases and leaderboards. Your case files are saved in this browser for this site, so they don’t move by themselves: <b>back them up here</b>, then use <b>Restore…</b> on the new site.</div><div class="moved-actions"><button class="btn small" data-act="backup">Back up my case files</button><a class="btn small primary" href="${esc(moved)}">Go to the new site</a></div></section>` : ''}
       <div class="home-grid">
         <div class="brand">
           <div class="brand-kicker">A murder mystery in 26,000 to 52,000 names</div>
@@ -46,15 +52,34 @@ export class Home {
         </div>
         <div class="cover" aria-hidden="true"><div class="cover-inner"><div class="cv-rule"></div><div class="cv-kicker">One register</div><div class="cv-title">The<br>Register</div><div class="cv-num">One killer</div><div class="cv-rule"></div></div></div>
       </div>
+      ${HUB ? `<section class="dailies"><div class="files-head"><h2>Today’s cases</h2><div class="files-tools"><a class="btn ghost small" href="${esc(leaderboardUrl())}">Leaderboard</a>${hubUser() ? `<a class="btn ghost small" href="${esc(accountUrl())}" title="Your account">${esc(hubUser())}</a>` : `<a class="btn ghost small" href="${esc(signInUrl('login'))}">Sign in</a>`}</div></div><p class="muted small-print">Everyone gets the same case today, one for each mode and difficulty. Solve one and post your time${hubUser() ? '' : ' (you’ll need an account)'}.</p><div class="daily-grid"><p class="muted">Fetching today’s cases…</p></div></section>` : ''}
       <section class="files">
         <div class="files-head"><h2>Case files</h2><div class="files-tools"><button class="btn ghost small" data-act="by-code">Open a case by number…</button><button class="btn ghost small" data-act="backup" title="Save every case file to a file you keep">Back up</button><button class="btn ghost small" data-act="restore" title="Bring case files back from a backup file">Restore…</button></div></div>
         ${games.length ? `<ul class="file-list">${games.map(g => this.fileRow(g)).join('')}</ul>` : '<p class="muted empty">No cases yet. Open your first one above. A register of 26,000 people will be written for you in a second or two.</p>'}
       </section>
-      <footer class="home-foot"><span class="spare-status"></span><span>${IN_BROWSER ? 'Saved automatically in this browser. Nothing is sent anywhere — use Back up to keep a copy or move to another device.' : 'Saved automatically to this computer. Nothing leaves it.'}</span>${document.documentElement.dataset.back ? `<a class="home-back" href="${esc(document.documentElement.dataset.back)}">← More games</a>` : ''}</footer>
+      <footer class="home-foot"><span class="spare-status"></span><span>${HUB ? 'Your cases and progress are saved in this browser — use Back up to keep a copy. The site counts cases started and solved (never names or progress), and shows scores you choose to post.' : IN_BROWSER ? 'Saved automatically in this browser. Nothing is sent anywhere — use Back up to keep a copy or move to another device.' : 'Saved automatically to this computer. Nothing leaves it.'}</span>${document.documentElement.dataset.back ? `<a class="home-back" href="${esc(document.documentElement.dataset.back)}">${HUB ? '← All games' : '← More games'}</a>` : ''}</footer>
     </div>`));
     this.root.addEventListener('click', this.onClick = e => this.click(e));
     this.spareStatus(unusedCase(index, 'classic', DEFAULT_MODE) ? 'ready' : 'idle');
+    if (HUB) this.showDailies();
   }
+
+  /** Hub only: today's shared cases, marked with how far you've got on each. */
+  async showDailies() {
+    const grid = $('.daily-grid', this.root);
+    try {
+      const { cases } = await dailyCases();
+      const mine = id => this.index.games.find(g => g.caseId === id);
+      grid.innerHTML = cases.map(c => {
+        const g = mine(caseId(c.code, c.difficulty, c.mode));
+        const state = g ? (g.solved ? (g.posted ? `Solved · posted ${esc(g.posted.time)}` : 'Solved — post your time') : `${fmt(g.remaining ?? suspects(g))} suspects remain`) : `No. ${esc(c.code)}`;
+        return `<button class="daily-case ${g?.solved ? 'done' : ''}" data-daily="${esc(c.code)}|${c.difficulty}|${c.mode}"><b>${DIFFICULTIES[c.difficulty].label}</b><span>${MODES[c.mode].label}</span><em>${state}</em></button>`;
+      }).join('');
+    } catch {
+      grid.innerHTML = '<p class="muted">Today’s cases aren’t available right now.</p>';
+    }
+  }
+
 
   destroy() { this.root.removeEventListener('click', this.onClick); }
 
@@ -83,6 +108,8 @@ export class Home {
     if (del) return this.deleteGame(del.dataset.delete);
     const rep = e.target.closest('[data-report]');
     if (rep) return this.caseReport(rep.dataset.report);
+    const daily = e.target.closest('[data-daily]');
+    if (daily) { const [code, difficulty, mode] = daily.dataset.daily.split('|'); return this.openShared(code, difficulty, mode, true); }
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'new') return this.newCase();
     if (act === 'by-code') return this.byCode();
@@ -110,7 +137,7 @@ export class Home {
     this.startCase(choice.difficulty, null, choice.mode);
   }
 
-  async startCase(difficulty, code = null, mode = 'cold') {
+  async startCase(difficulty, code = null, mode = 'cold', { daily = false } = {}) {
     try {
       const index = await api.index();
       let rec = null;
@@ -130,7 +157,8 @@ export class Home {
         this.showLoading('Preparing the case', 'Choosing a setting');
         rec = await createCase(code || freshCode(index, difficulty, mode), difficulty, mode, p => this.showLoading(null, p.label, p.phase === 'names' ? p.p * 0.6 : 0.6 + (p.p || 0) * 0.4));
       }
-      const g = await newGameFor(rec);
+      const g = await newGameFor(rec, daily ? { daily: true } : {});
+      track('case_started', g);
       this.hideLoading();
       this.openGame(g.id);
       setTimeout(() => prepareSpare(difficulty, mode), 4000);
@@ -201,13 +229,15 @@ export class Home {
     catch { modal({ title: 'Share this case', body: `<p class="muted">Anyone who opens this link gets this exact case.</p><input class="input share-link" readonly value="${esc(link)}">`, onOpen: root => $('.share-link', root).select(), actions: [{ label: 'Done', primary: true }] }); }
   }
 
-  /** Arrived by a share link: pick up the game already on that case, or offer to open it. */
-  async openShared(rawCode, difficulty, mode) {
+  /** Arrived by a share link (or picked a daily case): pick up the game already on that case, or offer to open it. */
+  async openShared(rawCode, difficulty, mode, daily = false) {
     const code = normalizeCaseCode(rawCode || '');
     if (!code || !DIFFICULTIES[difficulty] || !MODES[mode]) return toast('That case link is incomplete.');
     const id = caseId(code, difficulty, mode);
     const mine = this.index.games.filter(g => g.caseId === id).sort((a, b) => b.updatedAt - a.updatedAt)[0];
     if (mine) return this.openGame(mine.id);
+    // A daily case was chosen on purpose; a shared link deserves a word first.
+    if (daily) return this.startCase(difficulty, code, mode, { daily: true });
     const ok = await modal({
       title: `Case No. ${esc(code)}`,
       body: `<p>Someone has shared a case with you: <b>${MODES[mode].label}</b>, <b>${DIFFICULTIES[difficulty].label}</b>. You’ll get the same register, clues and killer they have.</p>`,

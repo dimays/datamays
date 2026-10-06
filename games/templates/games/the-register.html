@@ -6,9 +6,11 @@ repo by its tools/publish-site.sh — edit them there, not here.
 
 data-storage="browser" tells it to keep cases and saves in this browser
 (IndexedDB) instead of talking to the local server it runs with on a desktop.
-data-back is the way back to the hub, shown on its home screen.
+data-back is the way back to the hub, shown on its home screen. data-moved
+tells players the game now lives at unnecessaryobstacles.com and how to take
+their saved cases with them.
 {% endcomment %}
-<html lang="en" data-storage="browser" data-back="{% url 'games:index' %}">
+<html lang="en" data-storage="browser" data-back="https://unnecessaryobstacles.com/" data-moved="https://unnecessaryobstacles.com/games/the-register/">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -34,7 +36,7 @@ data-back is the way back to the hub, shown on its home screen.
   </div>
   <div id="toast" role="status" aria-live="polite"></div>
   <div id="print-root" aria-hidden="true"></div>
-  <noscript><p style="color:#e8dcc6;font:16px Georgia,serif;padding:40px">The Register needs JavaScript to write its 26,000 names. <a style="color:#e8c983" href="{% url 'games:index' %}">Back to games</a></p></noscript>
+  <noscript><p style="color:#e8dcc6;font:16px Georgia,serif;padding:40px">The Register needs JavaScript to write its 26,000 names. <a style="color:#e8c983" href="https://unnecessaryobstacles.com/games/the-register/">Play it at unnecessaryobstacles.com</a></p></noscript>
   <script type="module" src="{% static 'games/the-register/app.js' %}"></script>
 </body>
 </html>

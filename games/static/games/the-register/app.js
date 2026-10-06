@@ -7,6 +7,7 @@ import { buildModel } from './js/model.js';
 import { buildPrintRoot } from './js/print.js';
 import { prepareSpare } from './js/cases.js';
 import { DEFAULT_MODE } from './engine/generator.js';
+import { flushPending } from './js/hub.js';
 
 const root = $('#app');
 let screen = null;
@@ -32,9 +33,10 @@ async function route() {
   await screen.mount();
   // A shared case link: #/open/<code>/<difficulty>/<mode>. Drop it from the address first so a reload doesn't re-ask.
   if (kind === 'open') {
-    const [, , , , mode] = location.hash.split('/');
+    // #/open/<code>/<difficulty>/<mode>[/daily]
+    const [, , , , mode, daily] = location.hash.split('/');
     history.replaceState(null, '', location.pathname + location.search + '#/');
-    screen.openShared(id, extra, mode || 'cold');
+    screen.openShared(id, extra, mode || 'cold', daily === 'daily');
   }
   // Keep a spare case ready so "New Case" never waits.
   setTimeout(() => prepareSpare('classic', DEFAULT_MODE, s => screen?.spareStatus?.(s)), 1500);
@@ -72,4 +74,5 @@ async function printTest(caseId, gameId) {
 }
 
 window.addEventListener('hashchange', route);
-route();
+// On the hub, a score waiting on sign-in is posted before anything opens.
+flushPending().catch(() => {}).finally(route);

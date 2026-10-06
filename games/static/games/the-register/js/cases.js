@@ -53,12 +53,13 @@ export function unusedCase(index, difficulty, mode = 'cold') {
   return index.cases.filter(c => c.difficulty === difficulty && (c.mode || 'cold') === mode && c.valid && c.engine === ENGINE_VERSION && !used.has(c.id)).sort((a, b) => a.createdAt - b.createdAt)[0] || null;
 }
 
-export async function newGameFor(caseRec) {
+/** A fresh game on a case. `extra` adds fields such as { daily: true }. */
+export async function newGameFor(caseRec, extra = {}) {
   const now = Date.now();
   const g = {
     id: uid(), caseId: caseRec.id, title: caseRec.title, code: caseRec.code, difficulty: caseRec.difficulty,
     mode: caseRec.mode || 'cold', setting: caseRec.setting || null, revealed: caseRec.mode === 'inquiry' ? 1 : undefined,
-    victim: caseRec.story?.victim ?? caseRec.victim, createdAt: now, updatedAt: now,
+    victim: caseRec.story?.victim ?? caseRec.victim, createdAt: now, updatedAt: now, ...extra,
     total: caseRec.names?.length || 26000,
     marks: '', remaining: (caseRec.names?.length || 26000) - 1, struck: 0, timePlayed: 0, solved: null, accusations: [], hints: 0,
   };

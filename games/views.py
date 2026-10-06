@@ -1,22 +1,23 @@
 from django.http import Http404
-from django.views.generic import TemplateView
+from django.views.generic import RedirectView, TemplateView
 
-from .catalog import GAMES, GAMES_BY_SLUG
+from .catalog import GAMES_BY_SLUG
+
+# The games moved to their own site, with accounts and leaderboards.
+NEW_HOME = "https://unnecessaryobstacles.com/"
 
 
-class GameIndexView(TemplateView):
-    """The hub: every game, on the site's own dark theme."""
+class GameIndexView(RedirectView):
+    """The games hub now lives at unnecessaryobstacles.com."""
 
-    template_name = "games/index.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["games"] = GAMES
-        return context
+    url = NEW_HOME
+    permanent = True
 
 
 class GamePlayView(TemplateView):
-    """A game's own page.
+    """A game's own page — kept so players can still open their saved cases
+    (which live in this site's browser storage) and back them up; the game
+    itself tells them it has moved.
 
     Games do not extend `core/base.html`. Each one sets its own palette and
     wants the whole viewport — the Register is a leather-bound ledger on a

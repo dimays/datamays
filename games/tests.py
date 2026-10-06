@@ -5,12 +5,9 @@ from .catalog import GAMES, GAMES_BY_SLUG
 
 
 class GameIndexTests(SimpleTestCase):
-    def test_hub_lists_every_game(self):
+    def test_the_hub_has_moved_to_its_own_site(self):
         response = self.client.get(reverse("games:index"))
-        self.assertEqual(response.status_code, 200)
-        for game in GAMES:
-            self.assertContains(response, game.title)
-            self.assertContains(response, game.url)
+        self.assertRedirects(response, "https://unnecessaryobstacles.com/", status_code=301, fetch_redirect_response=False)
 
 
 class GamePlayTests(SimpleTestCase):
@@ -23,9 +20,9 @@ class GamePlayTests(SimpleTestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, game.title)
 
-    def test_game_page_links_back_to_the_hub(self):
+    def test_the_register_tells_players_it_has_moved(self):
         response = self.client.get(GAMES_BY_SLUG["the-register"].url)
-        self.assertContains(response, reverse("games:index"))
+        self.assertContains(response, 'data-moved="https://unnecessaryobstacles.com/games/the-register/"')
 
     def test_unknown_game_is_404(self):
         response = self.client.get("/games/tic-tac-toe/")
