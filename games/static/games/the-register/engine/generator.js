@@ -31,10 +31,11 @@ export const clueRange = difficulty => {
   return [Math.max(MIN_CLUES, lo), Math.min(TYPES.length, Math.max(MIN_CLUES, lo, hi))];
 };
 
-// The Inquiry comes first: it's the default, and listed first wherever modes are offered.
+// Live Investigation (id 'inquiry', its original name) comes first: it's the
+// default, and listed first wherever modes are offered.
 export const DEFAULT_MODE = 'inquiry';
 export const MODES = {
-  inquiry: { label: 'The Inquiry', blurb: 'Witnesses come forward one at a time — each only when you have struck every name the evidence so far rules out.' },
+  inquiry: { label: 'Live Investigation', blurb: 'Witnesses come forward one at a time — each only when you have struck every name the evidence so far rules out.' },
   cold: { label: 'Cold Case', blurb: 'The whole file is in front of you: every piece of evidence, from the first page.' },
 };
 

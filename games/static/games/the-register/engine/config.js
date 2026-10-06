@@ -9,7 +9,7 @@
 /**
  * Difficulty sets three things:
  *   names — how many people are in the register (26,000 for Cozy, rising to
- *           52,000 for Hard-boiled);
+ *           52,000 for Noir, whose id is still 'hardboiled');
  *   band  — how many suspects survive the "section" clues (the ones about
  *           stretches of the register, struck in runs), i.e. how much
  *           name-by-name checking the reader does;
@@ -20,7 +20,7 @@
 export const DIFFICULTIES = {
   cozy:       { label: 'Cozy',        blurb: 'A Sunday-afternoon mystery. A smaller register, and few suspects left once the sections are struck.', names: 26000, band: [300, 600],   clues: [9, 10] },
   classic:    { label: 'Classic',     blurb: 'The intended experience: a few evenings with the Register.',                                         names: 39000, band: [700, 1400],  clues: [10, 12] },
-  hardboiled: { label: 'Hard-boiled', blurb: 'Fifty-two thousand names, and thousands still standing after the sections. Bring coffee.',          names: 52000, band: [1500, 3000], clues: [12, 15] },
+  hardboiled: { label: 'Noir',        blurb: 'Fifty-two thousand names, and thousands still standing after the sections. Bring coffee.',          names: 52000, band: [1500, 3000], clues: [12, 15] },
 };
 
 /** How many names a case of this difficulty has. Cases before engine 7 always had 26,000. */
