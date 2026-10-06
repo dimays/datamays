@@ -1245,7 +1245,7 @@ export class Game {
       wide: true,
       body: `<div class="help">
         <ol class="howto">
-          <li><b>Read the evidence.</b> The Casebook on the left lists ${this.inquiry ? 'the witnesses heard so far — in The Inquiry, the next one comes forward only once you’ve struck every name the evidence so far rules out' : 'every clue'}. Each statement is true of the killer, so any name that breaks even one is innocent.</li>
+          <li><b>Read the evidence.</b> The Casebook on the left lists ${this.inquiry ? 'the witnesses heard so far — in a Live Investigation, the next one comes forward only once you’ve struck every name the evidence so far rules out' : 'every clue'}. Each statement is true of the killer, so any name that breaks even one is innocent.</li>
           <li><b>Strike the innocent.</b> Pick a clue’s highlighter, then click or drag across names to strike them. Start with the clues about stretches of the Register: find the people they name, then strike the run between them. Then work name by name.</li>
           <li><b>Accuse.</b> When one name is left standing, accuse them by page and line — names repeat. A wrong accusation costs nothing but your pride.</li>
         </ol>
