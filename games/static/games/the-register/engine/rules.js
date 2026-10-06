@@ -788,6 +788,47 @@ export const FAMILIES = [
       : `“Not one ${partName(ctx, p)} on the killer’s round — I’d have remembered the name.”`,
   },
 
+  {
+    id: 'nearPerson', tier: 'record', sampled: true,
+    sample: (rng, ctx, k, n) => {
+      const U = uniqueAnchors(ctx.book), out = [], ke = ctx.entries[k], pages = ctx.book.pageCount;
+      for (let t = 0; t < n * 4 && out.length < n; t++) {
+        const a = rng.pick(U);
+        if (a === k || a === ctx.victimIdx) continue;
+        const within = rng.chance(0.6), d = 2 + rng.int(Math.max(3, Math.floor(pages * 0.4)));
+        if ((Math.abs(ke.page - ctx.entries[a].page) <= d) === within) out.push({ a, d, within });
+      }
+      return out;
+    },
+    test: (e, p, ctx) => (Math.abs(e.page - ctx.entries[p.a].page) <= p.d) === p.within,
+    text: (p, ctx) => p.within
+      ? `The killer’s page is no more than ${p.d} pages from ${who(ctx, p.a)}’s page, counting either way. (${who(ctx, p.a)} appears only once.)`
+      : `The killer’s page is more than ${p.d} pages from ${who(ctx, p.a)}’s page, counting either way. (${who(ctx, p.a)} appears only once.)`,
+    source: 'The Neighbour Across the Way',
+    quote: (p, ctx) => p.within ? `“I saw the killer with ${who(ctx, p.a)} more than once. They’d have been entered near each other — I’d bet on it.”` : `“The killer went out of their way to avoid ${who(ctx, p.a)}. They’d never have been entered anywhere near.”`,
+  },
+  {
+    id: 'chapterRelative', tier: 'record', sampled: true,
+    sample: (rng, ctx, k, n) => {
+      const U = uniqueAnchors(ctx.book), out = [], ke = ctx.entries[k];
+      for (let t = 0; t < n * 4 && out.length < n; t++) {
+        const a = rng.pick(U), rel = rng.pick(['later', 'earlier', 'near', 'far']);
+        if (a === k || a === ctx.victimIdx) continue;
+        if (chapterRel(ke, ctx.entries[a], rel)) out.push({ a, rel });
+      }
+      return out;
+    },
+    test: (e, p, ctx) => chapterRel(e, ctx.entries[p.a], p.rel),
+    text: (p, ctx) => ({
+      later: `The killer appears in a later chapter than ${who(ctx, p.a)}.`,
+      earlier: `The killer appears in an earlier chapter than ${who(ctx, p.a)}.`,
+      near: `The killer appears in ${who(ctx, p.a)}’s chapter, or in the chapter just before or just after it.`,
+      far: `The killer appears neither in ${who(ctx, p.a)}’s chapter nor in the chapter just before or just after it.`,
+    })[p.rel] + ` (${who(ctx, p.a)} appears only once.)`,
+    source: 'The Bookbinder',
+    quote: (p, ctx) => `“I rebound the Register, chapter by chapter. I remember which chapter had ${who(ctx, p.a)} in it — and where the killer’s was, by comparison.”`,
+  },
+
   // ── engine 7: the first name and surname together ─────────────────────────
   {
     id: 'initialsOrder', tier: 'name', whole: true,
@@ -920,6 +961,7 @@ function popcount(x) { let c = 0; while (x) { x &= x - 1; c++; } return c; }
 // ── helpers for the engine-7 families ────────────────────────────────────
 const who = (ctx, i) => ctx.entries[i].name;
 const partName = (ctx, p) => ctx.entries[p.at][p.part].name;
+const chapterRel = (e, a, rel) => rel === 'later' ? e.ci > a.ci : rel === 'earlier' ? e.ci < a.ci : (Math.abs(e.ci - a.ci) <= 1) === (rel === 'near');
 /** Does anyone else in e's chapter have this first name / surname? */
 const chapterHas = (ctx, e, p) => occurrences(ctx.book, p.part, p.value).some(j => j !== e.i && ctx.entries[j].ci === e.ci);
 const anchorCache = new WeakMap();
@@ -978,6 +1020,8 @@ export const TYPES = [
   { id: 'landmark',     tier: 'record',     label: 'A Landmark Name',         families: ['landmark'] },
   { id: 'nearVictim',   tier: 'record',     label: 'Near the Victim',         families: ['victimSpan'] },
   { id: 'chapterCompany', tier: 'record',   label: 'The Chapter’s Company',   families: ['chapterCompany'] },
+  { id: 'nearPerson',   tier: 'record',     label: 'Near a Named Person',     families: ['nearPerson'] },
+  { id: 'chapterRelative', tier: 'record',  label: 'A Named Person’s Chapter', families: ['chapterRelative'] },
   // Before engine 7: simple structural gates, struck a page or column at a time. No longer dealt.
   { id: 'chapter',      tier: 'registry',   legacy: true, label: 'The Chapter',            families: ['chapterParity', 'chapterPrime', 'chapterMultiple', 'chapterRange', 'chapterSpelled', 'pageInChapter'] },
   { id: 'page',         tier: 'ledger',     legacy: true, label: 'The Page Number',        families: ['pagePrime', 'pageParity', 'pageMultiple', 'pageDigitSum', 'pageLastDigit', 'pageHasDigit', 'pageReversed'] },

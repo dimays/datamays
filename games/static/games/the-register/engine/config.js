@@ -44,7 +44,15 @@ export const TIER_QUOTA = {
  * people, after a landmark name, near the victim, the chapter a name appears
  * in) a Cold Case uses. They are struck in runs, so they open the case.
  */
-export const SECTION_CLUES = [2, 3];
+export const SECTION_CLUES = [2, 4];
+
+/**
+ * How readily each kind of section clue is dealt. The strongest kinds (a
+ * span between two names, a window around the victim) land a case in its
+ * band most easily, so left alone they'd open nearly every case; these
+ * weights tilt the draw toward the others.
+ */
+export const SECTION_WEIGHT = { span: 0.5, nearVictim: 0.7, landmark: 1.6, chapterCompany: 1.4, nearPerson: 0.5, chapterRelative: 1.0 };
 
 /**
  * Case styles: every case leans a different way, so no two feel alike. Each
@@ -54,13 +62,13 @@ export const SECTION_CLUES = [2, 3];
  * types it may draw from at all. The reader sees the style in the case report.
  */
 export const STYLES = {
-  wordsmith:   { label: 'The Wordsmith',   blurb: 'Most of the evidence is about the names themselves.',           quota: { name: [4, 9], connection: [1, 3], reasoning: [1, 2] } },
-  gossip:      { label: 'The Gossip',      blurb: 'Most of the evidence is about who sits near whom, and family.', quota: { name: [2, 4], connection: [3, 6], reasoning: [1, 2] } },
+  wordsmith:   { label: 'The Wordsmith',   blurb: 'Most of the evidence is about the names themselves.',           quota: { name: [4, 9], connection: [1, 3], reasoning: [0, 2] } },
+  gossip:      { label: 'The Gossip',      blurb: 'Most of the evidence is about who sits near whom, and family.', quota: { name: [2, 5], connection: [3, 6], reasoning: [0, 2] } },
   logician:    { label: 'The Logician',    blurb: 'Expect evidence that hangs on “if”, “either” and “both”.',     quota: { name: [2, 5], connection: [1, 3], reasoning: [2, 4] } },
   generalist:  { label: 'The Generalist',  blurb: 'A little of everything.',                                     quota: { name: [2, 6], connection: [2, 4], reasoning: [1, 3] } },
 };
 /** Each case also sets aside this share of the fine types it could use, so the mix differs every time. */
-export const TYPE_DROPOUT = 0.3;
+export const TYPE_DROPOUT = 0.4;
 
 /**
  * Balance thresholds. "Suspects" means everyone except the killer and the
@@ -114,6 +122,8 @@ export const SEARCH = {
                        // a stuck attempt is usually a hard killer — re-pick)
   candidates: 32,      // moves scored per step
   uphill: 0.04,        // chance of accepting a worse move (escapes dead ends)
+  perType: 6,          // candidate moves per clue type per step, so a type with
+                       // hundreds of forms is no likelier to be tried than one with two
   sample: 40,          // clues drawn per attempt for each sampled family (the
                        // section clues and compound clues have too many
                        // possible forms to enumerate, so each attempt draws
