@@ -6,6 +6,7 @@ import { Game } from './js/game.js';
 import { buildModel } from './js/model.js';
 import { buildPrintRoot } from './js/print.js';
 import { prepareSpare } from './js/cases.js';
+import { DEFAULT_MODE } from './engine/generator.js';
 
 const root = $('#app');
 let screen = null;
@@ -36,7 +37,7 @@ async function route() {
     screen.openShared(id, extra, mode || 'cold');
   }
   // Keep a spare case ready so "New Case" never waits.
-  setTimeout(() => prepareSpare('classic', 'cold', s => screen?.spareStatus?.(s)), 1500);
+  setTimeout(() => prepareSpare('classic', DEFAULT_MODE, s => screen?.spareStatus?.(s)), 1500);
 }
 
 async function openGame(id) {

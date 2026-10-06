@@ -1,6 +1,6 @@
 import { $, $$, h, esc, fmt, duration, timeAgo, modal, toast } from './util.js';
 import { api, IN_BROWSER } from './api.js';
-import { DIFFICULTIES, ENGINE_VERSION, MODES, STYLES } from '../engine/generator.js';
+import { DIFFICULTIES, ENGINE_VERSION, MODES, STYLES, DEFAULT_MODE } from '../engine/generator.js';
 import { SETTING } from '../engine/settings.js';
 import { clueLabel } from '../engine/rules.js';
 import { ROMAN_UP } from './model.js';
@@ -53,7 +53,7 @@ export class Home {
       <footer class="home-foot"><span class="spare-status"></span><span>${IN_BROWSER ? 'Saved automatically in this browser. Nothing is sent anywhere — use Back up to keep a copy or move to another device.' : 'Saved automatically to this computer. Nothing leaves it.'}</span>${document.documentElement.dataset.back ? `<a class="home-back" href="${esc(document.documentElement.dataset.back)}">← More games</a>` : ''}</footer>
     </div>`));
     this.root.addEventListener('click', this.onClick = e => this.click(e));
-    this.spareStatus(unusedCase(index, 'classic') ? 'ready' : 'idle');
+    this.spareStatus(unusedCase(index, 'classic', DEFAULT_MODE) ? 'ready' : 'idle');
   }
 
   destroy() { this.root.removeEventListener('click', this.onClick); }
@@ -91,9 +91,10 @@ export class Home {
   }
 
   async newCase() {
-    let mode = 'cold';
-    try { mode = localStorage.getItem('register:mode') || 'cold'; } catch { /* storage blocked */ }
-    if (!MODES[mode]) mode = 'cold';
+    // The Inquiry by default; after that, whichever mode the player chose last.
+    let mode = DEFAULT_MODE;
+    try { mode = localStorage.getItem('register:mode') || DEFAULT_MODE; } catch { /* storage blocked */ }
+    if (!MODES[mode]) mode = DEFAULT_MODE;
     const choice = await modal({
       title: 'Open a new case',
       wide: true,
