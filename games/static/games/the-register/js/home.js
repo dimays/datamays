@@ -4,8 +4,8 @@ import { DIFFICULTIES, ENGINE_VERSION, MODES, STYLES, DEFAULT_MODE } from '../en
 import { SETTING } from '../engine/settings.js';
 import { clueLabel } from '../engine/rules.js';
 import { ROMAN_UP } from './model.js';
-import { normalizeCaseCode, newCaseCode } from '../engine/rng.js';
-import { createCase, unusedCase, newGameFor, caseId, prepareSpare } from './cases.js';
+import { normalizeCaseCode } from '../engine/rng.js';
+import { createCase, unusedCase, newGameFor, caseId, prepareSpare, freshCode } from './cases.js';
 
 // Where saves live, for messages that would otherwise blame a server the player doesn't have.
 const UNREACHABLE = IN_BROWSER ? 'Can’t open this browser’s storage. Is it in private browsing mode?' : 'Can’t reach the local server. Is it running?';
@@ -128,7 +128,7 @@ export class Home {
       }
       if (!rec) {
         this.showLoading('Preparing the case', 'Choosing a setting');
-        rec = await createCase(code || newCaseCode(), difficulty, mode, p => this.showLoading(null, p.label, p.phase === 'names' ? p.p * 0.6 : 0.6 + (p.p || 0) * 0.4));
+        rec = await createCase(code || freshCode(index, difficulty, mode), difficulty, mode, p => this.showLoading(null, p.label, p.phase === 'names' ? p.p * 0.6 : 0.6 + (p.p || 0) * 0.4));
       }
       const g = await newGameFor(rec);
       this.hideLoading();

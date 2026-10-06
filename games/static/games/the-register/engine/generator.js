@@ -5,9 +5,9 @@ import { generatePeople, MAX_FULL_NAME } from './people.js';
 import { layoutCase, layoutNovel, planChapters, CHAPTER_PAGES, letters, bookIndex } from './book.js';
 import { DEALT_FAMILIES as FAMILIES, DEALT_TYPES, FAMILY, TYPES, TYPE, TIER_LABEL, describeRule } from './rules.js';
 import { generateStory, caseTitle } from './story.js';
-import { DIFFICULTIES, MIN_CLUES, TIER_QUOTA, BALANCE, SEARCH, STYLES, SECTION_CLUES, TYPE_DROPOUT, namesFor } from './config.js';
+import { DIFFICULTIES, MIN_CLUES, TIER_QUOTA, BALANCE, SEARCH, STYLES, SECTION_CLUES, SECTION_WEIGHT, TYPE_DROPOUT, namesFor } from './config.js';
 
-export const ENGINE_VERSION = 7;
+export const ENGINE_VERSION = 8;
 export { DIFFICULTIES, STYLES, namesFor };
 
 // Before engine 7 every Cold Case opened with one clue each about the chapter,
@@ -23,6 +23,9 @@ export const seal = (i, code) => btoa(String((i + 7919) * 31) + '|' + code.split
 export const unseal = (s) => +atob(s).split('|')[0] / 31 - 7919;
 
 export function caseRng(code, difficulty, mode = 'cold') { return new Rng(`${code}|${difficulty}|${mode}|v${ENGINE_VERSION}`); }
+
+/** The setting a case number produces — cheap, without building the case. */
+export const settingFor = (code, difficulty, mode = 'cold') => caseRng(code, difficulty, mode).fork('setting').pick(SETTINGS).id;
 
 export const maxClearFor = type => BALANCE.maxClearShareByType?.[type] ?? BALANCE.maxClearShare;
 
@@ -181,6 +184,13 @@ function cluePool(rng, book, killer, victim, plan, relaxed) {
   return out;
 }
 
+/** Draw k distinct items, each with chance proportional to its weight. */
+function weightedDraw(rng, items, weight, k) {
+  const pool = [...items], out = [];
+  while (out.length < k && pool.length) { const x = rng.weighted(pool, weight); out.push(x); pool.splice(pool.indexOf(x), 1); }
+  return out;
+}
+
 const pickPair = (rng, book) => {
   const N = book.entries.length, killer = rng.int(N);
   let victim;
@@ -227,7 +237,7 @@ function tryBuildCase(rng, book, difficulty, plan, relaxed) {
     let alive = [];
     for (let i = 0; i < N; i++) if (i !== victim) alive.push(i);
     const pick = [];
-    for (const [step, ty] of rng.shuffle([...secTypes]).slice(0, kSec).entries()) {
+    for (const [step, ty] of weightedDraw(rng, secTypes, t => SECTION_WEIGHT[t] ?? 1, kSec).entries()) {
       // Each step aims for an even share of the remaining cut, on a log scale.
       const aim = alive.length * Math.pow(bandMid / alive.length, 1 / (kSec - step));
       const scored = [];
@@ -235,6 +245,9 @@ function tryBuildCase(rng, book, difficulty, plan, relaxed) {
         let n = 0;
         for (const i of alive) if (c.bits[i]) n++;
         if ((alive.length - n) / alive.length < BALANCE.minMarginalShare) continue;
+        // Two section clues that clear nearly the same names would fail the
+        // pair-overlap check at the end; turn them away now.
+        if (pick.some(p => pairOverlap([p.bits, c.bits], killer, victim, N).max > BALANCE.maxPairOverlap)) continue;
         scored.push({ c, n, d: Math.abs(Math.log(n / aim)) });
       }
       if (!scored.length) break;
@@ -322,12 +335,18 @@ function tryBuildCase(rng, book, difficulty, plan, relaxed) {
   };
 
   // Moves: slot j takes clue c — same type, or an unused type in the same tier.
+  // At most a few per type, so a type with hundreds of forms (a compound
+  // clue) is no likelier to be tried than a type with two.
   const movesFor = (j, keep) => {
     const out = [];
     const used = new Set(slots.map(s => s.type));
     const tier = slots[j].tier;
-    for (const c of pool[slots[j].type]) if (c !== slots[j] && keep(c)) out.push([j, c]);
-    for (const t of DEALT_TYPES) if (t.tier === tier && !used.has(t.id) && pool[t.id]) for (const c of pool[t.id]) if (keep(c)) out.push([j, c]);
+    const some = (t, skip) => {
+      const ok = pool[t].filter(c => c !== skip && keep(c));
+      for (const c of ok.length > SEARCH.perType ? rng.shuffle(ok).slice(0, SEARCH.perType) : ok) out.push([j, c]);
+    };
+    some(slots[j].type, slots[j]);
+    for (const t of DEALT_TYPES) if (t.tier === tier && !used.has(t.id) && pool[t.id]) some(t.id);
     return out;
   };
 
@@ -375,29 +394,39 @@ function tryBuildCase(rng, book, difficulty, plan, relaxed) {
     if (deep > maxOverlap) return why('overlap too high');
   }
 
-  // ── 5. Casebook order: section clues first, then the biggest bite each time.
-  const alive = new Uint8Array(N).fill(1);
-  alive[killer] = 0; alive[victim] = 0;
-  let standing = others;
-  const order = [];
-  const take = c => {
-    let cleared = 0;
-    for (let i = 0; i < N; i++) if (alive[i] && !c.bits[i]) { alive[i] = 0; cleared++; }
-    if (cleared / standing < BALANCE.minMarginalShare) return false;
-    standing -= cleared;
-    order.push(c);
+  // ── 5. Casebook order: shuffled, so no two cases open the same way — any
+  // order in which every clue, read in turn, still newly clears its share.
+  // Working out where to start is part of the puzzle. If no shuffle passes,
+  // fall back to section clues first, then the biggest bite each time.
+  const orderOk = list => {
+    const alive = new Uint8Array(N).fill(1);
+    alive[killer] = 0; alive[victim] = 0;
+    let standing = others;
+    for (const c of list) {
+      let cleared = 0;
+      for (let i = 0; i < N; i++) if (alive[i] && !c.bits[i]) { alive[i] = 0; cleared++; }
+      if (cleared / standing < BALANCE.minMarginalShare) return false;
+      standing -= cleared;
+    }
     return true;
   };
-  for (const c of slots.slice(0, fixed)) if (!take(c)) return why('section marginal too small');
-  const rest = slots.slice(fixed);
-  while (rest.length) {
-    let bestK = 0, bestN = -1;
-    rest.forEach((c, k) => {
-      let n = 0;
-      for (let i = 0; i < N; i++) if (alive[i] && !c.bits[i]) n++;
-      if (n > bestN || (n === bestN && TYPE_ORDER[c.type] < TYPE_ORDER[rest[bestK].type])) { bestN = n; bestK = k; }
-    });
-    if (!take(rest.splice(bestK, 1)[0])) return why('fine marginal too small');
+  let order = null;
+  for (let t = 0; t < 30 && !order; t++) { const p = rng.shuffle([...slots]); if (orderOk(p)) order = p; }
+  if (!order) {
+    const alive = new Uint8Array(N).fill(1);
+    alive[killer] = 0; alive[victim] = 0;
+    const gain = c => { let n = 0; for (let i = 0; i < N; i++) if (alive[i] && !c.bits[i]) n++; return n; };
+    const rest = slots.slice(fixed);
+    order = slots.slice(0, fixed);
+    for (const c of order) for (let i = 0; i < N; i++) if (!c.bits[i]) alive[i] = 0;
+    while (rest.length) {
+      let bestK = 0, bestN = -1;
+      rest.forEach((c, k) => { const n = gain(c); if (n > bestN || (n === bestN && TYPE_ORDER[c.type] < TYPE_ORDER[rest[bestK].type])) { bestN = n; bestK = k; } });
+      const c = rest.splice(bestK, 1)[0];
+      for (let i = 0; i < N; i++) if (!c.bits[i]) alive[i] = 0;
+      order.push(c);
+    }
+    if (!orderOk(order)) return why('marginal too small');
   }
 
   return {
@@ -457,7 +486,7 @@ function tryBuildInquiry(rng, book, difficulty, plan, relaxed) {
       if (!k) continue;
       if (left === 1 ? k !== standing : k === standing || k / standing < BALANCE.minMarginalShare) continue;
       const bulk = BULK_TYPES.has(c.type);
-      const pace = bulkPhase ? (bulk ? 1 : 0.02)
+      const pace = bulkPhase ? (bulk ? SECTION_WEIGHT[c.type] ?? 1 : 0.02)
         : bulk ? 0.35
         : (prev && !BULK_TYPES.has(prev.type) && prev.tier === c.tier ? 0.55 : 1) * (lean[c.tier] || 1);
       const aim = bulkPhase && bulk ? Math.max(target, bulkTarget) : target;
@@ -467,6 +496,8 @@ function tryBuildInquiry(rng, book, difficulty, plan, relaxed) {
     scored.sort((a, b) => b.w - a.w);
     let pick = null;
     for (const s of rng.shuffle(scored.slice(0, 6)).sort((a, b) => b.w - a.w + (rng.next() - 0.5) * a.w * 0.6)) {
+      // A witness who clears nearly the same names as an earlier one reads as a repeat.
+      if (seq.some(p => pairOverlap([p.bits, s.c.bits], killer, victim, N).max > BALANCE.maxPairOverlap)) continue;
       if (left === 2) {
         // Leave a line-up the final witness can clear in one go.
         const rest = alive.filter(i => s.c.bits[i]);
@@ -614,9 +645,11 @@ export function validateCase(caseData) {
     const retired = rules.filter(r => FAMILY[r.family].retired || FAMILY[r.family].legacy);
     add('No simple page, column, line or chapter gates', !retired.length, retired.length ? `retired: ${retired.map(r => r.typeLabel).join(', ')}` : '');
     if (!inquiry) {
+      // Engine 7 read its 2–3 section clues first; from engine 8 the Casebook is shuffled.
+      const [sLo, sHi] = engine < 8 ? [2, 3] : SECTION_CLUES;
       const sec = types.filter(t => TYPE[t]?.tier === 'record').length;
-      const secFirst = types.slice(0, sec).every(t => TYPE[t]?.tier === 'record');
-      add(`${SECTION_CLUES[0]}–${SECTION_CLUES[1]} clues about sections of the register, listed first`, sec >= SECTION_CLUES[0] && sec <= SECTION_CLUES[1] && secFirst, `${sec} section clues`);
+      const secFirst = engine >= 8 || types.slice(0, sec).every(t => TYPE[t]?.tier === 'record');
+      add(`${sLo}–${sHi} clues about sections of the register${engine < 8 ? ', listed first' : ''}`, sec >= sLo && sec <= sHi && secFirst, `${sec} section clues`);
       const st = STYLES[caseData.style];
       const quotaOk = !!st && FINE_TIERS.every(tier => tierCount(tier) >= st.quota[tier][0] && tierCount(tier) <= st.quota[tier][1]);
       add(`Clue mix fits the case’s style${st ? ` (${st.label})` : ''}`, quotaOk, `${tierCount('name')} about the name · ${tierCount('connection')} about connections · ${tierCount('reasoning')} reasoning`);

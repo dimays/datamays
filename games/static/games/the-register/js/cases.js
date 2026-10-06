@@ -1,7 +1,8 @@
 import { api } from './api.js';
 import { uid } from './util.js';
 import { newCaseCode } from '../engine/rng.js';
-import { ENGINE_VERSION } from '../engine/generator.js';
+import { ENGINE_VERSION, settingFor } from '../engine/generator.js';
+import { SETTINGS } from '../engine/settings.js';
 
 export const caseId = (code, difficulty, mode = 'cold') => mode === 'inquiry' ? `${code}-${difficulty}-inquiry` : `${code}-${difficulty}`;
 
@@ -16,6 +17,26 @@ export function generateInWorker(code, difficulty, mode = 'cold', onProgress = (
     w.onerror = e => { w.terminate(); reject(new Error(e.message || 'Generator failed')); };
     w.postMessage({ code, difficulty, mode });
   });
+}
+
+/**
+ * A fresh case number whose setting the player hasn't met lately: one they've
+ * never had if any are left, otherwise one of the few they met longest ago.
+ * So a player works through every setting before any repeats. The number
+ * itself still decides everything, so it can be shared as before.
+ */
+export function freshCode(index, difficulty, mode = 'cold') {
+  const last = new Map();
+  // Games played, plus spare cases already waiting (older engines' spares are never dealt).
+  for (const c of [...index.games, ...index.cases.filter(c => c.engine === ENGINE_VERSION)]) if (c.setting) last.set(c.setting, Math.max(last.get(c.setting) ?? 0, c.createdAt || 0));
+  const ranked = SETTINGS.map(s => ({ id: s.id, at: last.get(s.id) ?? -1, tie: Math.random() })).sort((a, b) => a.at - b.at || a.tie - b.tie);
+  const unseen = ranked.filter(s => s.at < 0);
+  const fresh = new Set((unseen.length ? unseen : ranked.slice(0, Math.ceil(ranked.length / 4))).map(s => s.id));
+  for (let t = 0; t < 2000; t++) {
+    const code = newCaseCode();
+    if (fresh.has(settingFor(code, difficulty, mode))) return code;
+  }
+  return newCaseCode();
 }
 
 /** Generate, validate and save a case. Players never do this by hand. */
@@ -54,7 +75,7 @@ export async function prepareSpare(difficulty, mode = 'cold', onStatus = () => {
     const index = await api.index();
     if (unusedCase(index, difficulty, mode)) return onStatus('ready');
     onStatus('busy');
-    await createCase(newCaseCode(), difficulty, mode);
+    await createCase(freshCode(index, difficulty, mode), difficulty, mode);
     onStatus('ready');
   } catch (e) {
     console.warn('Spare case not prepared:', e);
