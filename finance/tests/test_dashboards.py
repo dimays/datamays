@@ -69,6 +69,17 @@ class AnalyticsTestCase(TestCase):
             category=category,
         )
 
+    def spend_recently(self, amount, category, days_ago=0, account=None):
+        # For tests that go through the charts page: its range always ends
+        # today, so spend()'s fixed 2026 dates eventually age out of it.
+        return make_transaction(
+            account or self.checking,
+            posted_on=household_today() - timedelta(days=days_ago),
+            amount=Decimal(amount),
+            description_raw=f"TXN {amount} {category.slug}",
+            category=category,
+        )
+
 
 class SpendAnalyticsTests(AnalyticsTestCase):
     def test_spend_is_bucketed_by_month_as_positive_numbers(self):
@@ -575,9 +586,9 @@ class ChartsDashboardRenderTests(AnalyticsTestCase):
         self.assertIn('<option value="category">By category</option>', body)
 
     def test_spend_over_time_offers_a_per_category_subcategory_drilldown(self):
-        self.spend("-100.00", self.groceries, 5)
-        self.spend("-60.00", self.restaurants, 6)
-        self.spend("-40.00", self.fuel, 7)
+        self.spend_recently("-100.00", self.groceries)
+        self.spend_recently("-60.00", self.restaurants, days_ago=1)
+        self.spend_recently("-40.00", self.fuel, days_ago=2)
 
         response = self.client.get(reverse("finance:charts"))
         body = response.content.decode()
@@ -588,11 +599,13 @@ class ChartsDashboardRenderTests(AnalyticsTestCase):
         self.assertIn('id="spend-over-time-by-subcategory"', body)
 
     def test_a_category_with_no_spend_this_window_is_not_offered_as_a_drilldown(self):
-        self.spend("-100.00", self.groceries, 5)
+        self.spend_recently("-100.00", self.groceries)
 
         response = self.client.get(reverse("finance:charts"))
         body = response.content.decode()
 
+        food = Category.objects.get(slug="food")
+        self.assertIn(f"sub:{food.pk}", body)
         # Pets has subcategories in the seed but no spend in this test at all.
         pets = Category.objects.get(slug="pets")
         self.assertNotIn(f"sub:{pets.pk}", body)
@@ -792,7 +805,7 @@ class ChartsDashboardRenderTests(AnalyticsTestCase):
         )
 
     def test_large_transactions_section_renders(self):
-        self.spend("-900.00", self.groceries, 5)
+        self.spend_recently("-900.00", self.groceries)
 
         response = self.client.get(reverse("finance:charts"), {"range": "6m"})
 
@@ -819,7 +832,7 @@ class LargeTransactionsSectionTests(AnalyticsTestCase):
         self.sign_in()
 
     def test_the_filter_form_offers_accounts_and_categories(self):
-        self.spend("-900.00", self.groceries, 5)
+        self.spend_recently("-900.00", self.groceries)
 
         response = self.client.get(reverse("finance:charts"))
 
@@ -829,18 +842,18 @@ class LargeTransactionsSectionTests(AnalyticsTestCase):
         self.assertContains(response, self.groceries.full_path)
 
     def test_an_lt_category_filter_narrows_the_list_independent_of_page_filters(self):
-        self.spend("-900.00", self.groceries, 5)
-        self.spend("-800.00", self.fuel, 6)
+        self.spend_recently("-900.00", self.groceries)
+        self.spend_recently("-800.00", self.fuel, days_ago=1)
 
         response = self.client.get(
             reverse("finance:charts"), {"lt_category": self.fuel.pk}
         )
 
-        self.assertContains(response, "TXN 4-6 -800.00 transport-fuel")
-        self.assertNotContains(response, "TXN 4-5 -900.00 food-groceries")
+        self.assertContains(response, "TXN -800.00 transport-fuel")
+        self.assertNotContains(response, "TXN -900.00 food-groceries")
 
     def test_a_filter_matching_nothing_shows_an_empty_state_not_the_whole_section_hiding(self):
-        self.spend("-900.00", self.groceries, 5)
+        self.spend_recently("-900.00", self.groceries)
 
         response = self.client.get(
             reverse("finance:charts"), {"lt_category": self.fuel.pk}
@@ -851,7 +864,7 @@ class LargeTransactionsSectionTests(AnalyticsTestCase):
 
     def test_pagination_moves_past_the_first_page(self):
         for day in range(1, 15):
-            self.spend(f"-{day * 10}.00", self.groceries, day)
+            self.spend_recently(f"-{day * 10}.00", self.groceries, days_ago=day)
 
         first_page = self.client.get(reverse("finance:charts"))
         self.assertEqual(len(first_page.context["large_transactions"]), 10)
@@ -866,7 +879,9 @@ class LargeTransactionsSectionTests(AnalyticsTestCase):
 
     def test_the_next_page_link_preserves_the_pages_range_and_account_filter(self):
         for day in range(1, 15):
-            self.spend(f"-{day * 10}.00", self.groceries, day, account=self.checking)
+            self.spend_recently(
+                f"-{day * 10}.00", self.groceries, days_ago=day, account=self.checking
+            )
 
         response = self.client.get(
             reverse("finance:charts"), {"range": "12m", "account": self.checking.pk}
