@@ -7,7 +7,7 @@ import { DEALT_FAMILIES as FAMILIES, DEALT_TYPES, FAMILY, TYPES, TYPE, TIER_LABE
 import { generateStory, caseTitle } from './story.js';
 import { DIFFICULTIES, MIN_CLUES, TIER_QUOTA, BALANCE, SEARCH, STYLES, SECTION_CLUES, TYPE_DROPOUT, namesFor } from './config.js';
 
-export const ENGINE_VERSION = 7;
+export const ENGINE_VERSION = 8;
 export { DIFFICULTIES, STYLES, namesFor };
 
 // Before engine 7 every Cold Case opened with one clue each about the chapter,
@@ -23,6 +23,9 @@ export const seal = (i, code) => btoa(String((i + 7919) * 31) + '|' + code.split
 export const unseal = (s) => +atob(s).split('|')[0] / 31 - 7919;
 
 export function caseRng(code, difficulty, mode = 'cold') { return new Rng(`${code}|${difficulty}|${mode}|v${ENGINE_VERSION}`); }
+
+/** The setting a case number produces — cheap, without building the case. */
+export const settingFor = (code, difficulty, mode = 'cold') => caseRng(code, difficulty, mode).fork('setting').pick(SETTINGS).id;
 
 export const maxClearFor = type => BALANCE.maxClearShareByType?.[type] ?? BALANCE.maxClearShare;
 
