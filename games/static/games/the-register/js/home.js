@@ -91,7 +91,7 @@ export class Home {
   }
 
   async newCase() {
-    // Always open on Live Investigation; Cold Case is one click away.
+    // Always open on Cold Case; Live Investigation is one click away.
     let mode = DEFAULT_MODE;
     const choice = await modal({
       title: 'Open a new case',
