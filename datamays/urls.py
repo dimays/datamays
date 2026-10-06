@@ -15,7 +15,8 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
+from django.views.generic import RedirectView
 
 handler403 = "datamays.views.permission_denied"
 
@@ -24,5 +25,8 @@ urlpatterns = [
     path("", include("core.urls")),
     path("contact/", include("contact.urls")),
     path("finance/", include("finance.urls")),
-    path("games/", include("games.urls")),
+    # The games moved to their own site, unnecessaryobstacles.com: the hub
+    # to its home page, and any old game link to the same page there.
+    path("games/", RedirectView.as_view(url="https://unnecessaryobstacles.com/", permanent=True)),
+    re_path(r"^games/(?P<rest>.+)$", RedirectView.as_view(url="https://unnecessaryobstacles.com/games/%(rest)s", permanent=True)),
 ]

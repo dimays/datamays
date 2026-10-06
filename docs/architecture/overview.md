@@ -10,19 +10,22 @@ Django 6 · Tailwind 3 · Postgres · Heroku (gunicorn + whitenoise) · Sentry
 Python deps via uv · frontend built with Node, committed as artifacts
 ```
 
-## Four apps
+## Three apps
 
 | App | Size | Public? | What it does |
 |---|---|---|---|
 | `core` | ~530 LOC | Yes | Projects, writing, styleguide. The portfolio. |
 | `contact` | ~100 LOC | Yes | One form, one model, sends an email. |
 | `finance` | ~19k LOC | **No** | The household finance tool at `/finance`. |
-| `games` | ~150 LOC | Yes | The games hub at `/games`. No models; each game runs in the visitor's browser ([docs](../../games/docs/README.md)). |
 
 `finance` is the overwhelming majority of the codebase and has its own
 [documentation set](../../finance/docs/README.md). `core` and `contact` are
-small enough to read directly. `games` is a catalog and two views; the games
-themselves are static files.
+small enough to read directly.
+
+The games that used to live at `/games` moved to their own site,
+[unnecessaryobstacles.com](https://unnecessaryobstacles.com) (repo
+`dimays/unnecessary-obstacles`), which shares nothing with this one. `/games/`
+and every `/games/…` link redirect there (`datamays/urls.py`).
 
 ## Project layout
 
@@ -33,7 +36,6 @@ datamays/            settings, root urls, wsgi/asgi
 core/                public site
 contact/             contact form
 finance/             the finance app (see finance/docs/)
-games/               games hub, and each game's page and static files
 assets/css/input.css Tailwind source
 static/              committed build output — css/, js/, img/
 docs/                this folder

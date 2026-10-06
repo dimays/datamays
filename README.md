@@ -16,7 +16,7 @@ Full documentation lives in [`docs/`](docs/):
 |---|---|
 | [`docs/onboarding.md`](docs/onboarding.md) | Setup, and the one trap that will bite you |
 | [`docs/conventions.md`](docs/conventions.md) | What the code expects of you |
-| [`docs/architecture/overview.md`](docs/architecture/overview.md) | How the four apps fit together |
+| [`docs/architecture/overview.md`](docs/architecture/overview.md) | How the three apps fit together |
 | [`docs/architecture/decisions/`](docs/architecture/decisions/) | Why it is the way it is |
 | [`docs/runbooks/`](docs/runbooks/) | Deploying, and what to do when something breaks |
 
