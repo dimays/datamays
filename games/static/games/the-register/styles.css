@@ -248,8 +248,16 @@ textarea.input { resize: vertical; font-family: ui-monospace, Menlo, monospace; 
 .flip:disabled { opacity: .15; cursor: default; }
 .flip.prev { left: 10px; }
 .flip.next { right: 46px; }
-.thumbs { position: absolute; right: 6px; top: calc(50% - 6px); transform: translateY(-50%); display: grid; gap: 2px; z-index: 3; }
-.thumb { width: 30px; height: clamp(14px, 2.6vh, 24px); border: 0; border-radius: 4px 0 0 4px; background: var(--panel-2); color: var(--ui-muted); font: 600 11px var(--ui); position: relative; overflow: hidden; padding: 0; }
+.thumbs {
+  position: absolute; right: 6px; top: 8px; bottom: 8px; z-index: 3;
+  display: flex; flex-direction: column; gap: 2px; overflow-y: auto; scrollbar-width: none;
+}
+.thumbs::-webkit-scrollbar { display: none; }
+/* Tabs shrink to fit a long book (52,000 names runs to 40-odd chapters); below
+   their minimum the column scrolls instead. The auto margins centre a short list. */
+.thumb { flex: 0 1 24px; min-height: 13px; width: 30px; border: 0; border-radius: 4px 0 0 4px; background: var(--panel-2); color: var(--ui-muted); font: 600 11px/1 var(--ui); position: relative; overflow: hidden; padding: 0; }
+.thumb:first-child { margin-top: auto; }
+.thumb:last-child { margin-bottom: auto; }
 .thumb span { position: relative; z-index: 1; }
 .thumb i { position: absolute; left: 0; bottom: 0; top: 0; width: calc(var(--done, 0) * 100%); background: rgba(209, 171, 98, .28); }
 .thumb:hover { color: var(--ui-ink); }
