@@ -91,10 +91,8 @@ export class Home {
   }
 
   async newCase() {
-    // The Inquiry by default; after that, whichever mode the player chose last.
+    // Always open on The Inquiry; Cold Case is one click away.
     let mode = DEFAULT_MODE;
-    try { mode = localStorage.getItem('register:mode') || DEFAULT_MODE; } catch { /* storage blocked */ }
-    if (!MODES[mode]) mode = DEFAULT_MODE;
     const choice = await modal({
       title: 'Open a new case',
       wide: true,
@@ -109,7 +107,6 @@ export class Home {
       }),
     });
     if (!choice) return;
-    try { localStorage.setItem('register:mode', choice.mode); } catch { /* storage blocked */ }
     this.startCase(choice.difficulty, null, choice.mode);
   }
 
