@@ -18,6 +18,7 @@ from finance.models import (
     Category,
     UserPreference,
 )
+from finance.periods import monthly_period
 from finance.services.widgets import build_homepage
 
 from .factories import make_account, make_institution, make_transaction
@@ -153,13 +154,16 @@ class NetWorthWidgetTests(HomepageTestCase):
 class BudgetWidgetTests(HomepageTestCase):
     def make_period(self, name, actual, target="800.00"):
         today = household_today()
+        # The whole calendar month: ending on the 28th would leave today
+        # outside the "current" period on the 29th-31st.
+        period_start, period_end = monthly_period(today.replace(day=1), today)
         budget = Budget.objects.create(name=name, amount=Decimal(target))
         budget.categories.set([self.groceries])
 
         return BudgetPeriod.objects.create(
             budget=budget,
-            period_start=today.replace(day=1),
-            period_end=today.replace(day=28),
+            period_start=period_start,
+            period_end=period_end,
             target_amount=Decimal(target),
             actual_amount=Decimal(actual),
         )
