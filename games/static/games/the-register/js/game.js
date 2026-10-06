@@ -853,6 +853,11 @@ export class Game {
     const s = this.model.seq[this.visible().filter(v => v !== null).pop()];
     const ci = s?.kind === 'register' ? s.page.ci : -1;
     $$('.thumb', this.el.thumbs).forEach((t, k) => t.classList.toggle('here', k === ci));
+    // When the tabs don't all fit, keep the current chapter's tab in view.
+    const here = $('.thumb.here', this.el.thumbs), box = this.el.thumbs;
+    if (here && box.scrollHeight > box.clientHeight && (here.offsetTop < box.scrollTop || here.offsetTop + here.offsetHeight > box.scrollTop + box.clientHeight)) {
+      box.scrollTop = here.offsetTop - box.clientHeight / 2;
+    }
   }
 
   updateCounts() {
