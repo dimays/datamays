@@ -1,5 +1,6 @@
 import { $, $$, h, esc, fmt, debounce, bytesToB64, b64ToBytes, duration, toast, modal } from './util.js';
 import { api, IN_BROWSER } from './api.js';
+import { HUB, track, scoreFor, postScore, pending, signInUrl } from './hub.js';
 import { buildModel, PAGE_W, PAGE_H, ROMAN_UP } from './model.js';
 import { renderPage, renderSolution, columnName } from './pages.js';
 import { PALETTE, PENCIL, hexOf, penCursor, penStyles, defaultPenColors } from './pens.js';
@@ -15,6 +16,9 @@ const UNDO_LIMIT = 300;
 const COMPACT = matchMedia('(max-width: 720px), (max-height: 520px) and (max-width: 1000px)');
 const LONG_PRESS_MS = 500;
 const ALIBIS = ['at the Drowned Bell playing dominoes', 'singing in the choir at evensong', 'stuck on the last ferry across the estuary', 'asleep in the waiting room at the station', 'at the picture house, in the front row', 'helping deliver a calf at Fenwick’s farm', 'in the cells, as it happens, for unpaid parking', 'at a séance on Pilgrim Street, holding hands with six witnesses'];
+
+/** The line under a solved case once it's on the leaderboard. */
+const postedNote = (p, url, of) => `<p class="posted-note">On the leaderboard: <b>${esc(p.time)}</b>${p.rank ? `, #${p.rank} today${of ? ` of ${of}` : ''}` : ''} · ${p.points} points${url ? ` · <a href="${esc(url)}">See the leaderboard</a>` : ''}</p>`;
 
 export class Game {
   constructor(root, { game, caseData, onExit }) {
@@ -1192,6 +1196,7 @@ export class Game {
     if (correct) {
       this.g.solved = { at: Date.now() };
       this.save.flush();
+      track('case_solved', this.g);
       this.el.game.classList.add('solved');
       // Case closed: every witness's statement is now on the record.
       this.renderCasebook();
@@ -1233,8 +1238,39 @@ export class Game {
       body: `<div class="solved-name">${k.name}</div>
         ${paras.map(p => `<p>${esc(p)}</p>`).join('')}
         <dl class="stats inline"><dt>Time on the case</dt><dd>${duration(g.timePlayed)}</dd><dt>Accusations</dt><dd>${g.accusations.length}</dd><dt>Hints</dt><dd>${g.hints}</dd><dt>Names struck</dt><dd>${fmt(this.struck)}</dd></dl>`,
-      actions: [{ label: 'View the Register', value: 'view' }, { label: 'Back to Case Files', primary: true, value: 'home' }],
+      actions: [
+        ...(HUB && !g.posted ? [{ label: 'Post to the leaderboard', primary: true, onClick: (close, root) => this.postToLeaderboard(close, root) }] : []),
+        { label: 'View the Register', value: 'view' },
+        { label: 'Back to Case Files', primary: !HUB || !!g.posted, value: 'home' },
+      ],
+      onOpen: root => { if (HUB && g.posted) $('.modal-body', root).insertAdjacentHTML('beforeend', postedNote(g.posted)); },
     }).then(v => { if (v === 'home') this.onExit(); else this.goTo(this.model.seqOfEntry(k.i), k.i); });
+  }
+
+  /** Hub only: post this solve; if signed out, keep it and send the player to sign in. */
+  async postToLeaderboard(close, root) {
+    const btn = [...root.querySelectorAll('.modal-actions .btn')].find(b => /^(Post|Try posting)/.test(b.textContent));
+    if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
+    const score = scoreFor(this.g, this.model.killer().i, this.model.caseData.engine);
+    const res = await postScore(score);
+    if (res.status === 401) {
+      pending.set(score);
+      close();
+      return modal({
+        title: 'Sign in to post your time',
+        body: `<p>Your time on this case is saved here. Sign in, or create an account, and it goes up on the leaderboard as soon as you’re back.</p>`,
+        actions: [{ label: 'Not now' }, { label: 'Create an account', onClick: () => { location.href = signInUrl('signup'); } }, { label: 'Sign in', primary: true, onClick: () => { location.href = signInUrl('login'); } }],
+      });
+    }
+    if (!res.ok) {
+      // 202: the hub is still checking this case; the same button tries again.
+      if (btn) { btn.disabled = false; btn.textContent = res.status === 202 ? 'Try posting again' : 'Post to the leaderboard'; }
+      return toast(esc(res.error || 'That score couldn’t be posted.'));
+    }
+    this.g.posted = { time: res.time, points: res.points, rank: res.rank ?? null };
+    this.save.flush();
+    btn?.remove();
+    $('.modal-body', root).insertAdjacentHTML('beforeend', postedNote(this.g.posted, res.url, res.of));
   }
 
   // ── help ─────────────────────────────────────────────────────────────────
