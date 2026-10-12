@@ -67,16 +67,17 @@ class AlertTestCase(TestCase):
         self.groceries = Category.objects.get(slug="food-groceries")
 
     def make_budget_period(self, actual="600.00", target="800.00", name="Groceries"):
-        # The real calendar month. Ending it on the 28th made these tests fail
-        # on the 29th–31st, when today falls outside the period.
-        start, end = monthly_period(date(2026, 1, 1), household_today())
+        today = household_today()
+        # The whole calendar month: ending on the 28th would leave today
+        # outside the "current" period on the 29th-31st.
+        period_start, period_end = monthly_period(today.replace(day=1), today)
         budget = Budget.objects.create(name=name, amount=Decimal(target))
         budget.categories.set([self.groceries])
 
         period = BudgetPeriod.objects.create(
             budget=budget,
-            period_start=start,
-            period_end=end,
+            period_start=period_start,
+            period_end=period_end,
             target_amount=Decimal(target),
             actual_amount=Decimal(actual),
         )

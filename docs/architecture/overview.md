@@ -24,6 +24,11 @@ Python deps via uv · frontend built with Node, committed as artifacts
 [docs](../../household/docs/README.md) too. `core` and `contact` are small
 enough to read directly.
 
+The games that used to live at `/games` moved to their own site,
+[unnecessaryobstacles.com](https://unnecessaryobstacles.com) (repo
+`dimays/unnecessary-obstacles`), which shares nothing with this one. `/games/`
+and every `/games/…` link redirect there (`datamays/urls.py`).
+
 ## Project layout
 
 ```
