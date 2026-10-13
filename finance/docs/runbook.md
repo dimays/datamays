@@ -73,8 +73,9 @@ Add the Heroku Scheduler add-on, then create exactly two jobs:
 | Daily (pick an early-morning UTC time) | `python manage.py finance_daily` |
 
 **Hourly** syncs day-to-day accounts (checking, savings, money market, credit
-cards), categorizes what arrived, rolls up budgets, then evaluates alerts. The
-order matters — alerts must see fresh budget numbers.
+cards) **every third hour** (household hours 0, 3, 6, …), and every hour
+categorizes what arrived, rolls up budgets, then evaluates alerts. The order
+matters — alerts must see fresh budget numbers.
 
 **Daily** syncs *everything* including loans and the mortgage, snapshots
 balances so the history charts stay continuous, rolls up budgets, and sends any
@@ -84,8 +85,13 @@ Both chains isolate each step: a failed sync still lets budgets roll up from
 the data already present. Both exit non-zero if any step failed, so a broken
 run shows up in `heroku logs` rather than passing silently.
 
-SimpleFIN allows roughly 24 requests a day, which is why the hourly job is
-restricted to accounts that actually move hourly.
+SimpleFIN allows roughly 24 requests a day. That is why the hourly job only
+syncs accounts that move day to day, and only every third hour
+(`SYNC_EVERY_HOURS` in `finance_hourly.py`): syncing every hour plus the daily
+run made about 25 requests a day. Now it is 9, or at most 18 if every fetch
+needs its one retry (`providers/simplefin.py`: 120-second timeout, one more
+try after a timeout or a 429/5xx). Between Sep 1 and Oct 12, 2026, about one
+hourly sync in five failed on a 60-second timeout or a 503.
 
 ## Quarterly Finance Reports
 
