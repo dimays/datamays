@@ -1,0 +1,51 @@
+{% extends "household/base.html" %}
+{% load household_extras %}
+
+{% block content %}
+<h1 class="page-title">Link spending</h1>
+<p class="page-subtitle">
+  Purchases that belong to <a href="{% url 'household:project_detail' project.pk %}#budget" class="text-primary hover:underline">{{ project.name }}</a>.
+  {% if query %}Matching “{{ query }}”.{% else %}Home-related spending since {{ window.0|date:"M j, Y" }}; search to find anything else.{% endif %}
+</p>
+
+{% include "household/partials/messages.html" %}
+
+<form method="get" class="mt-6 flex max-w-lg gap-2" role="search">
+  <label for="spending-search" class="sr-only">Search by merchant or description</label>
+  <input id="spending-search" type="search" name="q" value="{{ query }}" placeholder="Search by merchant"
+         class="w-full rounded-button border border-border bg-background px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary" />
+  <button type="submit" class="rounded-button border border-border px-4 py-2 text-sm font-medium text-text-secondary transition hover:bg-muted">Search</button>
+</form>
+
+{% if candidates %}
+  <ul class="mt-6 divide-y divide-border overflow-hidden rounded-card border border-border bg-surface">
+    {% for txn in candidates %}
+      <li class="flex flex-wrap items-center gap-3 px-4 py-3">
+        <div class="min-w-0 flex-1">{% include "household/partials/transaction.html" %}</div>
+        <p class="shrink-0 font-mono text-sm">${{ txn.spent|money }}</p>
+        <form method="post" class="flex w-full items-center justify-end gap-2 sm:w-auto">
+          {% csrf_token %}
+          <input type="hidden" name="transaction" value="{{ txn.pk }}" />
+          <input type="hidden" name="q" value="{{ query }}" />
+          {% if lines %}
+            <label for="line-{{ txn.pk }}" class="sr-only">Budget line</label>
+            <select id="line-{{ txn.pk }}" name="budget_line" class="rounded-button border border-border bg-background px-2 py-1.5 text-xs text-text-secondary">
+              <option value="">No line</option>
+              {% for line in lines %}<option value="{{ line.pk }}">{{ line.label }}</option>{% endfor %}
+            </select>
+          {% endif %}
+          <button type="submit" class="rounded-button bg-primary px-3 py-1.5 text-xs font-medium text-white transition hover:bg-primary-600">
+            Link<span class="sr-only"> {{ txn.merchant|default:txn.description_raw }}</span>
+          </button>
+        </form>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <div class="empty-state mt-6">
+    <p class="text-text-secondary">{% if query %}Nothing matches “{{ query }}”.{% else %}No home-related spending in that window that isn't already linked.{% endif %}</p>
+  </div>
+{% endif %}
+
+<p class="mt-8"><a href="{% url 'household:project_detail' project.pk %}#budget" class="text-sm text-primary hover:underline">← Back to the project</a></p>
+{% endblock %}

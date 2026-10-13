@@ -1,8 +1,12 @@
+import logging
+
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from finance.dates import household_timezone
+
+logger = logging.getLogger(__name__)
 
 # New transactions are fetched every third hour, not every hour. SimpleFIN
 # allows roughly 24 requests a day; hourly plus the daily chain made about
@@ -47,6 +51,8 @@ class Command(BaseCommand):
                 # the data already present, so each step is isolated.
                 failures.append(f"{name}: {exc}")
                 self.stderr.write(self.style.ERROR(f"{name} failed: {exc}"))
+                # Logged, so Sentry reports it; stderr reaches only the logs.
+                logger.exception("Scheduled step %s failed", name)
 
         if failures:
             # Non-zero exit so a broken chain is visible in Heroku's logs

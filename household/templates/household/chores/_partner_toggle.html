@@ -1,0 +1,18 @@
+{% comment %}
+  Show or hide the other person's chores. A real form, so it works without
+  JavaScript; the preference persists, so the choice follows you between
+  Today and the checklist.
+{% endcomment %}
+{% if partner_name %}
+  <form method="post" action="{% url 'household:chores_partner_toggle' %}">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+    <button type="submit" role="switch" aria-checked="{% if preference.show_partner_chores %}true{% else %}false{% endif %}"
+            class="flex items-center gap-2.5 text-sm text-text-secondary transition hover:text-text-primary">
+      <span class="relative inline-flex h-5 w-9 shrink-0 rounded-full transition {% if preference.show_partner_chores %}bg-primary{% else %}bg-muted{% endif %}" aria-hidden="true">
+        <span class="absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all {% if preference.show_partner_chores %}left-[1.125rem]{% else %}left-0.5{% endif %}"></span>
+      </span>
+      Show {{ partner_name }}’s chores
+    </button>
+  </form>
+{% endif %}

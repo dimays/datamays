@@ -1,58 +1,15 @@
-"""What "today" means for this household.
+"""What "today" means for this household — now owned by the household shell.
 
-The project runs on `TIME_ZONE = 'UTC'`, which is right for storage and right
-for the public site. It is wrong for a budget. Between roughly 7pm and midnight
-Chicago time, UTC has already rolled over, so `timezone.localdate()` returns
-tomorrow — and an evening grocery run on 31 August would count against
-September's budget, on the wrong side of a period boundary the app treats as
-authoritative.
-
-Every date decision in the finance app goes through here instead: budget
-periods, alert period gates, dashboard ranges, "recent" filters. Storage is
-untouched — datetimes remain UTC-aware, as Django intends.
-
-Deliberately scoped to this app rather than flipping the project's TIME_ZONE,
-which would also change how the public site renders every timestamp.
+The implementation moved to `household/dates.py` when finance became one
+section of Mays Household (ADR 0008). Re-exported here so the many finance
+call sites that import from `..dates` are unchanged. The rule is the same:
+never `timezone.localdate()` — see ADR 0004.
 """
 
-from datetime import date, datetime, time
-from zoneinfo import ZoneInfo
-
-from django.conf import settings
-from django.utils import timezone
-
-DEFAULT_TIME_ZONE = "America/Chicago"
-
-
-def household_timezone() -> ZoneInfo:
-    return ZoneInfo(getattr(settings, "FINANCE_TIME_ZONE", DEFAULT_TIME_ZONE))
-
-
-def household_today() -> date:
-    """The current date where the household actually lives."""
-    return timezone.now().astimezone(household_timezone()).date()
-
-
-def to_household_date(value) -> date:
-    """The household-local date of an aware datetime."""
-    if value is None:
-        return None
-
-    if isinstance(value, datetime):
-        return value.astimezone(household_timezone()).date()
-
-    return value
-
-
-def household_start_of_day(value: date) -> datetime:
-    """An aware datetime at the start of a household-local date.
-
-    Balance snapshots are dated, not timestamped, but `Account.balance_as_of`
-    is a datetime because staleness math needs one. Anchoring to the start of
-    the day rather than the end keeps a reading from ever looking newer than
-    it is — the safe direction for an alert that asks "has this gone quiet?".
-    """
-    if value is None:
-        return None
-
-    return datetime.combine(value, time.min, tzinfo=household_timezone())
+from household.dates import (  # noqa: F401
+    DEFAULT_TIME_ZONE,
+    household_start_of_day,
+    household_timezone,
+    household_today,
+    to_household_date,
+)

@@ -4,7 +4,7 @@ from django import forms
 
 from ..models import Account, Alert, Budget, ScheduledReport
 from ..services.reports import SECTION_CHOICES
-from .base import StyledFormMixin
+from household.forms.base import StyledFormMixin
 
 
 class AlertForm(StyledFormMixin, forms.ModelForm):

@@ -38,17 +38,23 @@ if WORKING_ENV != 'dev' and SECRET_KEY == 'fallback-secret-key':
     )
 
 
+# The private apps. Errors from these paths are reported with the traceback
+# only — see _scrub_finance_data.
+PRIVATE_PATH_PREFIXES = ("/finance", "/household")
+
+
 def _scrub_finance_data(event, hint):
-    """Strip request, user, and frame locals from finance errors.
+    """Strip request, user, and frame locals from private-app errors.
 
     send_default_pii is on for the public site, which would otherwise ship
     balances, transaction descriptions, and account identifiers to Sentry via
-    request bodies and stack-frame locals. Errors from /finance are reported
-    with the traceback only.
+    request bodies and stack-frame locals. Errors from /finance and /household
+    are reported with the traceback only — the household side carries project
+    budgets and linked transactions, so it is exactly as private.
     """
     url = (event.get("request") or {}).get("url") or ""
 
-    if "/finance" in url:
+    if any(prefix in url for prefix in PRIVATE_PATH_PREFIXES):
         event.pop("request", None)
         event.pop("user", None)
 
@@ -88,6 +94,7 @@ else:
 INSTALLED_APPS = [
     'core',
     'contact',
+    'household',
     'finance',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -130,10 +137,10 @@ AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = timedelta(minutes=15)
 AXES_LOCKOUT_PARAMETERS = [["ip_address", "username"]]
 AXES_RESET_ON_SUCCESS = True
-AXES_LOCKOUT_TEMPLATE = "finance/lockout.html"
+AXES_LOCKOUT_TEMPLATE = "household/lockout.html"
 
-LOGIN_URL = "finance:login"
-LOGIN_REDIRECT_URL = "finance:home"
+LOGIN_URL = "household:login"
+LOGIN_REDIRECT_URL = "household:today"
 LOGOUT_REDIRECT_URL = "core:home"
 
 ROOT_URLCONF = 'datamays.urls'
@@ -266,9 +273,13 @@ FIELD_ENCRYPTION_KEYS = [
 ]
 
 # The household's own timezone. Storage stays UTC; this only decides what
-# "today" means for budget periods, alert gates, and dashboard ranges — which
-# UTC gets wrong every evening after about 7pm Chicago time.
-FINANCE_TIME_ZONE = os.getenv("FINANCE_TIME_ZONE", "America/Chicago")
+# "today" means for budget periods, alert gates, dashboard ranges, and what
+# chores are due — which UTC gets wrong every evening after about 7pm Chicago
+# time. FINANCE_TIME_ZONE is its name from before the household shell existed,
+# still honored so an existing config var keeps working.
+HOUSEHOLD_TIME_ZONE = os.getenv(
+    "HOUSEHOLD_TIME_ZONE", os.getenv("FINANCE_TIME_ZONE", "America/Chicago")
+)
 
 # Transaction categorization. Absent a key the deterministic steps still run
 # and anything unmatched queues for review, so the app degrades rather than

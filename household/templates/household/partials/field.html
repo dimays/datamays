@@ -1,0 +1,7 @@
+{% comment %}One labelled form field with its help text and first error.{% endcomment %}
+<div>
+  <label for="{{ field.id_for_label }}" class="mb-1.5 block text-sm font-medium">{{ field.label }}</label>
+  {{ field }}
+  {% if field.help_text %}<p class="mt-1.5 text-xs text-text-muted">{{ field.help_text }}</p>{% endif %}
+  {% if field.errors %}<p class="mt-1.5 text-sm text-error">{{ field.errors.0 }}</p>{% endif %}
+</div>

@@ -3,8 +3,9 @@
 Every URL in the app, its view, and its template. Generated from
 `finance/urls.py` — if this drifts, that file is the truth.
 
-All paths are relative to `/finance/`. Every view is gated (authenticated →
-`finance` group → TOTP verified) except the auth screens themselves.
+All paths are relative to `/finance/`. Every view is gated by the household
+shell (authenticated → `household` group → TOTP verified). Sign-in itself
+belongs to the shell — see [`household/docs/screens.md`](../../household/docs/screens.md).
 
 ## Daily use
 
@@ -103,19 +104,23 @@ Every one of these is scoped by `PersonalQuerysetMixin`; the create and
 update views add `PersonalObjectMixin` to stamp the owner. Neither person
 ever sees the other's thresholds.
 
-## Auth and help
+## Help, and the old sign-in paths
 
 | Path | View | Template |
 |---|---|---|
-| `login/` | `FinanceLoginView` | `login.html` |
-| `logout/` | `FinanceLogoutView` | — redirects to the public site |
-| `two-factor/setup/` | `OTPSetupView` | `otp_setup.html` |
-| `two-factor/` | `OTPVerifyView` | `otp_verify.html` |
 | `help/` | `HelpView` | `help.html` |
+| `login/`, `two-factor/`, `two-factor/setup/` | `RedirectView` | — redirect to the household sign-in, keeping `?next=` |
 
-The two TOTP screens use `PageTitleMixin` + `HouseholdMemberMixin` rather than
-the full gate — they need a title but must not require a cleared second
-factor, since they are how you clear it.
+Sign-in moved to `/household/` (ADR 0008). The old paths stay as redirects so
+bookmarks keep working.
+
+## Navigation
+
+Every finance page renders finance's section nav — the strip of Home,
+Activity, Charts, QFRs, Import, and Settings under the household header —
+from `finance/partials/section_nav.html`. The list and its order live in
+`templatetags/finance_nav.py`. The header and the phone's tab bar list the
+household *sections*, not finance screens.
 
 **`help.html` is the user-facing documentation.** When a screen's behavior
 changes in a way a user would notice, update it.

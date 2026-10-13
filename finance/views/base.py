@@ -1,48 +1,25 @@
 """What every finance view shares.
 
-Three things kept being restated across the app's view modules, and all three
-live here now:
+Three things kept being restated across the app's view modules:
 
-- the access gate (`FinanceAccessMixin`, from `finance/access.py`)
-- the header title, which used to cost a four-line `get_context_data`
-  override on 33 separate views
+- the access gate, `HouseholdAccessMixin`
+- the header title, `PageTitleMixin`, which used to cost a four-line
+  `get_context_data` override on 33 separate views
 - "this row belongs to the signed-in person", which alerts and scheduled
   reports each re-expressed in their own querysets
+
+The first two are owned by the household shell (`household/access.py`,
+`household/views/base.py`), because every section needs them (ADR 0008). The
+third is finance's own.
 """
 
 from django.views.generic import TemplateView
 
-from ..access import FinanceAccessMixin
+from household.access import HouseholdAccessMixin
+from household.views.base import PageTitleMixin
 
 
-class PageTitleMixin:
-    """The title the header renders — and nothing else.
-
-    Set `page_title` for a fixed title; override `get_page_title()` when it
-    depends on the object being edited ("Edit Groceries"). Both beat the
-    `get_context_data` override this replaces, which was four lines of
-    ceremony around a single string.
-
-    `setdefault` rather than assignment: a view that computes the title
-    alongside other context in its own `get_context_data` still wins.
-
-    Deliberately separate from the access gate below. The TOTP setup and
-    verify screens need a title but must *not* require a cleared second
-    factor — they are how you clear it — so they mix in this half alone.
-    """
-
-    page_title = ""
-
-    def get_page_title(self):
-        return self.page_title
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context.setdefault("page_title", self.get_page_title())
-        return context
-
-
-class FinancePageMixin(PageTitleMixin, FinanceAccessMixin):
+class FinancePageMixin(PageTitleMixin, HouseholdAccessMixin):
     """Both halves, for any page behind the full gate — almost everything."""
 
 

@@ -1,0 +1,12 @@
+{% load household_extras %}
+{% comment %}
+  One finance transaction, in household terms: when, where, which account,
+  and how much it spent (positive; a refund shows as negative spend).
+  Takes `txn`.
+{% endcomment %}
+<div class="min-w-0">
+  <p class="truncate text-sm font-medium">{{ txn.merchant|default:txn.description_raw }}</p>
+  <p class="truncate text-xs text-text-muted">
+    {{ txn.posted_on|date:"M j, Y" }} · {{ txn.account.name }}{% if txn.category %} · {{ txn.category.name }}{% endif %}
+  </p>
+</div>

@@ -2,7 +2,7 @@
 
 from django import forms
 
-from .base import StyledFormMixin
+from household.forms.base import StyledFormMixin
 
 
 class ConnectionForm(StyledFormMixin, forms.Form):

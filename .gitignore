@@ -6,3 +6,4 @@ __pycache__
 db.sqlite3
 staticfiles/
 node_modules
+db.local.sqlite3

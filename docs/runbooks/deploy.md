@@ -19,7 +19,7 @@ gh pr merge <N> --merge --admin
 ## Before you merge
 
 ```bash
-uv run python manage.py test finance --settings=datamays.settings_test
+uv run python manage.py test --settings=datamays.settings_test
 ```
 
 ```bash
@@ -74,8 +74,13 @@ correctly while production was serving a commit from two merges earlier.
 
 ## Migrations
 
-There is no automatic `migrate` on release. Run it after deploying a
-migration:
+Migrations run automatically in Heroku's **release phase**
+(`release: python manage.py migrate --noinput` in the `Procfile`), *before*
+the new code takes traffic. A failing migration fails the release, and the
+previous release keeps serving. This was added with Mays Household, whose
+first deploy needs its migrations in place before the new access gate goes
+live — otherwise both members would be refused until someone ran `migrate`
+by hand. If a release is ever stuck, run it manually:
 
 ```bash
 heroku run python manage.py migrate --app datamays
@@ -99,7 +104,10 @@ heroku rollback v<N> --app datamays
 
 Rollback reverts **code, not data**. If the bad release ran a migration or a
 data-mutating command, roll the code back first to stop the bleeding, then fix
-the data deliberately — see [`incidents.md`](incidents.md).
+the data deliberately — see [`incidents.md`](incidents.md). Write migrations so
+the *previous* code still works against the migrated database (add, don't
+rename or drop, until a later release); Mays Household's rollback specifics
+are in [`household/docs/runbook.md`](../../household/docs/runbook.md#rolling-back).
 
 ## Scheduled jobs
 
@@ -107,8 +115,15 @@ Two Heroku Scheduler entries, and only two:
 
 | Frequency | Command |
 |---|---|
-| Hourly | `python manage.py finance_hourly` |
-| Daily (early-morning UTC) | `python manage.py finance_daily` |
+| Hourly | `python manage.py household_hourly` |
+| Daily (early-morning UTC) | `python manage.py household_daily` |
 
-Both exit non-zero if any step failed, so a broken run shows in
-`heroku logs --app datamays`.
+`household_hourly` runs finance's hourly chain, then rolls missed chores
+forward and sends any morning digests now due; `household_daily` runs
+finance's daily chain, then rolls chores forward. Both exit non-zero if any
+step failed, so a broken run shows in `heroku logs --app datamays`.
+
+These replaced `finance_hourly` / `finance_daily` when Mays Household
+shipped — see [`household/docs/runbook.md`](../../household/docs/runbook.md)
+for the switch. The finance commands still exist and still work; they are
+just no longer what the scheduler calls.

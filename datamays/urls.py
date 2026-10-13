@@ -24,6 +24,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path("", include("core.urls")),
     path("contact/", include("contact.urls")),
+    path("household/", include("household.urls")),
     path("finance/", include("finance.urls")),
     # The games moved to their own site, unnecessaryobstacles.com: the hub
     # to its home page, and any old game link to the same page there.

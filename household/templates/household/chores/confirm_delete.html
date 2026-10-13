@@ -1,0 +1,25 @@
+{% extends "household/base.html" %}
+
+{% block section_nav %}{% include "household/chores/_section_nav.html" %}{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Delete chore</h1>
+
+<div class="mt-6 max-w-lg rounded-card border border-error/40 bg-error/5 p-6">
+  <p class="text-text-secondary">
+    Delete <span class="font-semibold text-text-primary">{{ object.title }}</span> and its history?
+    {% if object.repeats %}To stop it for a while instead, edit it and untick Active.{% endif %}
+  </p>
+
+  <form method="post" class="mt-6 flex flex-col gap-3 sm:flex-row">
+    {% csrf_token %}
+    <button type="submit" class="rounded-button bg-error px-6 py-3 font-medium text-white transition hover:opacity-90">
+      Delete it
+    </button>
+    <a href="{% url 'household:chore_detail' object.pk %}"
+       class="rounded-button border border-border px-6 py-3 text-center font-medium text-text-secondary transition hover:bg-muted">
+      Keep it
+    </a>
+  </form>
+</div>
+{% endblock %}

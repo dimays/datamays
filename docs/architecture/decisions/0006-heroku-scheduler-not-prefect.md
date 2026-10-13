@@ -21,6 +21,14 @@ task queue with a beat scheduler.
 Each pipeline step is also an independently runnable command. The composite
 commands only sequence them.
 
+**Amended 2026-09-30:** with Mays Household, the two entries call
+`household_hourly` and `household_daily`, which run finance's chains and then
+the household steps (roll missed chores forward; send morning digests). Still
+two entries — the household work rides the same schedule rather than adding a
+third. The morning digest is sent from the *hourly* run once household-local
+time passes 7am, which keeps it at the same local hour across daylight-saving
+changes in a way a fixed UTC daily entry can't.
+
 ## Why not Prefect
 
 A DAG engine earns its keep with backfills, retries across many dependent

@@ -1,0 +1,18 @@
+{% load household_extras %}
+{% comment %}
+  One maintenance item as a linked card. Stacked rather than side by side:
+  on a phone, a due date sharing the title's line truncated most titles.
+{% endcomment %}
+<a href="{% url 'household:upkeep_detail' item.pk %}"
+   class="block rounded-card border bg-surface p-4 transition hover:border-primary/50 {% if item.bucket == 'overdue' %}border-error/50 border-l-4 border-l-error{% else %}border-border{% endif %}">
+  <p class="truncate font-medium {% if not item.chore.is_active %}text-text-muted{% endif %}">{{ item.name }}</p>
+  <p class="mt-1 text-xs {% if item.bucket == 'overdue' %}font-semibold text-error{% else %}text-text-secondary{% endif %}">
+    {% if not item.chore.is_active %}Paused{% elif item.current %}{% due_words item.current today %}{% else %}Finished{% endif %}
+  </p>
+  <p class="mt-0.5 truncate text-xs text-text-muted">
+    {{ item.chore.describe_schedule }}{% if item.location %} · {{ item.location }}{% endif %}
+  </p>
+  <p class="mt-0.5 text-xs text-text-muted">
+    {% if item.last_done %}Last done {{ item.last_done.completed_at|date:"M j, Y" }} by {{ item.last_done.completed_by.first_name|default:item.last_done.completed_by.username }}{% else %}Not done yet{% endif %}
+  </p>
+</a>

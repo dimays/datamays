@@ -5,7 +5,7 @@
 <h1 class="page-title">Preferences</h1>
 <p class="page-subtitle">Just for you — {{ request.user.first_name|default:request.user.username }}. These don't change what anyone else sees.</p>
 
-{% include "finance/partials/messages.html" %}
+{% include "household/partials/messages.html" %}
 
 <form method="post" class="mt-8 max-w-2xl space-y-5">
   {% csrf_token %}

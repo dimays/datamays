@@ -1,0 +1,105 @@
+{% load household_extras %}
+{% comment %}
+  A project's budget against what was actually spent. Actuals are the linked
+  finance transactions (services/spending.py); nothing here is typed in.
+{% endcomment %}
+<section id="budget" aria-labelledby="budget-heading" class="mt-10">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h2 id="budget-heading" class="text-lg font-bold">Budget</h2>
+    <a href="{% url 'household:project_spending' project.pk %}"
+       class="rounded-button border border-border px-3 py-2 text-sm font-medium text-text-secondary transition hover:bg-muted">Link spending</a>
+  </div>
+
+  <div class="mt-4 rounded-card border {% if budget.is_over %}border-error/50{% else %}border-border{% endif %} bg-surface p-4">
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+      <p class="font-mono text-2xl font-bold {% if budget.is_over %}text-error{% endif %}">{{ budget.actual|usd }}</p>
+      <p class="text-sm text-text-muted">
+        {% if budget.target is not None %}spent of <span class="font-mono">{{ budget.target|usd }}</span>{% if budget.budget is None %} (the lines' estimates){% endif %}{% else %}spent — set a budget to track against it{% endif %}
+      </p>
+    </div>
+    {% if budget.target %}
+      <div class="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ budget.percent }}" aria-label="{{ budget.percent }}% of the budget spent">
+        <div class="h-full rounded-full {% if budget.is_over %}bg-error{% else %}bg-accent{% endif %}" style="width: {{ budget.percent }}%"></div>
+      </div>
+      <p class="mt-2 text-sm {% if budget.is_over %}text-error{% else %}text-success{% endif %}">
+        {% if budget.is_over %}{{ budget.remaining|absolute|usd }} over{% else %}{{ budget.remaining|usd }} left{% endif %}
+      </p>
+    {% endif %}
+  </div>
+
+  {% if budget.lines or budget.unassigned %}
+    <table class="mt-4 w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs uppercase tracking-wide text-text-muted">
+          <th class="py-2 font-semibold">Line</th>
+          <th class="py-2 pl-4 text-right font-semibold">Estimate</th>
+          <th class="py-2 pl-4 text-right font-semibold">Spent</th>
+          <th class="py-2"><span class="sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-border">
+        {% for row in budget.lines %}
+          <tr>
+            <td class="py-2">{{ row.line.label }}</td>
+            <td class="py-2 pl-4 text-right font-mono">{{ row.line.estimated|usd }}</td>
+            <td class="py-2 pl-4 text-right font-mono {% if row.is_over %}text-error{% endif %}">{{ row.actual|usd }}</td>
+            <td class="py-2 pl-4 text-right">
+              <form method="post" action="{% url 'household:budget_line_delete' project.pk row.line.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="text-xs text-text-muted hover:text-error">Remove<span class="sr-only"> “{{ row.line.label }}”</span></button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        {% if budget.unassigned %}
+          <tr class="text-text-muted">
+            <td class="py-2">Not on a line</td>
+            <td class="py-2"></td>
+            <td class="py-2 pl-4 text-right font-mono">{{ budget.unassigned|usd }}</td>
+            <td></td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  <form method="post" action="{% url 'household:budget_line_create' project.pk %}" class="mt-3 grid gap-2 sm:grid-cols-[1fr_8rem_auto]">
+    {% csrf_token %}
+    <label for="{{ budget_line_form.label.id_for_label }}" class="sr-only">Budget line</label>{{ budget_line_form.label }}
+    <label for="{{ budget_line_form.estimated.id_for_label }}" class="sr-only">Estimate</label>{{ budget_line_form.estimated }}
+    <button type="submit" class="rounded-button border border-border px-4 py-2 text-sm font-medium text-text-secondary transition hover:bg-muted">Add line</button>
+  </form>
+
+  {% if budget.expenses %}
+    <h3 class="mt-6 text-xs font-semibold uppercase tracking-wide text-text-muted">Linked spending</h3>
+    <ul class="mt-2 divide-y divide-border overflow-hidden rounded-card border border-border bg-surface">
+      {% for expense in budget.expenses %}
+        <li class="flex flex-wrap items-center gap-3 px-4 py-3">
+          <div class="min-w-0 flex-1">
+            {% include "household/partials/transaction.html" with txn=expense.transaction %}
+            {% if not expense.counts %}<p class="text-xs text-warning">Not counted — finance no longer treats this as spending (now a transfer or income).</p>{% endif %}
+          </div>
+          <p class="shrink-0 font-mono text-sm">{{ expense.spent|usd }}</p>
+          <div class="flex w-full items-center justify-between gap-2 sm:w-auto">
+            {% if budget.lines %}
+              <form method="post" action="{% url 'household:expense_edit' project.pk expense.pk %}" x-data>
+                {% csrf_token %}
+                <label for="line-{{ expense.pk }}" class="sr-only">Budget line for this purchase</label>
+                <select id="line-{{ expense.pk }}" name="budget_line" @change="$el.form.submit()"
+                        class="rounded-button border border-border bg-background px-2 py-1 text-xs text-text-secondary">
+                  <option value="">No line</option>
+                  {% for row in budget.lines %}<option value="{{ row.line.pk }}" {% if row.line.pk == expense.budget_line_id %}selected{% endif %}>{{ row.line.label }}</option>{% endfor %}
+                </select>
+                <noscript><button type="submit" class="text-xs text-primary">Save</button></noscript>
+              </form>
+            {% endif %}
+            <form method="post" action="{% url 'household:expense_delete' project.pk expense.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="text-xs text-text-muted hover:text-error">Unlink</button>
+            </form>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</section>

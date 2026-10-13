@@ -30,7 +30,7 @@ manager, not this repo.
 | `OPENAI_API_KEY` | Transaction categorization and QFR narratives | No — both degrade gracefully without it |
 | `FINANCE_CATEGORIZER_MODEL` | Defaults to `gpt-4o-mini` | No |
 | `FINANCE_QFR_MODEL` | Defaults to `gpt-4o-mini` | No |
-| `FINANCE_TIME_ZONE` | What "today" means for periods and alerts. Defaults to `America/Chicago` | No |
+| `HOUSEHOLD_TIME_ZONE` | What "today" means for periods, alerts, and chores. Defaults to `America/Chicago`; the older name `FINANCE_TIME_ZONE` is still honored | No |
 | `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | Alerts and reports | Only if you want email |
 
 ### 3. Create the two accounts
@@ -39,8 +39,8 @@ manager, not this repo.
 heroku run python manage.py create_finance_user david --first-name David --email you@example.com --app datamays
 ```
 
-Group membership in `finance` is what grants access. Each person enrols an
-authenticator app on first sign-in.
+Group membership in `household` is what grants access to every section,
+finance included. Each person enrolls an authenticator app on first sign-in.
 
 ### 4. Seed the categories
 

@@ -3,8 +3,9 @@
 from django import forms
 from django.utils.text import slugify
 
+from household.forms.base import StyledFormMixin
+
 from ..models import Category, CategoryKind
-from .base import StyledFormMixin
 
 
 class CategoryForm(StyledFormMixin, forms.ModelForm):

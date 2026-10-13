@@ -30,13 +30,17 @@ class HelpPageTests(TestCase):
             with self.subTest(heading=heading):
                 self.assertContains(response, heading)
 
-    def test_the_header_menu_links_to_it(self):
+    def test_the_header_menu_leads_to_it(self):
+        """The menu's Help is the household's help page, which links on to
+        this one — every section's help, one tap from any page."""
         user = make_user("david", with_device=True)
         self.client.force_login(user)
         session = self.client.session
         session["otp_device_id"] = TOTPDevice.objects.get(user=user).persistent_id
         session.save()
 
-        response = self.client.get(reverse("finance:home"))
+        home = self.client.get(reverse("finance:home"))
+        self.assertContains(home, reverse("household:help"))
 
-        self.assertContains(response, reverse("finance:help"))
+        household_help = self.client.get(reverse("household:help"))
+        self.assertContains(household_help, reverse("finance:help"))

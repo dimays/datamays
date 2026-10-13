@@ -1,0 +1,23 @@
+{% comment %}
+  A section's own screens, one level below the household sections. Takes
+  `items` (each with href, label, is_active) and `label`, the section's name
+  for screen readers. The trailing padding lets the last pill scroll clear of
+  the faded edge. On load, the current pill is centered in the strip — on a
+  phone, Settings would otherwise start off-screen. scrollLeft rather than
+  scrollIntoView, which would also scroll the page itself.
+{% endcomment %}
+<nav class="section-nav" aria-label="{{ label }}"
+     x-data
+     x-init="const pill = $el.querySelector('[aria-current]'); if (pill) $el.scrollLeft = pill.offsetLeft - ($el.clientWidth - pill.offsetWidth) / 2">
+  <ul class="flex w-max gap-1.5 pr-8 text-sm md:pr-0">
+    {% for item in items %}
+      <li>
+        <a href="{{ item.href }}"
+           class="block whitespace-nowrap rounded-full px-3 py-1.5 transition {% if item.is_active %}bg-muted font-semibold text-text-primary{% else %}text-text-muted hover:bg-surface hover:text-text-secondary{% endif %}"
+           {% if item.is_active %}aria-current="page"{% endif %}>
+          {{ item.label }}
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+</nav>

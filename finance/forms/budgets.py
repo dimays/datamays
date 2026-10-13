@@ -4,7 +4,7 @@ from django import forms
 
 from ..dates import household_today
 from ..models import Account, Budget, Category, CategoryKind
-from .base import StyledFormMixin
+from household.forms.base import StyledFormMixin
 
 
 class BudgetForm(StyledFormMixin, forms.ModelForm):

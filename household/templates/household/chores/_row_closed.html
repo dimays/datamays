@@ -1,0 +1,36 @@
+{% load household_extras %}
+{% comment %}
+  What a row becomes after done or skip: the result, the next due date if
+  there is one, and an undo for the accidental tap. role="status" announces
+  it to screen readers, which otherwise hear nothing when htmx swaps a row.
+{% endcomment %}
+<li id="occurrence-{{ occurrence.pk }}"
+    class="flex items-center gap-3 rounded-card border border-border bg-surface/50 p-3.5">
+  <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full {% if occurrence.status == 'done' %}bg-success/20 text-success{% else %}bg-muted text-text-muted{% endif %}" aria-hidden="true">
+    {% if occurrence.status == "done" %}✓{% else %}–{% endif %}
+  </span>
+
+  {% if announce %}<span class="sr-only" role="status">{{ announce }}</span>{% endif %}
+  <div class="min-w-0 flex-1" role="status">
+    <p class="truncate text-text-muted line-through">{{ occurrence.chore.title }}</p>
+    <p class="mt-0.5 text-xs text-text-muted">
+      {% if undo_refused %}<span class="text-warning">Can't undo — {{ undo_refused }}.</span> {% endif %}{{ occurrence.get_status_display }}{% if occurrence.completed_by_id and occurrence.completed_by_id != request.user.pk %} by {{ occurrence.completed_by.first_name|default:occurrence.completed_by.username }}{% endif %}{% if following %} · Next: {% due_words following today %}{% endif %}
+    </p>
+  </div>
+
+  {% if can_undo %}
+    <form method="post"
+          action="{% url 'household:occurrence_action' occurrence.pk 'undo' %}"
+          hx-post="{% url 'household:occurrence_action' occurrence.pk 'undo' %}"
+          hx-target="#occurrence-{{ occurrence.pk }}"
+          hx-swap="outerHTML"
+          hx-disabled-elt="find button">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next_url|default:request.get_full_path }}" />
+      {% if show_assignee %}<input type="hidden" name="show_assignee" value="1" />{% endif %}
+      <button type="submit" class="rounded-button px-2 py-1 text-xs font-medium text-primary transition hover:bg-primary/10">
+        Undo
+      </button>
+    </form>
+  {% endif %}
+</li>

@@ -1,5 +1,10 @@
+import logging
+
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
+
+
+logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
@@ -27,6 +32,8 @@ class Command(BaseCommand):
             except Exception as exc:  # noqa: BLE001
                 failures.append(f"{name}: {exc}")
                 self.stderr.write(self.style.ERROR(f"{name} failed: {exc}"))
+                # Logged, so Sentry reports it; stderr reaches only the logs.
+                logger.exception("Scheduled step %s failed", name)
 
         if failures:
             raise SystemExit(1)
