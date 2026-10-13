@@ -60,10 +60,17 @@ reassign to first, defaulting to Uncategorized.
 
 ### Load-bearing slugs
 
-Three category slugs are referenced directly in code and marked `is_system`,
+Four category slugs are referenced directly in code and marked `is_system`,
 so the admin and the UI refuse to delete them:
 
-- `uncategorized`
+- `uncategorized`: where the categorizer parks what it can't place. Its
+  kind is **Unclassified**, so nothing in it counts as spend or income until
+  a person files it. (It was expense-kind until 2026-10. Every unplaced
+  deposit, such as paychecks with a new description or a loan paying off a
+  card, was netted against spending as a refund.)
+- `uncategorized-spend`: "Uncategorized Spend", an ordinary expense
+  category for confirmed spending that fits nowhere else. Only a person
+  chooses it; the classifier is never offered it.
 - `transfer-internal`
 - `transfer-card-payment`
 

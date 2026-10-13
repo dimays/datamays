@@ -8,6 +8,7 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
+import requests
 from django.test import SimpleTestCase
 
 from finance.providers.base import ProviderAuthError, ProviderError
@@ -205,3 +206,66 @@ class FetchTests(SimpleTestCase):
 
         with self.assertRaises(ProviderError):
             self.adapter.fetch(access_secret=ACCESS_URL, since=date(2026, 1, 1))
+
+
+@patch("finance.providers.simplefin.time.sleep")
+class RetryTests(SimpleTestCase):
+    """Sep 1–Oct 12, 2026: one hourly sync in five failed on a 60-second read
+    timeout or a 503. A fetch now gets 120 seconds and one more try."""
+
+    def setUp(self):
+        self.adapter = SimpleFINAdapter()
+
+    def fetch(self):
+        return self.adapter.fetch(access_secret=ACCESS_URL, since=date(2026, 1, 1))
+
+    @patch("finance.providers.simplefin.requests.get")
+    def test_a_timeout_is_tried_once_more(self, get, sleep):
+        get.side_effect = [requests.Timeout("read timed out"), response(json_data=ACCOUNTS_PAYLOAD)]
+
+        result = self.fetch()
+
+        self.assertEqual(len(result.accounts), 1)
+        self.assertEqual(get.call_count, 2)
+        sleep.assert_called_once()
+        self.assertEqual(get.call_args.kwargs["timeout"], 120)
+
+    @patch("finance.providers.simplefin.requests.get")
+    def test_a_busy_bridge_is_tried_once_more(self, get, sleep):
+        get.side_effect = [response(status=503), response(json_data=ACCOUNTS_PAYLOAD)]
+
+        self.assertEqual(len(self.fetch().accounts), 1)
+
+    @patch("finance.providers.simplefin.requests.get")
+    def test_two_failures_are_reported_as_before(self, get, sleep):
+        get.side_effect = [requests.Timeout("read timed out"), requests.Timeout("read timed out")]
+
+        with self.assertRaisesRegex(ProviderError, "Could not reach SimpleFIN"):
+            self.fetch()
+        self.assertEqual(get.call_count, 2)
+
+    @patch("finance.providers.simplefin.requests.get")
+    def test_a_second_503_is_reported_as_before(self, get, sleep):
+        get.side_effect = [response(status=503), response(status=503)]
+
+        with self.assertRaisesRegex(ProviderError, "503"):
+            self.fetch()
+
+    @patch("finance.providers.simplefin.requests.get")
+    def test_a_rejected_credential_is_not_retried(self, get, sleep):
+        get.return_value = response(status=403)
+
+        with self.assertRaises(ProviderAuthError):
+            self.fetch()
+        self.assertEqual(get.call_count, 1)
+        sleep.assert_not_called()
+
+    @patch("finance.providers.simplefin.requests.post")
+    def test_claiming_is_never_retried(self, post, sleep):
+        """A setup token works once; a second claim would fail or worse."""
+        post.side_effect = requests.Timeout("read timed out")
+
+        with self.assertRaises(ProviderError):
+            claim_access_url(base64.b64encode(b"https://bridge.simplefin.org/claim/abc").decode())
+        self.assertEqual(post.call_count, 1)
+

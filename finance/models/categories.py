@@ -42,6 +42,11 @@ class CategoryKind(models.TextChoices):
     EXPENSE = "expense", "Expense"
     INCOME = "income", "Income"
     TRANSFER = "transfer", "Transfer"
+    # Only the system "Uncategorized" category. Neither spend nor income: what
+    # the categorizer couldn't place is unknown until a person says what it
+    # is. (It was expense-kind until 2026-10, which counted every unplaced
+    # deposit — paychecks, a loan payoff — as a refund against spending.)
+    UNCLASSIFIED = "unclassified", "Unclassified"
 
 
 class Category(TimestampedModel):

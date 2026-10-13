@@ -13,6 +13,7 @@ is then encrypted at rest.
 
 import base64
 import binascii
+import time
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 
@@ -28,6 +29,16 @@ from .base import (
 )
 
 TIMEOUT_SECONDS = 60
+
+# Fetching accounts. SimpleFIN Bridge is slow and often busy: from Sep 1 to
+# Oct 12, 2026, about one hourly sync in five failed — 195 read timeouts at
+# 60 seconds and six 503s. Fetching only reads, so a slow or busy reply is
+# given longer and one more try after a short pause. (Claiming an access URL
+# is not retried: a setup token works once.)
+FETCH_TIMEOUT_SECONDS = 120
+FETCH_ATTEMPTS = 2
+RETRY_PAUSE_SECONDS = 15
+RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
 
 
 def claim_access_url(setup_token: str) -> str:
@@ -143,10 +154,7 @@ class SimpleFINAdapter:
             "balances-only": 0,
         }
 
-        try:
-            response = requests.get(url, params=params, timeout=TIMEOUT_SECONDS)
-        except requests.RequestException as exc:
-            raise ProviderError(f"Could not reach SimpleFIN: {redact(exc)}") from exc
+        response = self._get_with_retry(url, params)
 
         if response.status_code in (401, 403):
             raise ProviderAuthError(
@@ -161,6 +169,24 @@ class SimpleFINAdapter:
             return response.json()
         except ValueError as exc:
             raise ProviderError("SimpleFIN returned a response that was not JSON.") from exc
+
+    def _get_with_retry(self, url, params):
+        """GET, trying once more after a timeout, a dropped connection, or a
+        busy/erroring reply. Anything else — including a rejected credential —
+        is returned at once for the caller to judge."""
+        for attempt in range(1, FETCH_ATTEMPTS + 1):
+            last = attempt == FETCH_ATTEMPTS
+            try:
+                response = requests.get(url, params=params, timeout=FETCH_TIMEOUT_SECONDS)
+            except (requests.Timeout, requests.ConnectionError) as exc:
+                if last:
+                    raise ProviderError(f"Could not reach SimpleFIN: {redact(exc)}") from exc
+            except requests.RequestException as exc:
+                raise ProviderError(f"Could not reach SimpleFIN: {redact(exc)}") from exc
+            else:
+                if response.status_code not in RETRYABLE_STATUSES or last:
+                    return response
+            time.sleep(RETRY_PAUSE_SECONDS)
 
     def _parse_transactions(self, raw_account):
         parsed = []

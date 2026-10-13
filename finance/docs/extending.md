@@ -141,7 +141,8 @@ uv run python manage.py seed_finance_categories --settings=datamays.settings_tes
 Safe to re-run: matches on slug, never deletes.
 
 **Never change or remove these slugs** — they are referenced directly in code:
-`uncategorized`, `transfer-internal`, `transfer-card-payment`.
+`uncategorized`, `uncategorized-spend`, `transfer-internal`,
+`transfer-card-payment`.
 
 Deleting a category in production cascades to its rules and memos and unfiles
 its transactions. Read the table in [`data-model.md`](data-model.md), and dry-

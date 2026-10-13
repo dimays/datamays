@@ -12,10 +12,15 @@ A few slugs are load-bearing and referenced in code (see SYSTEM_SLUGS).
 """
 
 UNCATEGORIZED_SLUG = "uncategorized"
+UNCATEGORIZED_SPEND_SLUG = "uncategorized-spend"
 TRANSFER_SLUG = "transfer-internal"
 CARD_PAYMENT_SLUG = "transfer-card-payment"
 
-SYSTEM_SLUGS = frozenset({UNCATEGORIZED_SLUG, TRANSFER_SLUG, CARD_PAYMENT_SLUG})
+SYSTEM_SLUGS = frozenset({UNCATEGORIZED_SLUG, UNCATEGORIZED_SPEND_SLUG, TRANSFER_SLUG, CARD_PAYMENT_SLUG})
+
+# Offered to people, never to the classifier: "this is spending, but nothing
+# else fits" is a judgment only a person should make.
+PEOPLE_ONLY_SLUGS = frozenset({UNCATEGORIZED_SPEND_SLUG})
 
 CATEGORY_TREE = [
     {
@@ -146,9 +151,16 @@ CATEGORY_TREE = [
         ],
     },
     {
+        "name": "Uncategorized Spend",
+        "slug": UNCATEGORIZED_SPEND_SLUG,
+        "system": True,
+        "description": "Confirmed spending that fits no other category. Counts toward spend.",
+    },
+    {
         "name": "Uncategorized",
         "slug": UNCATEGORIZED_SLUG,
+        "kind": "unclassified",
         "system": True,
-        "description": "Not yet classified, or genuinely unclassifiable.",
+        "description": "Not yet classified, or genuinely unclassifiable. Never counts as spend or income.",
     },
 ]
