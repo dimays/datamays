@@ -126,8 +126,11 @@ column mapping instead of a live API.
 A tree, capped at three levels deep (`MAX_CATEGORY_DEPTH` in
 `models/categories.py`), seeded from `categories_seed.py` and synced by
 `manage.py seed_finance_categories`. A handful of slugs are load-bearing —
-`uncategorized`, `transfer-internal`, `transfer-card-payment` — referenced
-directly in code and marked `is_system` so the admin refuses to delete them.
+`uncategorized`, `uncategorized-spend`, `transfer-internal`,
+`transfer-card-payment` — referenced directly in code and marked `is_system`
+so the admin refuses to delete them. Uncategorized is its own kind
+(*Unclassified*) and never counts as spend; see
+[`data-model.md`](data-model.md#load-bearing-slugs).
 
 Dropdowns populate via `Category.objects.alphabetical()`
 (`models/categories.py`), not the model's default `Meta.ordering`. The default

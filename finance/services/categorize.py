@@ -23,7 +23,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 
-from ..categories_seed import CARD_PAYMENT_SLUG, TRANSFER_SLUG, UNCATEGORIZED_SLUG
+from ..categories_seed import CARD_PAYMENT_SLUG, PEOPLE_ONLY_SLUGS, TRANSFER_SLUG, UNCATEGORIZED_SLUG
 from ..models import (
     LIABILITY_TYPES,
     Category,
@@ -146,7 +146,8 @@ def category_catalogue():
 
     Only leaves are offered: a parent like "Food" is never the right answer
     when "Groceries" and "Restaurants" exist, and offering both invites
-    inconsistency.
+    inconsistency. "Uncategorized Spend" isn't offered either: only a person
+    decides something is spending that fits nowhere else.
     """
     return [
         {
@@ -156,7 +157,9 @@ def category_catalogue():
         }
         for category in Category.objects.filter(
             is_active=True, children__isnull=True
-        ).select_related("parent")
+        )
+        .exclude(slug__in=PEOPLE_ONLY_SLUGS)
+        .select_related("parent")
     ]
 
 

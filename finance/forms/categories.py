@@ -3,7 +3,7 @@
 from django import forms
 from django.utils.text import slugify
 
-from ..models import Category
+from ..models import Category, CategoryKind
 from .base import StyledFormMixin
 
 
@@ -34,6 +34,13 @@ class CategoryForm(StyledFormMixin, forms.ModelForm):
         self.fields["parent"].required = False
         self.fields["parent"].empty_label = "No parent (top-level)"
         self.fields["description"].required = False
+        # "Unclassified" belongs to the system Uncategorized category alone.
+        if self.instance.kind != CategoryKind.UNCLASSIFIED:
+            self.fields["kind"].choices = [
+                choice for choice in self.fields["kind"].choices if choice[0] != CategoryKind.UNCLASSIFIED
+            ]
+        else:
+            self.fields["kind"].disabled = True
 
     def clean_parent(self):
         parent = self.cleaned_data.get("parent")

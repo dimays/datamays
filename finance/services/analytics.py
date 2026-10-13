@@ -110,6 +110,15 @@ def spend_filter() -> Q:
     positive amount, any category": an *uncategorized* positive transaction
     is far more likely to be income the classifier hasn't reached yet than a
     refund, so that bucket keeps the original amount__lt=0 requirement.
+
+    The system "Uncategorized" category — where the categorizer parks what it
+    couldn't place — is its own kind, UNCLASSIFIED, so nothing in it counts,
+    in or out. It used to be expense-kind, and every paycheck and loan payoff
+    parked there was netted against spending as a refund: September 2026
+    showed -$11k. Spending that genuinely fits nowhere goes in "Uncategorized
+    Spend", an ordinary expense category a person chooses. (A transaction
+    with no category at all, the brief moment between sync and categorize,
+    still counts if it is an outflow, for the reason above.)
     Aggregates built on this Q floor a negative net (more refunded than
     spent) at zero rather than showing a category as having "spent" a
     negative amount — see spend_over_time / spend_by_category.
