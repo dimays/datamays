@@ -392,6 +392,14 @@ class ReportTests(AlertTestCase):
 
 
 class ChainTests(AlertTestCase):
+    def setUp(self):
+        super().setUp()
+        # These tests are about the chain's shape; on a sync hour, whatever
+        # the clock says. SyncEveryThirdHourTests covers the other hours.
+        patcher = patch("finance.management.commands.finance_hourly.sync_due", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_the_hourly_chain_runs_every_step_in_order(self):
         with patch("finance.management.commands.finance_hourly.call_command") as call:
             call_command("finance_hourly", verbosity=0)
@@ -593,3 +601,30 @@ class AlertPrecisionTests(AlertTestCase):
 
         self.assertEqual(fired[0].observed_value, Decimal("1234.56"))
         self.assertIsInstance(fired[0].observed_value, Decimal)
+
+
+class SyncEveryThirdHourTests(TestCase):
+    """SimpleFIN allows roughly 24 requests a day; hourly plus daily made 25.
+    New transactions are now fetched on household hours 0, 3, 6, …"""
+
+    def test_sync_hours_are_every_third_household_hour(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from finance.management.commands.finance_hourly import sync_due
+
+        chicago = ZoneInfo("America/Chicago")
+        due = [hour for hour in range(24) if sync_due(datetime(2026, 10, 12, hour, 5, tzinfo=chicago))]
+
+        self.assertEqual(due, [0, 3, 6, 9, 12, 15, 18, 21])
+
+    def test_other_hours_still_categorize_roll_up_and_alert(self):
+        with patch("finance.management.commands.finance_hourly.sync_due", return_value=False), \
+                patch("finance.management.commands.finance_hourly.call_command") as call:
+            call_command("finance_hourly", verbosity=0)
+
+        self.assertEqual(
+            [c.args[0] for c in call.call_args_list],
+            ["categorize_transactions", "rollup_budgets", "send_alerts"],
+        )
+
