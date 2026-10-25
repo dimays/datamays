@@ -20,3 +20,4 @@ until you know why it was rejected.
 | [0009](0009-one-household-app-one-finance-bridge.md) | One household app, one bridge to finance | Chores, maintenance, projects share one app; finance is read through one module |
 | [0010](0010-structured-schedules-one-open-occurrence.md) | Structured schedules, one open occurrence | Columns not RRULEs; the next occurrence opens when this one closes; misses collapse |
 | [0011](0011-chore-permissions.md) | Chore permissions | Owner manages, either may mark done, household chores are shared |
+| [0012](0012-one-canonical-address-and-a-quiet-robots-txt.md) | One canonical address; robots.txt names nothing private | www everywhere for search; private apps stay unlisted |

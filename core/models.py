@@ -7,6 +7,38 @@ import markdown
 import math
 
 
+def render_markdown(text):
+    return markdown.markdown(
+        text,
+        extensions=[
+            "fenced_code",
+            "codehilite",
+            "tables",
+            "toc",
+        ],
+    )
+
+
+# Where a page's picture can live: a full URL on another site (a project's
+# own preview card), or a path on this one (/static/img/...). A URLField
+# would refuse the second.
+def image_url_field():
+    return models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Full URL, or a path on this site such as /static/img/projects/x.webp. "
+        "Used at the top of the page and as its preview card when shared; 1200×630 is best.",
+    )
+
+
+def image_alt_field():
+    return models.CharField(
+        max_length=300,
+        blank=True,
+        help_text="What the picture shows, for screen readers and search engines.",
+    )
+
+
 class Tag(models.Model):
     name = models.CharField(max_length=50, unique=True)
     slug = models.SlugField(max_length=60, unique=True)
@@ -31,6 +63,9 @@ class Post(models.Model):
 
     tags = models.ManyToManyField(Tag, related_name="posts", blank=True)
 
+    image_url = image_url_field()
+    image_alt = image_alt_field()
+
     published_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -45,15 +80,7 @@ class Post(models.Model):
         if not self.slug:
             self.slug = slugify(self.title)
 
-        self.content_html = markdown.markdown(
-            self.content,
-            extensions=[
-                "fenced_code",
-                "codehilite",
-                "tables",
-                "toc",
-            ],
-        )
+        self.content_html = render_markdown(self.content)
 
         super().save(*args, **kwargs)
 
@@ -91,6 +118,10 @@ class Project(models.Model):
     )
 
     # --- Narrative sections ---
+    overview = models.TextField(
+        blank=True,
+        help_text="[Markdown] What it is and who it's for. Shown first, before the story.",
+    )
     motivation = models.TextField(
         blank=True,
         help_text="[Markdown] Why this project exists. What problem or curiosity drove it?",
@@ -103,14 +134,23 @@ class Project(models.Model):
         blank=True,
         help_text="[Markdown] Key technical or conceptual challenges encountered.",
     )
+    how_its_built = models.TextField(
+        blank=True,
+        help_text="[Markdown] How it's built, and what's notable technically.",
+    )
     lessons_learned = models.TextField(
         blank=True,
         help_text="[Markdown] What I'd do differently, or what this taught me.",
     )
+    overview_html = models.TextField(editable=False, default="")
+    how_its_built_html = models.TextField(editable=False, default="")
     motivation_html = models.TextField(editable=False, default='fallback-value')
     expected_outcome_html = models.TextField(editable=False, default='fallback-value')
     challenges_html = models.TextField(editable=False, default='fallback-value')
     lessons_learned_html = models.TextField(editable=False, default='fallback-value')
+
+    image_url = image_url_field()
+    image_alt = image_alt_field()
 
     # --- Practical details ---
     tech_stack = models.CharField(
@@ -156,45 +196,19 @@ class Project(models.Model):
         if not self.slug:
             self.slug = slugify(self.title)
 
-        self.motivation_html = markdown.markdown(
-            self.motivation,
-            extensions=[
-                "fenced_code",
-                "codehilite",
-                "tables",
-                "toc",
-            ],
-        )
-        self.expected_outcome_html = markdown.markdown(
-            self.expected_outcome,
-            extensions=[
-                "fenced_code",
-                "codehilite",
-                "tables",
-                "toc",
-            ],
-        )
-        self.challenges_html = markdown.markdown(
-            self.challenges,
-            extensions=[
-                "fenced_code",
-                "codehilite",
-                "tables",
-                "toc",
-            ],
-        )
-        self.lessons_learned_html = markdown.markdown(
-            self.lessons_learned,
-            extensions=[
-                "fenced_code",
-                "codehilite",
-                "tables",
-                "toc",
-            ],
-        )
+        self.overview_html = render_markdown(self.overview)
+        self.motivation_html = render_markdown(self.motivation)
+        self.expected_outcome_html = render_markdown(self.expected_outcome)
+        self.challenges_html = render_markdown(self.challenges)
+        self.how_its_built_html = render_markdown(self.how_its_built)
+        self.lessons_learned_html = render_markdown(self.lessons_learned)
 
         super().save(*args, **kwargs)
     
+    @property
+    def tech_stack_list(self):
+        return [t.strip() for t in self.tech_stack.split(",") if t.strip()]
+
     @property
     def blog_post_url(self):
         if self.blog_post_slug:

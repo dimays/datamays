@@ -1,8 +1,9 @@
 {% extends "core/base.html" %}
-{% block title %}Contact - datamays{% endblock %}
+{% load seo %}
+{% block seo %}{% seo_head title="Get in touch" description="Send David Mays a note about a project, a question about data engineering, or anything on this site." %}{% endblock %}
 
 {% block content %}
-<main class="pt-12">
+<div class="pt-12">
   <section class="max-w-2xl mx-auto px-6 py-20">
     
     <header class="mb-12">
@@ -66,5 +67,5 @@
     </form>
 
   </section>
-</main>
+</div>
 {% endblock %}

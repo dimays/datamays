@@ -2,11 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>{% block title %}datamays{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  {% load static %}
+  {% load static seo %}
+  {% block seo %}{% seo_head %}{% endblock %}
+  {% block robots %}{% endblock %}
+  <meta name="author" content="David Mays" />
+  <meta name="theme-color" content="#0B0F19" />
   <link href="{% static 'css/tailwind.css' %}" rel="stylesheet" />
   <link rel="icon" type="image/x-icon" href="{% static 'img/favicon.ico' %}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/favicon-32.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'img/apple-touch-icon.png' %}">
+  {% block structured_data %}{% endblock %}
 </head>
 
 <body class="bg-background text-text-primary font-sans antialiased">

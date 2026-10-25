@@ -1,8 +1,10 @@
 {% extends "core/base.html" %}
-{% block title %}403 Forbidden — datamays{% endblock %}
+{% load seo %}
+{% block seo %}{% seo_head title="Access forbidden" %}{% endblock %}
+{% block robots %}<meta name="robots" content="noindex" />{% endblock %}
 
 {% block content %}
-<main class="pt-24">
+<div class="pt-24">
   <div class="max-w-3xl mx-auto px-6 md:px-0 py-32 text-center">
     
     <!-- Big 403 -->
@@ -21,7 +23,7 @@
       Return Home
     </a>
   </div>
-</main>
+</div>
 
 <script>
   // subtle “datamays” text animation for 403 page

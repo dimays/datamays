@@ -28,7 +28,9 @@ class ProjectAdmin(admin.ModelAdmin):
     search_fields = (
         "title",
         "short_description",
+        "overview",
         "motivation",
+        "how_its_built",
         "challenges",
         "lessons_learned",
     )
@@ -50,6 +52,8 @@ class ProjectAdmin(admin.ModelAdmin):
                     "title",
                     "slug",
                     "short_description",
+                    "image_url",
+                    "image_alt",
                 )
             },
         ),
@@ -61,8 +65,10 @@ class ProjectAdmin(admin.ModelAdmin):
                     "Focus on motivation, tradeoffs, and lessons learned."
                 ),
                 "fields": (
+                    "overview",
                     "motivation",
                     "expected_outcome",
+                    "how_its_built",
                     "challenges",
                     "lessons_learned",
                 ),
@@ -72,8 +78,10 @@ class ProjectAdmin(admin.ModelAdmin):
             None,
             {
                 "fields": (
+                    "overview_html",
                     "motivation_html",
                     "expected_outcome_html",
+                    "how_its_built_html",
                     "challenges_html",
                     "lessons_learned_html",
                 ),
@@ -116,8 +124,10 @@ class ProjectAdmin(admin.ModelAdmin):
     readonly_fields = (
         "created_at",
         "updated_at",
+        "overview_html",
         "motivation_html",
         "expected_outcome_html",
+        "how_its_built_html",
         "challenges_html",
         "lessons_learned_html",
     )
@@ -175,6 +185,8 @@ class PostAdmin(admin.ModelAdmin):
                 "slug",
                 "summary",
                 "tags",
+                "image_url",
+                "image_alt",
             )
         }),
         ("Content", {

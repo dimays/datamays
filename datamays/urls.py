@@ -23,6 +23,8 @@ handler403 = "datamays.views.permission_denied"
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("", include("core.urls")),
+    # Browsers and crawlers ask for /favicon.ico whatever the page links to.
+    path("favicon.ico", RedirectView.as_view(url="/static/img/favicon.ico", permanent=True)),
     path("contact/", include("contact.urls")),
     path("household/", include("household.urls")),
     path("finance/", include("finance.urls")),
