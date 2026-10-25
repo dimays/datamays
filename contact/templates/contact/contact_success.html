@@ -1,8 +1,10 @@
 {% extends "core/base.html" %}
-{% block title %}Contact - datamays{% endblock %}
+{% load seo %}
+{% block seo %}{% seo_head title="Message sent" %}{% endblock %}
+{% block robots %}<meta name="robots" content="noindex" />{% endblock %}
 
 {% block content %}
-<main class="pt-24">
+<div class="pt-24">
   <section class="max-w-2xl mx-auto px-6 py-20 text-center">
     
     <h1 class="text-4xl font-extrabold mb-4">
@@ -21,5 +23,5 @@
     </a>
 
   </section>
-</main>
+</div>
 {% endblock %}

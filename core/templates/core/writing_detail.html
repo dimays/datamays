@@ -1,5 +1,7 @@
 {% extends "core/base.html" %}
-{% block title %}{{ post.title }} — datamays{% endblock %}
+{% load seo %}
+{% block seo %}{% seo_head title=post.title description=post.summary image=post.image_url image_alt=post.image_alt kind="article" %}{% endblock %}
+{% block structured_data %}{% blog_posting_ld post %}{% endblock %}
 
 {% block content %}
 <article class="max-w-3xl mx-auto px-6 md:px-0 py-20">
@@ -17,6 +19,11 @@
       · {{ post.reading_time }} min read
     </div>
   </header>
+
+  {% if post.image_url %}
+  <img src="{{ post.image_url }}" alt="{{ post.image_alt }}" width="1200" height="630"
+       class="w-full h-auto rounded-card border border-border mb-12" fetchpriority="high" />
+  {% endif %}
 
   <!-- Content -->
   <div class="prose prose-neutral prose-invert max-w-none">

@@ -1605,6 +1605,10 @@ a:focus-visible,
   height: 2.25rem;
 }
 
+.h-auto {
+  height: auto;
+}
+
 .h-full {
   height: 100%;
 }

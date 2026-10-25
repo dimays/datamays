@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
-{% block title %}Writing — datamays{% endblock %}
+{% load seo %}
+{% block seo %}{% if active_tag_name %}{% seo_head title="Writing: "|add:active_tag_name description="Essays, technical notes and project write-ups by David Mays on data engineering, systems design and building maintainable software." %}{% else %}{% seo_head title="Writing" description="Essays, technical notes and project write-ups by David Mays on data engineering, systems design and building maintainable software." %}{% endif %}{% endblock %}
 
 {% block content %}
 <section class="max-w-7xl mx-auto px-6 md:px-10 py-20">

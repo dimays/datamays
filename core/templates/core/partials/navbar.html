@@ -5,9 +5,12 @@
     
     <!-- Logo -->
     <a href="{% url 'core:home' %}" class="flex items-center gap-2 group">
+      {# Decorative: the name beside it is the link's text. #}
       <img
-        src="{% static 'img/datamays-logo-transparent.png' %}"
-        alt="datamays logo"
+        src="{% static 'img/datamays-logo-64.png' %}"
+        alt=""
+        width="32"
+        height="32"
         class="h-8 w-8"
       />
       <span class="text-xl font-bold tracking-tight relative">

@@ -102,6 +102,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sitemaps',
     'django_otp',
     'django_otp.plugins.otp_totp',
     'axes',
@@ -289,6 +290,11 @@ FINANCE_CATEGORIZER_MODEL = os.getenv("FINANCE_CATEGORIZER_MODEL", "gpt-4o-mini"
 FINANCE_QFR_MODEL = os.getenv("FINANCE_QFR_MODEL", "gpt-4o-mini")
 
 CONTACT_RECIPIENT_EMAIL = os.getenv("CONTACT_RECIPIENT_EMAIL")
+
+# The one address search engines should list: canonical links, the sitemap,
+# robots.txt and preview cards all name it, whichever host served the page
+# (core/seo.py). Cloudflare redirects the bare domain here.
+SITE_URL = "https://www.datamays.com"
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 

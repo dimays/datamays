@@ -1,15 +1,42 @@
 {% extends "core/base.html" %}
+{% load seo %}
 
-{% block title %}{{ project.title }} — datamays{% endblock %}
+{% block seo %}{% seo_head title=project.title description=project.short_description image=project.image_url image_alt=project.image_alt %}{% endblock %}
+{% block robots %}{% if not project.is_public %}<meta name="robots" content="noindex" />{% endif %}{% endblock %}
 
 {% block content %}
 <section class="max-w-7xl mx-auto px-6 md:px-10 py-20">
   <div class="max-w-3xl">
+    {% if not project.is_public %}
+    <p class="text-warning text-sm mb-4">Hidden: only staff can see this page.</p>
+    {% endif %}
     <h1 class="text-5xl font-bold mb-4">{{ project.title }}</h1>
-    <p class="text-text-secondary text-xl mb-4">{{ project.tagline }}</p>
+    <p class="text-text-secondary text-xl mb-4">{{ project.short_description }}</p>
     <p class="text-text-secondary leading-relaxed mb-8">Status: {{ project.get_status_display }}</p>
 
+    {% if project.tech_stack_list %}
+    <ul class="flex flex-wrap gap-2 mb-8" aria-label="Built with">
+      {% for tech in project.tech_stack_list %}
+      <li class="text-xs px-2 py-1 rounded-full bg-muted text-text-secondary">{{ tech }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if project.image_url %}
+    <img src="{{ project.image_url }}" alt="{{ project.image_alt }}" width="1200" height="630"
+         class="w-full h-auto rounded-card border border-border mb-12" fetchpriority="high" />
+    {% endif %}
+
     <div class="space-y-12">
+      {% if project.overview_html %}
+      <section>
+        <h2 class="text-2xl font-bold mb-3">What It Is</h2>
+        <div class="prose prose-neutral prose-invert max-w-none mb-4">
+          {{ project.overview_html|safe }}
+        </div>
+      </section>
+      {% endif %}
+
       <section>
         {% if project.status == 'in_production' %}
         <h2 class="text-2xl font-bold mb-3">Why I Built This</h2>
@@ -28,7 +55,15 @@
           {{ project.expected_outcome_html|safe }}
         </div>
       </section>
-      
+      {% endif %}
+
+      {% if project.how_its_built_html %}
+      <section>
+        <h2 class="text-2xl font-bold mb-3">How It's Built</h2>
+        <div class="prose prose-neutral prose-invert max-w-none mb-4">
+          {{ project.how_its_built_html|safe }}
+        </div>
+      </section>
       {% endif %}
 
       {% if project.challenges_html %}
@@ -50,20 +85,21 @@
       {% endif %}
     </div>
 
+    {# The buttons say where they go: their words are what a search engine reads as the link's subject. #}
     <div class="mt-16 flex flex-wrap gap-4">
       {% if project.live_url %}
         <a href="{{ project.live_url }}" class="bg-primary hover:bg-primary-600 px-6 py-3 rounded-button font-medium">
-          Explore Project
+          Visit {{ project.title }}
         </a>
       {% endif %}
       {% if project.repo_url %}
         <a href="{{ project.repo_url }}" class="border border-border bg-surface hover:bg-muted px-6 py-3 rounded-button font-medium">
-          View Source Code
+          {{ project.title }} source code
         </a>
       {% endif %}
-      {% if project.blog_post_url %}
+      {% if project.blog_post_slug in published_post_slugs %}
         <a href="{{ project.blog_post_url }}" class="border border-border bg-surface hover:bg-muted px-6 py-3 rounded-button font-medium">
-          Read Full Write-Up
+          Read the full write-up
         </a>
       {% endif %}
     </div>
